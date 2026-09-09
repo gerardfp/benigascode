@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: codelab-backend-test
+  datasource:
+    url: jdbc:h2:mem:codelab_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  flyway:
+    enabled: false # H2 usa hibernate create-drop en tests unitarios
+
+codelab:
+  runner:
+    token: test_runner_secret_token
+  content:
+    storage-path: content-example
+

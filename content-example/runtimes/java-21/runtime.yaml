@@ -1,0 +1,13 @@
+id: "java-21"
+name: "OpenJDK 21 LTS"
+language: "java"
+version: "21"
+image: "eclipse-temurin:21-jdk-alpine"
+image_digest: "sha256:7f4c5464197e416d8a4362b083aa25c6130ebbe89a7413b4d4b3164a6e9a30b2"
+compiler:
+  binary: "javac"
+  version_flag: "-version"
+runner:
+  binary: "java"
+  version_flag: "-version"
+

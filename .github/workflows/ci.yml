@@ -1,0 +1,91 @@
+name: CodeLab Continuous Integration
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend:
+    name: Backend Build & Test (Java 21)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Test with Maven
+        working-directory: backend
+        run: mvn clean test -B
+
+  frontend:
+    name: Frontend Build & Typecheck (Node 22)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: Build Frontend SPA
+        working-directory: frontend
+        run: npm run build
+
+  runner:
+    name: Runner Agent & Sandbox Tests (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: runner
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Evaluator Unit Tests
+        working-directory: runner
+        run: python tests/test_evaluator.py
+
+  docker:
+    name: Docker Builds & ARM64 Multi-Arch Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Runner Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: runner
+          platforms: linux/amd64,linux/arm64
+          push: false
+

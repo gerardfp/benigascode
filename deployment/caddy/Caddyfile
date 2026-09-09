@@ -1,0 +1,39 @@
+{$DOMAIN_NAME:localhost} {
+    # HSTS y cabeceras de seguridad
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
+    }
+
+    # API Backend Reverse Proxy
+    handle /api/* {
+        reverse_proxy backend:8080 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Spring Actuator Health Check (solo /actuator/health)
+    handle /actuator/health {
+        reverse_proxy backend:8080
+    }
+
+    # Denegar acceso al resto de endpoints de actuator
+    handle /actuator/* {
+        respond "Forbidden" 403
+    }
+
+    # Frontend SPA
+    handle {
+        root * /var/www/html
+        try_files {path} /index.html
+        file_server
+    }
+
+    encode gzip zstd
+}
+
