@@ -37,9 +37,9 @@ class TestSandbox(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         try:
             if os.name == 'nt':
-                cmd = ["powershell", "-Command", "Write-Output 'CodeLab OK'"]
+                cmd = ["powershell", "-Command", "Write-Output 'Benigascode OK'"]
             else:
-                cmd = ["echo", "CodeLab OK"]
+                cmd = ["echo", "Benigascode OK"]
 
             res = self.sandbox.execute_in_sandbox(
                 workspace_dir=tmp,
@@ -47,7 +47,7 @@ class TestSandbox(unittest.TestCase):
                 timeout_seconds=3
             )
             self.assertFalse(res.timed_out)
-            self.assertIn("CodeLab OK", res.stdout)
+            self.assertIn("Benigascode OK", res.stdout)
         finally:
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)

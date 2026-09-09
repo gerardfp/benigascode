@@ -113,3 +113,41 @@ export interface PreviewRunResult {
   }[];
 }
 
+export interface GitRepository {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  branch: string;
+  rootPath: string;
+  authType: 'OAUTH_TOKEN' | 'DEPLOY_KEY' | 'PUBLIC';
+  hasToken: boolean;
+  publicKey?: string;
+  lastCommit?: string;
+  lastSyncAt?: string;
+  lastSyncStatus: 'PENDING' | 'SUCCESS' | 'FAILED' | 'IN_PROGRESS';
+  lastSyncError?: string;
+  createdAt: string;
+}
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  html_url: string;
+  clone_url: string;
+  default_branch: string;
+  private: boolean;
+  description?: string;
+}
+
+export interface GitHubConfig {
+  oauthEnabled: boolean;
+  clientId: string;
+  redirectUri: string;
+}
+
+export interface DeployKey {
+  publicKey: string;
+  privateKey: string;
+}
+

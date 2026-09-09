@@ -1,4 +1,4 @@
-# Multi-stage build for CodeLab Frontend SPA (ARM64 & x86_64)
+# Multi-stage build for Benigascode Frontend SPA (ARM64 & x86_64)
 FROM node:22-alpine AS builder
 WORKDIR /app
 
@@ -13,9 +13,27 @@ FROM caddy:2.8-alpine
 COPY --from=builder /app/dist /var/www/html
 COPY <<EOF /etc/caddy/Caddyfile
 :80 {
-    root * /var/www/html
-    try_files {path} /index.html
-    file_server
+    # API Backend Reverse Proxy
+    handle /api/* {
+        reverse_proxy backend:8080 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Health check
+    handle /actuator/health {
+        reverse_proxy backend:8080
+    }
+
+    # Frontend SPA
+    handle {
+        root * /var/www/html
+        try_files {path} /index.html
+        file_server
+    }
+
     encode gzip
 }
 EOF

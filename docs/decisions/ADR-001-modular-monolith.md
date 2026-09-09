@@ -4,12 +4,12 @@
 Aceptado
 
 ## Contexto
-CodeLab es una plataforma educativa para la realización, seguimiento y evaluación automática de ejercicios de programación. El sistema está dimensionado inicialmente para soportar ~50 alumnos concurrentes y ~7 entregas/minuto, desplegado en Oracle Cloud Free Tier (2 OCPU, 12 GB RAM, ARM64).
+Benigascode es una plataforma educativa para la realización, seguimiento y evaluación automática de ejercicios de programación. El sistema está dimensionado inicialmente para soportar ~50 alumnos concurrentes y ~7 entregas/minuto, desplegado en Oracle Cloud Free Tier (2 OCPU, 12 GB RAM, ARM64).
 
 Se requería decidir la arquitectura del backend para satisfacer los requerimientos funcionales de desacoplamiento de capas (`Content`, `Learning`, `Submission`, `Queue`, `Evaluation`, `Results`) sin incurrir en la sobrecarga operativa, consumo de memoria y complejidad de una arquitectura de microservicios distribuida.
 
 ## Decisión
-Implementar el backend de CodeLab como un **Modular Monolith** estructurado por dominios explícitos dentro de un único proceso Spring Boot, complementado con un **Runner Agent Aislado** desacoplado para la ejecución segura del código de los alumnos:
+Implementar el backend de Benigascode como un **Modular Monolith** estructurado por dominios explícitos dentro de un único proceso Spring Boot, complementado con un **Runner Agent Aislado** desacoplado para la ejecución segura del código de los alumnos:
 
 1. **Módulos funcionales del backend:**
    - `identity`: Usuarios, roles, autenticación segura por sesión/cookie HttpOnly y autorización.

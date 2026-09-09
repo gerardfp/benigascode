@@ -1,4 +1,4 @@
-# CodeLab Runner Agent Dockerfile (ARM64 & x86_64)
+# Benigascode Runner Agent Dockerfile (ARM64 & x86_64)
 FROM python:3.12-alpine
 
 WORKDIR /app

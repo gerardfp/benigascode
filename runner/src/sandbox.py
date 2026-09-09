@@ -78,7 +78,7 @@ class Sandbox:
         cpu_limit: float,
         pids_limit: int,
     ) -> ExecutionResult:
-        container_name = f"codelab_sandbox_{int(time.time() * 1000)}"
+        container_name = f"benigascode_sandbox_{int(time.time() * 1000)}"
         docker_cmd = [
             "docker", "run", "--rm", "-i",
             "--name", container_name,

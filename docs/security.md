@@ -1,6 +1,6 @@
-# Modelo y Análisis de Seguridad — CodeLab
+# Modelo y Análisis de Seguridad — Benigascode
 
-El modelo de seguridad de CodeLab asume que:
+El modelo de seguridad de Benigascode asume que:
 1. **El código del alumno es potencialmente malicioso.**
 2. **El frontend nunca es un límite de confianza.**
 3. **El runner es un componente de confianza limitada.**

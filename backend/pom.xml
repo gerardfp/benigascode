@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.codelab</groupId>
-    <artifactId>codelab-backend</artifactId>
+    <groupId>com.benigascode</groupId>
+    <artifactId>benigascode-backend</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>CodeLab Backend</name>
-    <description>Core modular monolith backend for CodeLab programming evaluation platform</description>
+    <name>Benigascode Backend</name>
+    <description>Core modular monolith backend for Benigascode programming evaluation platform</description>
 
     <properties>
         <java.version>21</java.version>

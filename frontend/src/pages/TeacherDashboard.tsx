@@ -68,8 +68,11 @@ export const TeacherDashboard: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Link to="/teacher/sync" className="btn-secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            🐙 Repositorio Git &amp; GitHub
+          </Link>
           <button onClick={handleSync} disabled={isSyncing} className="btn-primary">
-            {isSyncing ? 'Sincronizando...' : '🔄 Sincronizar desde Git'}
+            {isSyncing ? 'Sincronizando...' : '🔄 Sincronizar'}
           </button>
         </div>
       </div>

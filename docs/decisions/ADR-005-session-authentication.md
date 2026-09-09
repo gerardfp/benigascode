@@ -4,7 +4,7 @@
 Aceptado
 
 ## Contexto
-Se evaluó el método de autenticación para la SPA de CodeLab servida bajo el mismo origen a través del reverse proxy Caddy (`/` para frontend, `/api/` para backend).
+Se evaluó el método de autenticación para la SPA de Benigascode servida bajo el mismo origen a través del reverse proxy Caddy (`/` para frontend, `/api/` para backend).
 Almacenar JSON Web Tokens (JWT) en `localStorage` introduce vulnerabilidades severas frente a Cross-Site Scripting (XSS), ya que cualquier script malicioso puede sustraer el token permanentemente. Además, la revocación inmediata de JWTs requiere listas de revocación en Redis, incrementando la complejidad innecesariamente.
 
 ## Decisión

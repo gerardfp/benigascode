@@ -57,7 +57,7 @@ class JavaEvaluator:
             ]
         }
         """
-        temp_dir = tempfile.mkdtemp(prefix="codelab_eval_")
+        temp_dir = tempfile.mkdtemp(prefix="benigascode_eval_")
         try:
             return self._run_evaluation(job_package, temp_dir)
         finally:

@@ -39,6 +39,6 @@ venv/
 Thumbs.db
 
 # Database / Storage data
-/var/lib/codelab/
-/var/backups/codelab/
+/var/lib/benigascode/
+/var/backups/benigascode/
 

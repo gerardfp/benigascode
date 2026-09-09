@@ -1,14 +1,14 @@
 services:
   caddy:
     image: caddy:2.8-alpine
-    container_name: codelab-caddy-prod
+    container_name: benigascode-caddy-prod
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
-      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-admin@codelab.local}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-admin@benigascode.local}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ../frontend/dist:/var/www/html:ro
@@ -17,22 +17,22 @@ services:
     depends_on:
       - backend
     networks:
-      - codelab-prod-net
+      - benigascode-prod-net
 
   postgres:
     image: postgres:18-alpine
-    container_name: codelab-postgres-prod
+    container_name: benigascode-postgres-prod
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-codelab}
-      POSTGRES_USER: ${DB_USER:-codelab_user}
+      POSTGRES_DB: ${DB_NAME:-benigascode}
+      POSTGRES_USER: ${DB_USER:-benigascode_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     networks:
-      - codelab-prod-net
+      - benigascode-prod-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-codelab_user} -d ${DB_NAME:-codelab}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-benigascode_user} -d ${DB_NAME:-benigascode}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,22 +46,22 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    container_name: codelab-backend-prod
+    container_name: benigascode-backend-prod
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-codelab}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-codelab_user}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-benigascode}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-benigascode_user}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       RUNNER_TOKEN: ${RUNNER_TOKEN}
-      CONTENT_STORAGE_PATH: /var/lib/codelab/content
+      CONTENT_STORAGE_PATH: /var/lib/benigascode/content
     volumes:
-      - codelab_prod_content:/var/lib/codelab/content
+      - benigascode_prod_content:/var/lib/benigascode/content
     networks:
-      - codelab-prod-net
+      - benigascode-prod-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 15s
@@ -77,21 +77,21 @@ services:
     build:
       context: ../runner
       dockerfile: Dockerfile
-    container_name: codelab-runner-prod
+    container_name: benigascode-runner-prod
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     environment:
-      CODELAB_API_URL: http://backend:8080/api/v1/runner
+      BENIGASCODE_API_URL: http://backend:8080/api/v1/runner
       RUNNER_TOKEN: ${RUNNER_TOKEN}
       WORKER_ID: runner-prod-01
       MAX_CONCURRENT_JOBS: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - codelab_prod_runner_tmp:/tmp/codelab
+      - benigascode_prod_runner_tmp:/tmp/benigascode
     networks:
-      - codelab-prod-net
+      - benigascode-prod-net
     deploy:
       resources:
         limits:
@@ -99,7 +99,7 @@ services:
           cpus: '1.0'
 
 networks:
-  codelab-prod-net:
+  benigascode-prod-net:
     driver: bridge
     internal: false
 
@@ -107,6 +107,6 @@ volumes:
   caddy_data:
   caddy_config:
   postgres_prod_data:
-  codelab_prod_content:
-  codelab_prod_runner_tmp:
+  benigascode_prod_content:
+  benigascode_prod_runner_tmp:
 

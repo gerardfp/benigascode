@@ -36,16 +36,19 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const lines = value.split('\n');
 
   return (
-    <div style={{
-      display: 'flex',
-      backgroundColor: '#1e293b',
-      borderRadius: '0.375rem',
-      overflow: 'hidden',
-      border: '1px solid #334155',
-      fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-      fontSize: '0.875rem',
-      minHeight: '380px',
-    }}>
+    <div
+      data-language={language}
+      style={{
+        display: 'flex',
+        backgroundColor: '#1e293b',
+        borderRadius: '0.375rem',
+        overflow: 'hidden',
+        border: '1px solid #334155',
+        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+        fontSize: '0.875rem',
+        minHeight: '380px',
+      }}
+    >
       {/* Columna de números de línea */}
       <div style={{
         padding: '0.75rem 0.5rem',
@@ -70,6 +73,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         onKeyDown={handleKeyDown}
         disabled={disabled}
         spellCheck={false}
+        aria-label={`Editor de código (${language})`}
         style={{
           flex: 1,
           padding: '0.75rem',

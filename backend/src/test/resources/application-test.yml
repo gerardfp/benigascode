@@ -1,8 +1,8 @@
 spring:
   application:
-    name: codelab-backend-test
+    name: benigascode-backend-test
   datasource:
-    url: jdbc:h2:mem:codelab_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:mem:benigascode_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
@@ -13,7 +13,7 @@ spring:
   flyway:
     enabled: false # H2 usa hibernate create-drop en tests unitarios
 
-codelab:
+benigascode:
   runner:
     token: test_runner_secret_token
   content:

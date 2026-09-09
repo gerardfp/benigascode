@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -163,5 +163,48 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
+
+  // Git Repositories & GitHub OAuth
+  getGitHubConfig: (): Promise<GitHubConfig> =>
+    request<GitHubConfig>('/teacher/github/config'),
+
+  getGitHubAuthUrl: (): Promise<{ url: string }> =>
+    request<{ url: string }>('/teacher/github/auth-url'),
+
+  exchangeGitHubCode: (code: string): Promise<{ accessToken: string }> =>
+    request<{ accessToken: string }>('/teacher/github/exchange-code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+
+  getGitHubRepos: (token: string): Promise<GitHubRepo[]> =>
+    request<GitHubRepo[]>(`/teacher/github/repos?token=${encodeURIComponent(token)}`),
+
+  generateDeployKey: (): Promise<DeployKey> =>
+    request<DeployKey>('/teacher/github/generate-deploy-key', { method: 'POST' }),
+
+  getLinkedRepository: (): Promise<GitRepository | null> =>
+    request<GitRepository | null>('/teacher/github/repository'),
+
+  linkRepository: (data: {
+    name: string;
+    repositoryUrl: string;
+    branch?: string;
+    rootPath?: string;
+    authType: string;
+    authToken?: string;
+    publicKey?: string;
+    privateKey?: string;
+  }): Promise<GitRepository> =>
+    request<GitRepository>('/teacher/github/link-repo', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  syncLinkedRepository: (id: string): Promise<any> =>
+    request<any>(`/teacher/github/repository/${id}/sync`, { method: 'POST' }),
+
+  unlinkRepository: (id: string): Promise<void> =>
+    request<void>(`/teacher/github/repository/${id}`, { method: 'DELETE' }),
 };
 

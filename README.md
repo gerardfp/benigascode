@@ -1,6 +1,6 @@
-# CodeLab — Plataforma Educativa de Programación con Evaluación Automática
+# Benigascode — Plataforma Educativa de Programación con Evaluación Automática
 
-CodeLab es una plataforma diseñada para la práctica, seguimiento y evaluación automática de ejercicios de programación con retroalimentación inmediata para el alumnado y herramientas integrales de gestión docente para el profesorado.
+Benigascode es una plataforma diseñada para la práctica, seguimiento y evaluación automática de ejercicios de programación con retroalimentación inmediata para el alumnado y herramientas integrales de gestión docente para el profesorado.
 
 El sistema se compone de un **Modular Monolith en Spring Boot** y un **Runner de Evaluación Aislado** que ejecuta código en sandboxes de Docker con restricciones estrictas de seguridad.
 
@@ -45,8 +45,8 @@ Diseñado y optimizado para despliegue en **Oracle Cloud Always Free (ARM64, 2 O
 ### Pasos
 1. Clonar el repositorio y copiar el archivo de variables de entorno:
    ```bash
-   git clone <URL_REPOSITORIO> codelab
-   cd codelab
+   git clone <URL_REPOSITORIO> benigascode
+   cd benigascode
    cp .env.example .env
    ```
 
@@ -63,9 +63,9 @@ Diseñado y optimizado para despliegue en **Oracle Cloud Always Free (ARM64, 2 O
 ### Credenciales de Prueba (Inicializadas en BD)
 | Rol | Usuario | Contraseña |
 |---|---|---|
-| **Profesor** | `teacher@codelab.local` | `TeacherPass123!` |
-| **Alumno** | `student@codelab.local` | `StudentPass123!` |
-| **Administrador** | `admin@codelab.local` | `AdminPass123!` |
+| **Profesor** | `teacher@benigascode.local` | `TeacherPass123!` |
+| **Alumno** | `student@benigascode.local` | `StudentPass123!` |
+| **Administrador** | `admin@benigascode.local` | `AdminPass123!` |
 
 ---
 
@@ -84,7 +84,7 @@ Diseñado y optimizado para despliegue en **Oracle Cloud Always Free (ARM64, 2 O
 ## 4. Despliegue en Producción (Oracle Cloud ARM64)
 
 El procedimiento completo paso a paso se encuentra documentado en:
-👉 [docs/deployment-oracle.md](file:///c:/Users/gerard/Desktop/codecheck/docs/deployment-oracle.md)
+👉 [docs/deployment-oracle.md](file:///c:/Users/gerard/Desktop/benigascode/docs/deployment-oracle.md)
 
 Comando de arranque en producción:
 ```bash
@@ -95,16 +95,16 @@ docker compose -f deployment/docker-compose.prod.yml up -d
 
 ## 5. Documentación Técnica del Repositorio
 
-- [Arquitectura del Sistema](file:///c:/Users/gerard/Desktop/codecheck/docs/architecture.md)
-- [Especificación de la API REST](file:///c:/Users/gerard/Desktop/codecheck/docs/api.md)
-- [Modelo de Base de Datos y Migraciones](file:///c:/Users/gerard/Desktop/codecheck/docs/database.md)
-- [Formato y Validación de Contenidos Git](file:///c:/Users/gerard/Desktop/codecheck/docs/content-format.md)
-- [Modelo y Análisis de Seguridad](file:///c:/Users/gerard/Desktop/codecheck/docs/security.md)
-- [Guía de Pruebas Automatizadas](file:///c:/Users/gerard/Desktop/codecheck/docs/testing.md)
-- [Registro de Decisiones de Arquitectura (ADRs)](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions.md)
-  - [ADR-001: Modular Monolith](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions/ADR-001-modular-monolith.md)
-  - [ADR-002: Cola de Evaluación en PostgreSQL](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions/ADR-002-postgresql-queue.md)
-  - [ADR-003: Versionado Inmutable de Actividades](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions/ADR-003-activity-versioning.md)
-  - [ADR-004: Aislamiento del Runner](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions/ADR-004-runner-isolation.md)
-  - [ADR-005: Autenticación con Cookies HttpOnly](file:///c:/Users/gerard/Desktop/codecheck/docs/decisions/ADR-005-session-authentication.md)
+- [Arquitectura del Sistema](file:///c:/Users/gerard/Desktop/benigascode/docs/architecture.md)
+- [Especificación de la API REST](file:///c:/Users/gerard/Desktop/benigascode/docs/api.md)
+- [Modelo de Base de Datos y Migraciones](file:///c:/Users/gerard/Desktop/benigascode/docs/database.md)
+- [Formato y Validación de Contenidos Git](file:///c:/Users/gerard/Desktop/benigascode/docs/content-format.md)
+- [Modelo y Análisis de Seguridad](file:///c:/Users/gerard/Desktop/benigascode/docs/security.md)
+- [Guía de Pruebas Automatizadas](file:///c:/Users/gerard/Desktop/benigascode/docs/testing.md)
+- [Registro de Decisiones de Arquitectura (ADRs)](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions.md)
+  - [ADR-001: Modular Monolith](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions/ADR-001-modular-monolith.md)
+  - [ADR-002: Cola de Evaluación en PostgreSQL](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions/ADR-002-postgresql-queue.md)
+  - [ADR-003: Versionado Inmutable de Actividades](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions/ADR-003-activity-versioning.md)
+  - [ADR-004: Aislamiento del Runner](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions/ADR-004-runner-isolation.md)
+  - [ADR-005: Autenticación con Cookies HttpOnly](file:///c:/Users/gerard/Desktop/benigascode/docs/decisions/ADR-005-session-authentication.md)
 

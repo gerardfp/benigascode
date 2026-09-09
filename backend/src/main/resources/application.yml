@@ -1,13 +1,13 @@
 spring:
   application:
-    name: codelab-backend
+    name: benigascode-backend
   profiles:
     active: dev
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/codelab}
-    username: ${SPRING_DATASOURCE_USERNAME:codelab_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:codelab_password}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/benigascode}
+    username: ${SPRING_DATASOURCE_USERNAME:benigascode_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:benigascode_password}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -43,9 +43,14 @@ management:
     health:
       show-details: when_authorized
 
-codelab:
+benigascode:
   runner:
     token: ${RUNNER_TOKEN:dev_runner_token_secure_12345}
   content:
-    storage-path: ${CONTENT_STORAGE_PATH:/var/lib/codelab/content}
+    storage-path: ${CONTENT_STORAGE_PATH:/var/lib/benigascode/content}
+  github:
+    client-id: ${GITHUB_CLIENT_ID:}
+    client-secret: ${GITHUB_CLIENT_SECRET:}
+    redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:3000/teacher/sync/github/callback}
+
 

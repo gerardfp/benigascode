@@ -1,4 +1,4 @@
-# Estrategia y Guía de Pruebas — CodeLab
+# Estrategia y Guía de Pruebas — Benigascode
 
 ## 1. Niveles de Pruebas
 

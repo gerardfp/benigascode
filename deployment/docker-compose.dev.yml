@@ -1,19 +1,19 @@
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: codelab-postgres-dev
+    container_name: benigascode-postgres-dev
     environment:
-      POSTGRES_DB: codelab
-      POSTGRES_USER: codelab_user
-      POSTGRES_PASSWORD: codelab_password
+      POSTGRES_DB: benigascode
+      POSTGRES_USER: benigascode_user
+      POSTGRES_PASSWORD: benigascode_password
     ports:
       - "5432:5432"
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - benigascode_postgres_dev_data:/var/lib/postgresql/data
     networks:
-      - codelab-dev-net
+      - benigascode-dev-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U codelab_user -d codelab"]
+      test: ["CMD-SHELL", "pg_isready -U benigascode_user -d benigascode"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,23 +22,23 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    container_name: codelab-backend-dev
+    container_name: benigascode-backend-dev
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/codelab
-      SPRING_DATASOURCE_USERNAME: codelab_user
-      SPRING_DATASOURCE_PASSWORD: codelab_password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/benigascode
+      SPRING_DATASOURCE_USERNAME: benigascode_user
+      SPRING_DATASOURCE_PASSWORD: benigascode_password
       RUNNER_TOKEN: dev_runner_token_secure_12345
-      CONTENT_STORAGE_PATH: /var/lib/codelab/content
+      CONTENT_STORAGE_PATH: /var/lib/benigascode/content
     volumes:
-      - codelab_content_data:/var/lib/codelab/content
+      - benigascode_content_data:/var/lib/benigascode/content
     ports:
       - "8080:8080"
     networks:
-      - codelab-dev-net
+      - benigascode-dev-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -49,39 +49,39 @@ services:
     build:
       context: ../runner
       dockerfile: Dockerfile
-    container_name: codelab-runner-dev
+    container_name: benigascode-runner-dev
     depends_on:
       backend:
         condition: service_healthy
     environment:
-      CODELAB_API_URL: http://backend:8080/api/v1/runner
+      BENIGASCODE_API_URL: http://backend:8080/api/v1/runner
       RUNNER_TOKEN: dev_runner_token_secure_12345
       WORKER_ID: runner-dev-01
       MAX_CONCURRENT_JOBS: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - codelab_runner_tmp:/tmp/codelab
+      - benigascode_runner_tmp:/tmp/benigascode
     networks:
-      - codelab-dev-net
+      - benigascode-dev-net
 
   frontend:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    container_name: codelab-frontend-dev
+    container_name: benigascode-frontend-dev
     ports:
       - "3000:80"
     depends_on:
       - backend
     networks:
-      - codelab-dev-net
+      - benigascode-dev-net
 
 networks:
-  codelab-dev-net:
+  benigascode-dev-net:
     driver: bridge
 
 volumes:
-  postgres_dev_data:
-  codelab_content_data:
-  codelab_runner_tmp:
+  benigascode_postgres_dev_data:
+  benigascode_content_data:
+  benigascode_runner_tmp:
 

@@ -1,4 +1,4 @@
--- CodeLab Initial Database Schema
+-- Benigascode Initial Database Schema
 -- Compatible with PostgreSQL 16+ / 18
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

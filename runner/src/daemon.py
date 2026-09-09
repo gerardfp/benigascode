@@ -15,11 +15,11 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] [RunnerDaemon] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("CodeLabRunner")
+logger = logging.getLogger("BenigascodeRunner")
 
 class RunnerDaemon:
     def __init__(self):
-        self.api_url = os.environ.get("CODELAB_API_URL", "http://localhost:8080/api/v1/runner").rstrip("/")
+        self.api_url = os.environ.get("BENIGASCODE_API_URL", "http://localhost:8080/api/v1/runner").rstrip("/")
         self.token = os.environ.get("RUNNER_TOKEN", "dev_runner_token_secure_12345")
         self.worker_id = os.environ.get("WORKER_ID", "runner-local-01")
         self.poll_interval = float(os.environ.get("POLL_INTERVAL_SECONDS", "3.0"))
@@ -54,7 +54,7 @@ class RunnerDaemon:
                 logger.warning(f"Respuesta inesperada al reclamar trabajo: HTTP {res.status_code} - {res.text}")
                 return None
         except requests.RequestException as e:
-            logger.debug(f"No se pudo contactar con backend CodeLab: {e}")
+            logger.debug(f"No se pudo contactar con backend Benigascode: {e}")
             return None
 
     def send_heartbeat(self, job_id: str, stop_event: threading.Event):

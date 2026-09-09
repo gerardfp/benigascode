@@ -1,4 +1,4 @@
-# CodeLab Java 21 Sandbox Execution Environment
+# Benigascode Java 21 Sandbox Execution Environment
 FROM eclipse-temurin:21-jdk-alpine
 
 # Crear usuario sin privilegios para ejecutar código de alumno

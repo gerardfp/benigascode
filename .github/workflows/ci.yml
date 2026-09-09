@@ -1,4 +1,4 @@
-name: CodeLab Continuous Integration
+name: Benigascode Continuous Integration
 
 on:
   push:

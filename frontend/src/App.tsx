@@ -8,6 +8,8 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { ExerciseView } from './pages/ExerciseView';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherActivityView } from './pages/TeacherActivityView';
+import { GitSyncView } from './pages/GitSyncView';
+import { GitHubCallbackView } from './pages/GitHubCallbackView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +25,7 @@ export const App: React.FC = () => {
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#64748b' }}>Iniciando CodeLab...</p>
+        <p style={{ color: '#64748b' }}>Iniciando Benigascode...</p>
       </div>
     );
   }
@@ -64,6 +66,26 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <TeacherActivityView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/sync"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <GitSyncView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/sync/github/callback"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <GitHubCallbackView />
               ) : (
                 <Navigate to="/" replace />
               )

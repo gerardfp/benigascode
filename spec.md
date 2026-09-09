@@ -1,8 +1,8 @@
-# CodeLab — Especificación funcional v0.2
+# Benigascode — Especificación funcional v0.2
 
 ## 1. Concepto general
 
-CodeLab es una plataforma para la realización, seguimiento y evaluación automática de ejercicios de programación.
+Benigascode es una plataforma para la realización, seguimiento y evaluación automática de ejercicios de programación.
 
 Su objetivo es proporcionar al alumnado un entorno para practicar programación y recibir retroalimentación inmediata, y al profesorado una herramienta para crear, organizar, distribuir, evaluar y analizar actividades de programación.
 
@@ -10,9 +10,9 @@ El sistema tendrá tres actores principales:
 
 * **Alumno**: consulta las actividades que tiene disponibles, realiza ejercicios, envía soluciones y consulta su progreso.
 * **Profesor**: administra cursos, grupos, colecciones, actividades, alumnos y resultados.
-* **Sistema CodeLab**: sincroniza contenidos, gestiona entregas, ejecuta las soluciones, realiza las evaluaciones y registra los resultados.
+* **Sistema Benigascode**: sincroniza contenidos, gestiona entregas, ejecuta las soluciones, realiza las evaluaciones y registra los resultados.
 
-Los **contenidos docentes se almacenan en un repositorio privado de GitHub propiedad del profesor**. CodeLab sincroniza dichos contenidos, pero el alumno nunca tiene acceso directo al repositorio de contenidos.
+Los **contenidos docentes se almacenan en un repositorio privado de GitHub propiedad del profesor**. Benigascode sincroniza dichos contenidos, pero el alumno nunca tiene acceso directo al repositorio de contenidos.
 
 El sistema deberá separar claramente:
 
@@ -458,7 +458,7 @@ Europe/Madrid
 
 # 15. Visibilidad de colecciones
 
-CodeLab **no tendrá un catálogo global de ejercicios visible para el alumno**.
+Benigascode **no tendrá un catálogo global de ejercicios visible para el alumno**.
 
 No deberá existir una operación equivalente a:
 
@@ -482,7 +482,7 @@ Actividad
 Entrega
 ```
 
-La existencia de un ejercicio en CodeLab no implica que el alumno pueda saber que existe.
+La existencia de un ejercicio en Benigascode no implica que el alumno pueda saber que existe.
 
 ---
 
@@ -494,7 +494,7 @@ Una colección pública podrá ser descubierta por los usuarios según la config
 
 No necesitará una clave de acceso.
 
-Sin embargo, para realizar entregas el usuario deberá disponer de una cuenta CodeLab.
+Sin embargo, para realizar entregas el usuario deberá disponer de una cuenta Benigascode.
 
 ---
 
@@ -518,7 +518,7 @@ Alumno
    ↓
 Introduce clave
    ↓
-CodeLab valida
+Benigascode valida
    ↓
 Se crea autorización
    ↓
@@ -644,7 +644,7 @@ No deberá producirse una situación en la que:
 ```text
 Tests locales → versión antigua
 
-Tests CodeLab → versión nueva
+Tests Benigascode → versión nueva
 ```
 
 sin que el sistema pueda detectarlo.
@@ -1146,12 +1146,12 @@ Las pruebas preliminares no deberán consumir un intento oficial salvo que la ac
 
 # 41. Ejecución local de tests
 
-Para GitHub, CodeLab podrá proporcionar los tests públicos para ejecución local.
+Para GitHub, Benigascode podrá proporcionar los tests públicos para ejecución local.
 
 Por ejemplo:
 
 ```text
-codelab test
+benigascode test
 ```
 
 o mediante una estructura de proyecto preparada.
@@ -1250,7 +1250,7 @@ con:
 
 GitHub será un mecanismo de entrega opcional.
 
-Inicialmente CodeLab podrá funcionar únicamente mediante web.
+Inicialmente Benigascode podrá funcionar únicamente mediante web.
 
 Posteriormente podrá conectarse el repositorio del alumno.
 
@@ -1272,10 +1272,10 @@ Otros ───────────┘
 
 # 46. Repositorio GitHub del alumno
 
-Al conectar GitHub, CodeLab podrá crear una estructura de ejercicios:
+Al conectar GitHub, Benigascode podrá crear una estructura de ejercicios:
 
 ```text
-codelab/
+benigascode/
 ├── ejercicio-1/
 ├── ejercicio-2/
 ├── ejercicio-3/
@@ -1301,7 +1301,7 @@ git push
    ↓
 GitHub
    ↓
-CodeLab
+Benigascode
    ↓
 Submission
    ↓
@@ -1323,9 +1323,9 @@ Toda entrega procedente de GitHub deberá almacenar:
 * rama
 * commit SHA
 * fecha del commit
-* fecha de recepción por CodeLab
+* fecha de recepción por Benigascode
 
-CodeLab evaluará siempre el **commit exacto**, nunca simplemente el estado actual de la rama.
+Benigascode evaluará siempre el **commit exacto**, nunca simplemente el estado actual de la rama.
 
 Esto evitará que una evaluación histórica cambie porque posteriormente el alumno haya realizado otro push.
 
@@ -1364,7 +1364,7 @@ El repositorio del alumno deberá considerarse un entorno controlado por el alum
 
 No se deberán almacenar en él:
 
-* secretos de CodeLab
+* secretos de Benigascode
 * credenciales GitHub del profesor
 * tests privados
 * credenciales de la base de datos
@@ -1381,13 +1381,13 @@ La integración deberá utilizar mecanismos de GitHub apropiados para recibir ev
 El profesor dispondrá de un repositorio privado de contenidos:
 
 ```text
-codelab-exercises
+benigascode-exercises
 ```
 
 Ejemplo conceptual:
 
 ```text
-codelab-exercises/
+benigascode-exercises/
 │
 ├── collections/
 │
@@ -1400,7 +1400,7 @@ codelab-exercises/
 
 La estructura exacta se definirá posteriormente.
 
-CodeLab tendrá acceso de lectura al repositorio.
+Benigascode tendrá acceso de lectura al repositorio.
 
 ---
 
@@ -1416,7 +1416,7 @@ GitHub será la fuente de verdad de:
 * ejemplos
 * metadatos docentes
 
-La base de datos de CodeLab contendrá la información necesaria para:
+La base de datos de Benigascode contendrá la información necesaria para:
 
 * búsquedas internas
 * relaciones
@@ -1442,7 +1442,7 @@ git push
    ↓
 GitHub
    ↓
-CodeLab
+Benigascode
    ↓
 Validación
    ↓
@@ -1474,7 +1474,7 @@ GitHub:
     v6 → ERROR
 ```
 
-CodeLab deberá conservar:
+Benigascode deberá conservar:
 
 ```text
 v5 → publicada
@@ -1489,7 +1489,7 @@ No deberá producirse una actualización parcial de la plataforma.
 
 # 55. Validación del repositorio
 
-CodeLab deberá validar:
+Benigascode deberá validar:
 
 * estructura
 * sintaxis de configuración
@@ -1541,7 +1541,7 @@ Contendrá:
 * configuración técnica
 * material docente
 
-### CodeLab
+### Benigascode
 
 Gestionará:
 
@@ -1773,7 +1773,7 @@ Los profesores solo deberán acceder a los cursos y alumnos que tengan autorizad
 
 # 67. Identidad y autenticación
 
-Cada alumno tendrá una cuenta CodeLab.
+Cada alumno tendrá una cuenta Benigascode.
 
 Como mínimo:
 
@@ -1886,7 +1886,7 @@ Runner 3
 Runner N
 ```
 
-sin modificar el resto de CodeLab.
+sin modificar el resto de Benigascode.
 
 ---
 
@@ -1957,7 +1957,7 @@ Los logs técnicos podrán tener una política de retención diferente.
 
 # 76. Privacidad
 
-CodeLab deberá almacenar únicamente los datos necesarios.
+Benigascode deberá almacenar únicamente los datos necesarios.
 
 El alumno solo podrá acceder a sus propios resultados.
 
@@ -1969,7 +1969,7 @@ Los rankings y estadísticas públicas deberán respetar la configuración de pr
 
 # 77. Gamificación
 
-CodeLab podrá incorporar un sistema de gamificación orientado a mejorar la motivación y la práctica.
+Benigascode podrá incorporar un sistema de gamificación orientado a mejorar la motivación y la práctica.
 
 Se podrán utilizar:
 
@@ -2167,7 +2167,7 @@ si dichas operaciones revelan contenido no autorizado.
 La arquitectura deberá separar:
 
 ```text
-                    CODELAB
+                    BENIGASCODE
                        │
        ┌───────────────┼────────────────┐
        │               │                │
@@ -2247,7 +2247,7 @@ Conceptualmente:
 VPS
 │
 ├── Reverse Proxy
-├── CodeLab API
+├── Benigascode API
 ├── PostgreSQL
 ├── Queue
 ├── Runner
@@ -2559,7 +2559,7 @@ Añadir:
 
 # 102. Principios arquitectónicos fundamentales
 
-CodeLab deberá respetar las siguientes reglas:
+Benigascode deberá respetar las siguientes reglas:
 
 ### 1. El catálogo no es público
 
@@ -2603,7 +2603,7 @@ Un fallo del sistema no deberá consumir automáticamente un intento.
 
 ### 11. El contenido y la configuración docente están separados
 
-GitHub contiene el contenido; CodeLab gestiona su utilización.
+GitHub contiene el contenido; Benigascode gestiona su utilización.
 
 ### 12. Las versiones publicadas deben ser reproducibles
 
@@ -2630,7 +2630,7 @@ GitHub
    │
    │ 500 ejercicios
    ▼
-CodeLab
+Benigascode
    │
    ├── Colección pública A → alumnos
    ├── Colección pública B → alumnos
@@ -2695,21 +2695,21 @@ Credenciales
 +
 Base de datos
 +
-Secretos de CodeLab
+Secretos de Benigascode
 ```
 
 El runner deberá recibir únicamente aquello que necesita para realizar una evaluación aislada.
 
 ---
 
-# 106. Objetivo final de CodeLab
+# 106. Objetivo final de Benigascode
 
-CodeLab no se limitará a ser un autograder.
+Benigascode no se limitará a ser un autograder.
 
 La plataforma deberá evolucionar hacia:
 
 ```text
-                    CODELAB
+                    BENIGASCODE
                        │
        ┌───────────────┼────────────────┐
        │               │                │
@@ -2758,6 +2758,6 @@ Estas decisiones deberán respetar el modelo conceptual definido en esta especif
 
 # 108. Exclusión explícita
 
-CodeLab **no incluirá inicialmente un sistema automático de detección de plagio o similitud entre soluciones**.
+Benigascode **no incluirá inicialmente un sistema automático de detección de plagio o similitud entre soluciones**.
 
 La arquitectura deberá, no obstante, mantener las entregas almacenadas de forma que pueda incorporarse cualquier mecanismo futuro de análisis de código si posteriormente se considera necesario.

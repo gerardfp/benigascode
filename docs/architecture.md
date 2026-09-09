@@ -1,12 +1,12 @@
-# Arquitectura del Sistema — CodeLab
+# Arquitectura del Sistema — Benigascode
 
 ## 1. Visión General
 
-CodeLab es una plataforma diseñada para la práctica, seguimiento y evaluación automática de código de programación en contextos educativos.
+Benigascode es una plataforma diseñada para la práctica, seguimiento y evaluación automática de código de programación en contextos educativos.
 
 El sistema se compone de dos subsistemas principales:
-1. **CodeLab Modular Monolith (Core App):** Gestiona la identidad, cursos, actividades docentes, contenidos, sincronización, recepción inmutable de entregas y cola de evaluación.
-2. **CodeLab Runner Agent (Evaluation Engine):** Proceso desacoplado que reclama trabajos de evaluación de forma atómica y los ejecuta en sandboxes efímeros de Docker.
+1. **Benigascode Modular Monolith (Core App):** Gestiona la identidad, cursos, actividades docentes, contenidos, sincronización, recepción inmutable de entregas y cola de evaluación.
+2. **Benigascode Runner Agent (Evaluation Engine):** Proceso desacoplado que reclama trabajos de evaluación de forma atómica y los ejecuta en sandboxes efímeros de Docker.
 
 ```text
                                 INTERNET
@@ -60,7 +60,7 @@ EVALUACIÓN (Evaluation inmutable + TestResults detallados)
 HISTORIAL Y PROGRESO (StudentActivityState, AuditEvent)
 ```
 
-## 3. Módulos del Backend (`com.codelab`)
+## 3. Módulos del Backend (`com.benigascode`)
 
 1. **`identity`**: Gestión de usuarios (`STUDENT`, `TEACHER`, `ADMIN`), login/logout, sesiones por cookies HttpOnly con SameSite, hashing Argon2id.
 2. **`content`**: Modelo de ejercicios y colecciones, versionado inmutable, parser y validador de contenido YAML, importación atómica desde repositorios Git.

@@ -1,4 +1,4 @@
-# Multi-stage build for CodeLab Backend (ARM64 & x86_64 compatible)
+# Multi-stage build for Benigascode Backend (ARM64 & x86_64 compatible)
 FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /app
 
@@ -15,18 +15,18 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Crear usuario y grupo sin privilegios
-RUN addgroup -S codelab && adduser -S codelab -G codelab
+RUN addgroup -S benigascode && adduser -S benigascode -G benigascode
 
-# Instalar curl para Docker healthcheck
-RUN apk add --no-cache curl
+# Instalar curl, git y openssh-client (preparado también para Fase 2)
+RUN apk add --no-cache curl git openssh-client
 
-# Directorio de artefactos de contenido inmutables
-RUN mkdir -p /var/lib/codelab/content && chown -R codelab:codelab /var/lib/codelab
+# Directorios de artefactos y repositorios
+RUN mkdir -p /var/lib/benigascode/content /var/lib/benigascode/repos && chown -R benigascode:benigascode /var/lib/benigascode
 
-COPY --from=builder /app/target/codelab-backend-*.jar app.jar
-RUN chown -R codelab:codelab /app
+COPY --from=builder /app/target/benigascode-backend-*.jar app.jar
+RUN chown -R benigascode:benigascode /app
 
-USER codelab:codelab
+USER benigascode:benigascode
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

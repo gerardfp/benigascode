@@ -1,13 +1,13 @@
--- CodeLab Seed Data for Development and Testing
+-- Benigascode Seed Data for Development and Testing
 -- Passwords:
---   admin@codelab.local   -> AdminPass123!
---   teacher@codelab.local -> TeacherPass123!
---   student@codelab.local -> StudentPass123!
+--   admin@benigascode.local   -> AdminPass123!
+--   teacher@benigascode.local -> TeacherPass123!
+--   student@benigascode.local -> StudentPass123!
 
 INSERT INTO users (id, username, password_hash, full_name, role, enabled) VALUES
-('11111111-1111-1111-1111-111111111111', 'admin@codelab.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$B9uJ5B8x2yB8O3+h3sZkQ2mE0K9eX/6xM5vQ8rB4pL4', 'Administrador General', 'ADMIN', true),
-('22222222-2222-2222-2222-222222222222', 'teacher@codelab.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$Y8sH6N9w3zC9P4+j4tAlR3nF1L0fY/7yN6wR9sC5qM5', 'Profesor García', 'TEACHER', true),
-('33333333-3333-3333-3333-333333333333', 'student@codelab.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$W7rG5M8v2yB8O3+i3sZkQ2mE0K9eX/6xM5vQ8rB4pL4', 'Alumno Demo', 'STUDENT', true)
+('11111111-1111-1111-1111-111111111111', 'admin@benigascode.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$B9uJ5B8x2yB8O3+h3sZkQ2mE0K9eX/6xM5vQ8rB4pL4', 'Administrador General', 'ADMIN', true),
+('22222222-2222-2222-2222-222222222222', 'teacher@benigascode.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$Y8sH6N9w3zC9P4+j4tAlR3nF1L0fY/7yN6wR9sC5qM5', 'Profesor García', 'TEACHER', true),
+('33333333-3333-3333-3333-333333333333', 'student@benigascode.local', '{argon2}$argon2id$v=19$m=16384,t=2,p=1$c29tZXNhbHQxMjM0NTY3OA$W7rG5M8v2yB8O3+i3sZkQ2mE0K9eX/6xM5vQ8rB4pL4', 'Alumno Demo', 'STUDENT', true)
 ON CONFLICT (username) DO NOTHING;
 
 -- Curso inicial de prueba

@@ -1,8 +1,8 @@
-# CodeLab — Master Implementation Specification v1.0
+# Benigascode — Master Implementation Specification v1.0
 
 ## INSTRUCCIONES MAESTRAS PARA EL AGENTE DE DESARROLLO
 
-Estás implementando **CodeLab**, una plataforma educativa para ejercicios de programación con evaluación automática.
+Estás implementando **Benigascode**, una plataforma educativa para ejercicios de programación con evaluación automática.
 
 Este documento es la especificación maestra del proyecto.
 
@@ -14,7 +14,7 @@ Tu objetivo no es producir una demo ni un prototipo visual. Debes construir una 
 
 ## 0.1 La especificación funcional es la fuente de verdad
 
-La especificación funcional incluida en este documento define **qué debe hacer CodeLab**.
+La especificación funcional incluida en este documento define **qué debe hacer Benigascode**.
 
 Las decisiones técnicas posteriores definen **cómo debe implementarse**.
 
@@ -38,7 +38,7 @@ No inventes funcionalidades que no estén justificadas por la especificación.
 
 # 1. OBJETIVO DEL PROYECTO
 
-CodeLab debe permitir:
+Benigascode debe permitir:
 
 - almacenar y versionar ejercicios;
 - organizar ejercicios en colecciones;
@@ -92,7 +92,7 @@ La arquitectura será:
                             |
                             v
                   +-------------------+
-                  |   CODELAB APP     |
+                  |   BENIGASCODE APP     |
                   |                   |
                   | Spring Boot API   |
                   | Learning          |
@@ -117,7 +117,7 @@ La arquitectura será:
                   +-------------------+
 ```
 
-El runner debe poder trasladarse posteriormente a otra máquina sin modificar el dominio de CodeLab.
+El runner debe poder trasladarse posteriormente a otra máquina sin modificar el dominio de Benigascode.
 
 ---
 
@@ -144,7 +144,7 @@ Si solamente se dispone de 2 OCPU / 12 GB:
 ```text
 VM única:
 
-CodeLab
+Benigascode
 PostgreSQL
 Caddy
 Runner
@@ -154,7 +154,7 @@ Pero el código debe mantener separación lógica suficiente para poder separar 
 
 ```text
 VM 1:
-CodeLab + PostgreSQL
+Benigascode + PostgreSQL
 
 VM 2:
 Runner
@@ -195,7 +195,7 @@ No utilizar inicialmente:
 
 No introducir una tecnología únicamente porque sea habitual en arquitecturas empresariales.
 
-CodeLab tendrá aproximadamente:
+Benigascode tendrá aproximadamente:
 
 ```text
 50 alumnos
@@ -242,12 +242,12 @@ El runtime inicial para los ejercicios será:
 Java 21
 ```
 
-Esto es independiente de la versión de Java utilizada para ejecutar CodeLab.
+Esto es independiente de la versión de Java utilizada para ejecutar Benigascode.
 
 Por tanto:
 
 ```text
-CodeLab backend
+Benigascode backend
     Java 25
 
 Student exercise
@@ -381,7 +381,7 @@ Organizar el backend por módulos funcionales.
 Preferentemente:
 
 ```text
-com.codelab
+com.benigascode
 |
 +-- identity
 |
@@ -1270,7 +1270,7 @@ feedback:
 
 El formato definitivo debe diseñarse de manera extensible.
 
-No acoplar el dominio de CodeLab directamente al YAML.
+No acoplar el dominio de Benigascode directamente al YAML.
 
 Debe existir una capa:
 
@@ -1292,10 +1292,10 @@ El repositorio de contenidos es:
 
 ```text
 PRIVATE
-READ-ONLY FROM CODELAB
+READ-ONLY FROM BENIGASCODE
 ```
 
-CodeLab nunca debe modificarlo.
+Benigascode nunca debe modificarlo.
 
 El repositorio es la fuente de verdad del contenido docente.
 
@@ -1315,7 +1315,7 @@ examples
 metadata
 ```
 
-CodeLab:
+Benigascode:
 
 ```text
 users
@@ -1445,7 +1445,7 @@ Identificarlo mediante hash.
 Puede almacenarse inicialmente en:
 
 ```text
-/var/lib/codelab/content/
+/var/lib/benigascode/content/
 ```
 
 con backup en Object Storage.
@@ -1510,7 +1510,7 @@ return result
 heartbeat
 ```
 
-La API externa de CodeLab no debe exponerse al runner como un usuario normal.
+La API externa de Benigascode no debe exponerse al runner como un usuario normal.
 
 ---
 
@@ -1519,7 +1519,7 @@ La API externa de CodeLab no debe exponerse al runner como un usuario normal.
 Preferencia:
 
 ```text
-Runner -> CodeLab
+Runner -> Benigascode
 ```
 
 mediante polling.
@@ -1533,7 +1533,7 @@ Runner
    |
    | claim
    v
-CodeLab
+Benigascode
    |
    | job package
    v
@@ -1541,7 +1541,7 @@ Runner
    |
    | result
    v
-CodeLab
+Benigascode
 ```
 
 El runner debe autenticarse mediante una credencial específica de runner.
@@ -2001,7 +2001,7 @@ Sincronización
 Configuración
 ```
 
-No implementar todavía un editor complejo de ejercicios dentro de CodeLab.
+No implementar todavía un editor complejo de ejercicios dentro de Benigascode.
 
 El contenido técnico se modifica en GitHub.
 
@@ -2264,7 +2264,7 @@ Crear un ejemplo funcional de repositorio.
 Propuesta inicial:
 
 ```text
-codelab-content/
+benigascode-content/
 
 ├── exercises/
 │   └── calcular-media/
@@ -2613,7 +2613,7 @@ Nunca dejar el sistema en un estado parcialmente importado.
 Proponer inicialmente:
 
 ```text
-codelab/
+benigascode/
 │
 ├── backend/
 │
@@ -3142,7 +3142,7 @@ Private GitHub repository
    |
    | sync
    v
-CodeLab
+Benigascode
    |
    | validate
    v
@@ -3483,7 +3483,7 @@ git clone
 docker compose up
 ```
 
-y comenzar a utilizar CodeLab en desarrollo.
+y comenzar a utilizar Benigascode en desarrollo.
 
 ---
 
@@ -3872,7 +3872,7 @@ El runner no debe tener credenciales GitHub.
 
 # 168. RUNNER NO GUARDA SECRETOS
 
-El runner debe tener únicamente su credencial de comunicación con CodeLab.
+El runner debe tener únicamente su credencial de comunicación con Benigascode.
 
 ---
 
@@ -4017,7 +4017,7 @@ new VM
 restore PostgreSQL
 restore content artifacts
 restore configuration
-start CodeLab
+start Benigascode
 verify
 ```
 
@@ -4066,7 +4066,7 @@ La aplicación debe poder funcionar incluso si Object Storage está temporalment
 
 # 185. BACKUP FAILURE
 
-Un fallo de backup no debe detener CodeLab.
+Un fallo de backup no debe detener Benigascode.
 
 Debe:
 
@@ -4394,7 +4394,7 @@ sin modificar el juez.
 Los tests públicos deben poder empaquetarse posteriormente como:
 
 ```text
-codelab test
+benigascode test
 ```
 
 La versión de los tests debe ser identificable.
@@ -4520,7 +4520,7 @@ Puede:
 
 # 218. CRITERIO FINAL
 
-Antes de declarar CodeLab listo:
+Antes de declarar Benigascode listo:
 
 Ejecutar un escenario completo desde cero.
 
@@ -4586,7 +4586,7 @@ Solo después considerar MVP1 funcional.
 
 # 219. ESPECIFICACIÓN FUNCIONAL DE REFERENCIA
 
-La especificación funcional original de CodeLab v0.2 proporcionada por el propietario del proyecto debe considerarse parte integrante de este documento.
+La especificación funcional original de Benigascode v0.2 proporcionada por el propietario del proyecto debe considerarse parte integrante de este documento.
 
 Sus 108 apartados cubren:
 
@@ -4744,7 +4744,7 @@ optimización
 
 No construyas una maqueta.
 
-Construye una primera versión real de CodeLab.
+Construye una primera versión real de Benigascode.
 
 Debe poder desplegarse en Oracle Cloud Always Free, ejecutarse en ARM64 y soportar el flujo completo de aprendizaje:
 
@@ -4779,9 +4779,9 @@ No implementes funcionalidades futuras antes de que el núcleo funcione correcta
 
 Y, sobre todo:
 
-> **Una evaluación histórica debe seguir siendo reproducible aunque el contenido actual de CodeLab haya cambiado.**
+> **Una evaluación histórica debe seguir siendo reproducible aunque el contenido actual de Benigascode haya cambiado.**
 >
-> **El código de un alumno nunca debe tener acceso a la infraestructura de confianza de CodeLab.**
+> **El código de un alumno nunca debe tener acceso a la infraestructura de confianza de Benigascode.**
 >
 > **La existencia de un ejercicio en GitHub nunca implica que un alumno pueda descubrirlo.**
 

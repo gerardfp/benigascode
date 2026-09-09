@@ -1,4 +1,4 @@
-# Especificación de la API REST — CodeLab v1.0
+# Especificación de la API REST — Benigascode v1.0
 
 Prefijo base: `/api/v1`
 
@@ -13,7 +13,7 @@ Inicia sesión con credenciales locales.
 - **Request Body:**
   ```json
   {
-    "username": "student@codelab.local",
+    "username": "student@benigascode.local",
     "password": "secretPassword123"
   }
   ```
@@ -21,7 +21,7 @@ Inicia sesión con credenciales locales.
   ```json
   {
     "id": "e6a2c3f1-4b2a-4f6b-9c8a-1a2b3c4d5e6f",
-    "username": "student@codelab.local",
+    "username": "student@benigascode.local",
     "fullName": "Alumno Demo",
     "role": "STUDENT"
   }

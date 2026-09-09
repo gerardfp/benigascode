@@ -1,4 +1,4 @@
-# Formato de Contenidos — CodeLab Content Repository
+# Formato de Contenidos — Benigascode Content Repository
 
 El repositorio Git privado del profesor actúa como la **única fuente de verdad** del contenido docente de los ejercicios y colecciones.
 
@@ -7,7 +7,7 @@ El repositorio Git privado del profesor actúa como la **única fuente de verdad
 ## 1. Estructura del Repositorio
 
 ```text
-codelab-content/
+benigascode-content/
 ├── exercises/
 │   └── calcular-media/
 │       ├── exercise.yaml

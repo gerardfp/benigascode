@@ -46,7 +46,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.5rem' }}>Iniciar Sesión</h1>
           <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>
-            Accede a la plataforma educativa CodeLab
+            Accede a la plataforma educativa Benigascode
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               className="input-field"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="ejemplo@codelab.local"
+              placeholder="ejemplo@benigascode.local"
             />
           </div>
 
@@ -107,7 +107,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setDemoCredentials('student@codelab.local', 'StudentPass123!')}
+              onClick={() => setDemoCredentials('student@benigascode.local', 'StudentPass123!')}
               className="btn-secondary"
               style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
             >
@@ -115,7 +115,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </button>
             <button
               type="button"
-              onClick={() => setDemoCredentials('teacher@codelab.local', 'TeacherPass123!')}
+              onClick={() => setDemoCredentials('teacher@benigascode.local', 'TeacherPass123!')}
               className="btn-secondary"
               style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
             >

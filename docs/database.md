@@ -1,6 +1,6 @@
 # Modelo de Base de Datos — PostgreSQL 18
 
-El esquema de base de datos de CodeLab es estrictamente relacional con claves primarias UUID, claves foráneas e integridad referencial garantizada. Se utiliza `jsonb` de forma selectiva para configuraciones variables de compilación, ejecución y feedback sin desnaturalizar las relaciones fundamentales.
+El esquema de base de datos de Benigascode es estrictamente relacional con claves primarias UUID, claves foráneas e integridad referencial garantizada. Se utiliza `jsonb` de forma selectiva para configuraciones variables de compilación, ejecución y feedback sin desnaturalizar las relaciones fundamentales.
 
 ---
 
