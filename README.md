@@ -34,9 +34,7 @@ Diseñado y optimizado para despliegue en **Oracle Cloud Always Free (ARM64, 2 O
                                          (--network none, cap-drop ALL,
                                           read-only, tmpfs, cgroups)
 ```
-
 ---
-
 ## 2. Puesta en Marcha Rápida (Desarrollo)
 
 ### Requisitos
