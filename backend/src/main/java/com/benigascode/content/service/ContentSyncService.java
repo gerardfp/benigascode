@@ -143,7 +143,6 @@ public class ContentSyncService {
         String templatesJson = jsonMapper.writeValueAsString(loadTemplates(exerciseDir, yamlNode));
 
         // Calcular Hash del contenido
-        String contentHash = computeHash(statement + testsJson + compileJson + runJson);
         String contentHash = computeHash(statement + testsJson + compileJson + runJson + templatesJson);
 
         Exercise exercise = exerciseRepository.findBySlug(slug)

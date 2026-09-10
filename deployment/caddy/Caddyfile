@@ -1,4 +1,9 @@
 {$DOMAIN_NAME:localhost} {
+    log {
+        output stdout
+        format console
+    }
+
     # HSTS y cabeceras de seguridad
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -20,6 +25,7 @@
     }
     header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
     header @notAssets Pragma "no-cache"
+    header @notAssets Expires "0"
 
     # API Backend Reverse Proxy
     handle /api/* {

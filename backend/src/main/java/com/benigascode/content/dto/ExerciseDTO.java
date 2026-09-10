@@ -11,7 +11,6 @@ public record ExerciseDTO(
     String statement,
     String language,
     String runtimeId,
-    int versionNumber
     int versionNumber,
     String starterCode
 ) {
@@ -28,7 +27,6 @@ public record ExerciseDTO(
             version.getStatement(),
             version.getLanguage(),
             version.getRuntimeId(),
-            version.getVersionNumber()
             version.getVersionNumber(),
             starterCode
         );

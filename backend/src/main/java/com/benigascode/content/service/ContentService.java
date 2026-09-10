@@ -13,10 +13,15 @@ import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -118,7 +123,6 @@ public class ContentService {
         ExerciseVersion version = exerciseVersionRepository.findById(exerciseVersionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
-        return ExerciseDTO.fromVersion(version);
         String starterCode = resolveStarterCode(version, collectionId);
         return ExerciseDTO.fromVersion(version, starterCode);
     }
@@ -249,6 +253,48 @@ public class ContentService {
         key = accessKeyRepository.save(key);
 
         return new CreateAccessKeyResponse(key.getId(), collectionId, rawKey, maxUses, expiresAt);
+    }
+
+    @Transactional(readOnly = true)
+    public Resource getExerciseAsset(UUID exerciseIdOrVersionId, String rawFilename) {
+        if (rawFilename == null || rawFilename.isBlank()) {
+            throw new ResourceNotFoundException("Nombre de archivo no especificado");
+        }
+
+        String filename;
+        try {
+            filename = URLDecoder.decode(rawFilename, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            filename = rawFilename;
+        }
+        filename = filename.replaceFirst("^/+", "");
+
+        if (filename.contains("..")) {
+            throw new ValidationException("Ruta de archivo no válida");
+        }
+
+        ExerciseVersion version = exerciseVersionRepository.findById(exerciseIdOrVersionId)
+                .or(() -> exerciseRepository.findById(exerciseIdOrVersionId).flatMap(e -> exerciseVersionRepository.findLatestByExerciseId(e.getId())))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        String slug = version.getExercise().getSlug();
+
+        List<Path> candidateDirs = new ArrayList<>();
+        candidateDirs.add(Path.of("/var/lib/benigascode/catalog/exercises", slug));
+        candidateDirs.add(Path.of("/var/lib/benigascode/content/exercises", slug));
+        candidateDirs.add(Path.of("catalog/exercises", slug));
+        candidateDirs.add(Path.of("content-example/exercises", slug));
+
+        for (Path dir : candidateDirs) {
+            if (Files.isDirectory(dir)) {
+                Path candidateFile = dir.resolve(filename).normalize();
+                if (candidateFile.startsWith(dir) && Files.isRegularFile(candidateFile)) {
+                    return new FileSystemResource(candidateFile);
+                }
+            }
+        }
+
+        throw new ResourceNotFoundException("Asset no encontrado: " + filename);
     }
 
     public void assertCanAccessCollection(User user, Collection collection) {

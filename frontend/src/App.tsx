@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { User } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -149,14 +149,27 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* Redirección por defecto */}
+          {/* Ruta no encontrada */}
           <Route
             path="*"
             element={
-              <Navigate
-                to={user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? "/teacher" : "/"}
-                replace
-              />
+              <div className="app-container" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+                <div className="card" style={{ maxWidth: 500, margin: '0 auto', padding: '2rem' }}>
+                  <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#dc2626', marginBottom: '0.75rem' }}>
+                    404 — Página no encontrada
+                  </h1>
+                  <p style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.9375rem' }}>
+                    La ruta a la que intentas acceder no existe o no está disponible.
+                  </p>
+                  <Link
+                    to={user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? "/teacher" : "/"}
+                    className="btn-primary"
+                    style={{ textDecoration: 'none', display: 'inline-block' }}
+                  >
+                    Volver al Panel Principal
+                  </Link>
+                </div>
+              </div>
             }
           />
         </Routes>

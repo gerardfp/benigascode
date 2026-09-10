@@ -13,6 +13,11 @@ FROM caddy:2.8-alpine
 COPY --from=builder /app/dist /var/www/html
 COPY <<EOF /etc/caddy/Caddyfile
 :80 {
+    log {
+        output stdout
+        format console
+    }
+
     # Assets estáticos con hash inmutables
     @assets {
         path /assets/*
@@ -25,6 +30,7 @@ COPY <<EOF /etc/caddy/Caddyfile
     }
     header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
     header @notAssets Pragma "no-cache"
+    header @notAssets Expires "0"
 
     # API Backend Reverse Proxy
     handle /api/* {

@@ -84,6 +84,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/runner/**").permitAll() // Validado por RunnerTokenInterceptor
                 .requestMatchers("/api/v1/webhooks/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers("/api/v1/exercises/*/assets/**").permitAll()
                 .requestMatchers("/api/v1/teacher/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/**").authenticated()

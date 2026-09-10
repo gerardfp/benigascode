@@ -5,6 +5,10 @@ import com.benigascode.content.service.ContentService;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,12 +53,10 @@ public class StudentCollectionController {
     }
 
     @GetMapping("/exercises/{id}")
-    public ResponseEntity<ExerciseDTO> getExercise(@PathVariable UUID id) {
     public ResponseEntity<ExerciseDTO> getExercise(
             @PathVariable UUID id,
             @RequestParam(required = false) UUID collectionId) {
         User user = userService.getCurrentUser();
-        return ResponseEntity.ok(contentService.getExerciseVersion(id, user));
         return ResponseEntity.ok(contentService.getExerciseVersion(id, collectionId, user));
     }
 
@@ -62,6 +64,21 @@ public class StudentCollectionController {
     public ResponseEntity<List<PublicTestDTO>> getPublicTests(@PathVariable UUID id) {
         User user = userService.getCurrentUser();
         return ResponseEntity.ok(contentService.getPublicTests(id, user));
+    }
+
+    @GetMapping("/exercises/{id}/assets/{*filename}")
+    public ResponseEntity<Resource> getExerciseAsset(
+            @PathVariable UUID id,
+            @PathVariable String filename) {
+        Resource resource = contentService.getExerciseAsset(id, filename);
+        String filenameForType = resource.getFilename() != null ? resource.getFilename() : filename;
+        MediaType mediaType = MediaTypeFactory.getMediaType(filenameForType)
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=604800")
+                .body(resource);
     }
 }
 

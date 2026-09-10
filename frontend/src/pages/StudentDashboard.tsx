@@ -102,10 +102,12 @@ export const StudentDashboard: React.FC = () => {
             {collections.map((col) => (
               <div key={col.id} className="card">
                 <span className="badge badge-neutral" style={{ marginBottom: '0.5rem' }}>{col.visibility}</span>
-                <h4 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>{col.title}</h4>
+                <Link to={`/collections/${col.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <h4 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', fontWeight: 600, color: '#1e293b' }}>{col.title}</h4>
+                </Link>
                 <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem' }}>{col.description || 'Sin descripción'}</p>
                 <div style={{ marginTop: '1rem' }}>
-                  <Link to={`/collections/${col.id}`} style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500 }}>
+                  <Link to={`/collections/${col.id}`} style={{ color: '#2563eb', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 600 }}>
                     Ver ejercicios &rarr;
                   </Link>
                 </div>

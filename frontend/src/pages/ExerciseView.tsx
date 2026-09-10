@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
@@ -28,8 +30,6 @@ export const ExerciseView: React.FC = () => {
   useEffect(() => {
     if (!exerciseId) return;
 
-    api.getExercise(exerciseId)
-      .then(setExercise)
     api.getExercise(exerciseId, collectionId)
       .then((ex) => {
         setExercise(ex);
@@ -42,7 +42,6 @@ export const ExerciseView: React.FC = () => {
     api.getPublicTests(exerciseId)
       .then(setPublicTests)
       .catch(console.error);
-  }, [exerciseId]);
   }, [exerciseId, collectionId]);
 
   const handleResetTemplate = () => {
@@ -52,6 +51,45 @@ export const ExerciseView: React.FC = () => {
       }
     }
   };
+
+  const renderedStatementHtml = useMemo(() => {
+    if (!exercise?.statement) return '';
+
+    let statementText = exercise.statement;
+    // Evitar duplicar el título principal si el markdown empieza con # <mismo título>
+    if (statementText.startsWith('# ')) {
+      const firstLineEnd = statementText.indexOf('\n');
+      const firstLine = firstLineEnd !== -1 ? statementText.slice(2, firstLineEnd).trim() : statementText.slice(2).trim();
+      if (firstLine.toLowerCase() === (exercise.title || '').trim().toLowerCase()) {
+        statementText = firstLineEnd !== -1 ? statementText.slice(firstLineEnd + 1).trim() : '';
+      }
+    }
+
+    const markedInstance = new Marked({ gfm: true, breaks: true });
+    markedInstance.use({
+      walkTokens(token) {
+        if (token.type === 'image' && token.href) {
+          const href = token.href;
+          if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('data:') && !href.startsWith('/api/')) {
+            token.href = `/api/v1/exercises/${exercise.id}/assets/${href.replace(/^\/+/, '')}`;
+          }
+        }
+      }
+    });
+
+    let html = markedInstance.parse(statementText, { async: false }) as string;
+
+    // Reescribir también posibles etiquetas <img> HTML raw relativas
+    html = html.replace(/<img\s+([^>]*?)src=["'](?!https?:\/\/|data:|\/api\/)([^"']+)["']([^>]*?)>/gi, (_match, before, src, after) => {
+      const cleanHref = src.replace(/^\/+/, '');
+      return `<img ${before}src="/api/v1/exercises/${exercise.id}/assets/${cleanHref}"${after} loading="lazy">`;
+    });
+
+    return DOMPurify.sanitize(html, {
+      ADD_TAGS: ['img'],
+      ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading']
+    });
+  }, [exercise?.statement, exercise?.id, exercise?.title]);
 
   // Ejecución de pruebas preliminares (no consume intentos)
   const handlePreviewRun = async () => {
@@ -146,9 +184,10 @@ export const ExerciseView: React.FC = () => {
               )}
             </div>
 
-            <div style={{ lineHeight: '1.6', fontSize: '0.9375rem', whiteSpace: 'pre-wrap', color: '#334155' }}>
-              {exercise.statement}
-            </div>
+            <div
+              className="markdown-statement"
+              dangerouslySetInnerHTML={{ __html: renderedStatementHtml }}
+            />
           </div>
 
           {/* Tests públicos para orientación */}
@@ -182,7 +221,6 @@ export const ExerciseView: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="card" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Solución Java (Main.java)</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Solución Java (Main.java)</span>
                 {exercise.starterCode !== undefined && (

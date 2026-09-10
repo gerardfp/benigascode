@@ -95,3 +95,106 @@ body {
   border-color: transparent;
 }
 
+/* Markdown Statement Styling */
+.markdown-statement {
+  line-height: 1.65;
+  font-size: 0.9375rem;
+  color: #334155;
+  word-break: break-word;
+}
+
+.markdown-statement h1,
+.markdown-statement h2,
+.markdown-statement h3,
+.markdown-statement h4 {
+  color: #0f172a;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-statement h1 { font-size: 1.25rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+.markdown-statement h2 { font-size: 1.1rem; }
+.markdown-statement h3 { font-size: 1rem; }
+
+.markdown-statement p {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-statement ul,
+.markdown-statement ol {
+  margin: 0 0 0.75rem 1.25rem;
+  padding: 0;
+}
+
+.markdown-statement li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-statement code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  background-color: #f1f5f9;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+
+.markdown-statement pre {
+  background-color: #0f172a;
+  color: #f8fafc;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  margin: 0.75rem 0;
+}
+
+.markdown-statement pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+.markdown-statement blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.75rem;
+  margin: 0.75rem 0;
+  color: #64748b;
+  font-style: italic;
+}
+
+.markdown-statement table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.markdown-statement th,
+.markdown-statement td {
+  border: 1px solid #e2e8f0;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.markdown-statement th {
+  background-color: #f8fafc;
+  font-weight: 600;
+}
+
+.markdown-statement img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.75rem 0;
+  display: block;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+
