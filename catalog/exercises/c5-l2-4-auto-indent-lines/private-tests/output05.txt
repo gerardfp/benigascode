@@ -1,0 +1,8 @@
+if(true){
+    a=10;
+} else {
+    b=7;
+    for(int i=0; i<10; i++){
+        c=0;
+    }
+}

@@ -1,0 +1,5 @@
+4
+2 Los operadores booleanos son OR || y AND &&
+1 Los datos primitivos en Java son: byte, short, int, long, float, double, boolean y char
+4 La sentencia for tiene esta forma: for(;;) {}
+3 La sentencia if tiene esta forma: if {} else {}

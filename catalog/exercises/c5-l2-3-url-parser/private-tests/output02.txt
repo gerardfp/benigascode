@@ -1,0 +1,8 @@
+String scheme = "http";
+String user = "richard";
+String password = "stallman";
+String host = "www.gnu.org";
+int port = 80;
+String[] path = {"philosophy", "free-sw.html"};
+String[] query = {"r=1.663"};
+String fragment = "history";

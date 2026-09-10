@@ -1,0 +1,5 @@
+https
+domainname.org
+/document
+t=www&s=1
+new

@@ -1,0 +1,6 @@
+name            |merchant        |price     
+----------------+----------------+----------
+Java            |Oracle          |      0.00
+Gnome           |GNU             |      0.00
+gcc             |GNU             |      0.00
+(3 rows)

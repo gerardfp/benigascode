@@ -1,0 +1,31 @@
+id: desglose-de-cantidades-en-monedas
+title: '[a2ae3] Desglossament en monedes #if'
+slug: desglose-de-cantidades-en-monedas
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 50.0

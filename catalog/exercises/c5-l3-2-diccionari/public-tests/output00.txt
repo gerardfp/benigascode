@@ -1,0 +1,7 @@
+class Dictionari {
+    String[] words = {
+        "hola",
+        "adeu",
+        "mama"
+    };
+}

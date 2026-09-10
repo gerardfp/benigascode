@@ -1,0 +1,13 @@
+1
+10 6 gcc 0
+
+9
+1 Oracle
+2 Microsoft
+3 Google
+4 Apple
+5 Adobe
+6 GNU
+7 Apache SF
+8 Mozilla
+9 PGDB

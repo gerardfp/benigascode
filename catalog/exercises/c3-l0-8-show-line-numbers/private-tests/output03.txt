@@ -1,0 +1,17 @@
+ 1 | static double floydWarshall(double graph[][]) {
+ 2 |     double dist[][] = new double[graph.length][graph.length];
+ 3 |     int i, j, k;
+ 4 | 
+ 5 |     for (i = 0; i < graph.length; i++)
+ 6 |         for (j = 0; j < graph.length; j++)
+ 7 |             dist[i][j] = graph[i][j];
+ 8 | 
+ 9 |     for (k = 0; k < graph.length; k++)
+10 |         for (i = 0; i < graph.length; i++)
+11 |             for (j = 0; j < graph.length; j++)
+12 |                 if (i != k && j != k && i != j)
+13 |                     if (dist[i][k] * dist[k][j] > dist[i][j])
+14 |                         dist[i][j] = dist[i][k] * dist[k][j];
+15 | 
+16 |     return dist[0][graph.length-1];
+17 | }

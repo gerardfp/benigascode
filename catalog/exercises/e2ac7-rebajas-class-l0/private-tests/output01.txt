@@ -1,0 +1,2 @@
+Producto{descripcion='productoX', precio=100.0}
+Producto{descripcion='productoX', precio=75.0}

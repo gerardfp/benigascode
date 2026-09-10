@@ -1,0 +1,12 @@
+9
+t r u e i f s x z w n e b r
+c h a r n e w o y m u s y e
+f l o a t i i f i n a l t t
+c a h v e r t w u d o l e u
+a u f o r o c h l o n g c r
+s t r i n g h i v u q s l n
+e j u d u h k l b b r e a k
+j i m p o r t e e l s e s e
+f a l s e b o o l e a n s a
+
+true if new float final for long string break import else false boolean case void int switch double class return byte char

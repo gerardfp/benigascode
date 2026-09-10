@@ -1,0 +1,13 @@
+9
+7 6 Gnome 0
+8 6 Gimp 0
+9 6 Guix 0
+10 6 gcc 0
+11 7 Apache 0
+12 7 Hadoop 0
+13 7 Spark 0
+14 8 Firefox 0
+15 9 PostgreSQL 0
+
+1
+4 Apple

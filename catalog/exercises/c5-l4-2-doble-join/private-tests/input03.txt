@@ -1,0 +1,20 @@
+3
+101 Torvalds, Linus
+203 Cerf, Vint
+443 Rubin, Andy
+
+4
+12 Implantacio de sistemes operatius
+23 Programacio
+41 Planificacio i administracio de xarxes
+15 Programacio multimedia i dispositius mobils
+
+8
+101 12 10
+101 41 8
+203 12 7
+203 31 10
+203 12 7
+443 12 10
+443 41 9
+443 23 8

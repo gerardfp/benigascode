@@ -1,0 +1,4 @@
+1 moneda de 500
+1 moneda de 100
+9 monedes de 5
+4 monedes de 1

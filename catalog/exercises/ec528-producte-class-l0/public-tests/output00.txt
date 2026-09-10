@@ -1,0 +1,4 @@
+Nom:        Corsair Vengeance RGB Pro
+Descripcio: DDR4 3200 PC4-25600 16GB 2x8GB CL16
+Preu:       109.0
+Stock:      25

@@ -55,6 +55,10 @@ public class ExerciseVersion {
     @Column(name = "tests_config", columnDefinition = "JSONB")
     private String testsConfig = "{}";
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "templates_config", columnDefinition = "JSONB")
+    private String templatesConfig = "{}";
+
     @Column(name = "content_hash", nullable = false, length = 64)
     private String contentHash;
 
@@ -164,6 +168,14 @@ public class ExerciseVersion {
 
     public void setTestsConfig(String testsConfig) {
         this.testsConfig = testsConfig;
+    }
+
+    public String getTemplatesConfig() {
+        return templatesConfig;
+    }
+
+    public void setTemplatesConfig(String templatesConfig) {
+        this.templatesConfig = templatesConfig;
     }
 
     public String getContentHash() {

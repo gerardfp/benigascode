@@ -1,0 +1,10 @@
+100
+3
+ABC MNO XYZ
+25  30  15
+
+4
+ABC 10
+MNO -20
+ABC 5
+XYZ -10

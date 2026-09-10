@@ -1,0 +1,10 @@
+Ingres realitzat: 10.00
+>> Saldo: 10.00
+Retirar diners -> 5.00
+>> Saldo: 5.00
+Ingres realitzat: 10.00
+>> Saldo: 15.00
+Saldo insuficient
+>> Saldo: 15.00
+Retirar diners -> 10.00
+>> Saldo: 5.00

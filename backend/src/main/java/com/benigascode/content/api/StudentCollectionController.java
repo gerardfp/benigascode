@@ -50,8 +50,12 @@ public class StudentCollectionController {
 
     @GetMapping("/exercises/{id}")
     public ResponseEntity<ExerciseDTO> getExercise(@PathVariable UUID id) {
+    public ResponseEntity<ExerciseDTO> getExercise(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID collectionId) {
         User user = userService.getCurrentUser();
         return ResponseEntity.ok(contentService.getExerciseVersion(id, user));
+        return ResponseEntity.ok(contentService.getExerciseVersion(id, collectionId, user));
     }
 
     @GetMapping("/exercises/{id}/public-tests")

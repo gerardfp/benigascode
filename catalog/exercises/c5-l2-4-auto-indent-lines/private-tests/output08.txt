@@ -1,0 +1,32 @@
+if(true){
+    a();
+    if(true){
+        a();
+    } else if(true){
+        if(true){
+            a();
+        } else {
+            if(true){
+                a();
+            }
+            a();
+        }
+    } else {
+        a();
+        if(true){
+            a();
+        }
+        a();
+    }
+    a();
+} else {
+    if(true){
+        if(true){
+            a();
+        }
+        a();
+    } else {
+        a();
+    }
+    a();
+}

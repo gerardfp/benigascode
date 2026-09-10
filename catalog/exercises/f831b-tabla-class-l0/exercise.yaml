@@ -1,0 +1,52 @@
+id: f831b-tabla-class-l0
+title: '[f831b] Taula #class #L0'
+slug: f831b-tabla-class-l0
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 33.33
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 33.33
+  - id: test-priv-2
+    name: Test Privado 2
+    input: private-tests/input02.txt
+    expected: private-tests/output02.txt
+    weight: 33.34
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\n\nclass Casella {\n    char lletra;\n\n    Casella(char\
+    \ lletra){\n        // escriu el codi aqui\n    }\n}\n\nclass Columna {\n    Casella\
+    \ casella;\n\n    Columna(char lletra){\n        // escriu el codi aqui\n    }\n\
+    }\n\nclass Fila {\n    Columna[] columnes;\n\n    Fila(int nColumnes, char lletra){\n\
+    \        // escriu el codi aqui\n    }\n}\n\nclass Taula {\n    Fila[] files;\n\
+    \n    Taula(int nFiles, int nColumnes, char lletra){\n        // escriu el codi\
+    \ aqui\n    }\n}\npublic class Main {\n\n    public static void main(String[]\
+    \ args) {\n        Scanner scanner = new Scanner(System.in);\n\n        Taula\
+    \ taula = new Taula(scanner.nextInt(), scanner.nextInt(), scanner.next().charAt(0));\n\
+    \n        for (int i = 0; i < taula.files.length; i++) {\n            for (int\
+    \ j = 0; j < taula.files[i].columnes.length; j++) {\n                System.out.print(taula.files[i].columnes[j].casella.lletra);\n\
+    \            }\n            System.out.println();\n        }\n    }\n}"

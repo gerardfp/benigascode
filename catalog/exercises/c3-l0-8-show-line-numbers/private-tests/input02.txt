@@ -1,0 +1,8 @@
+private static int recursiu(int fi, int[][] jobs) {
+    int max = 0;
+    for (int i = 0; i < jobs.length; i++)
+        if(jobs[i][0] >= fi)
+            max = Math.max(max, recursiu(jobs[i][1], jobs) + jobs[i][2]);
+    return max;
+}
+END

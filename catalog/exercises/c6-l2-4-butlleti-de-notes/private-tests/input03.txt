@@ -1,0 +1,6 @@
+5
+Projecte 8 30
+Practica1 9 10
+Practica2 7 10
+Practica3 6 10
+Examen 5 40

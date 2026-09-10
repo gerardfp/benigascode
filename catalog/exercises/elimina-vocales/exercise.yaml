@@ -1,0 +1,46 @@
+id: elimina-vocales
+title: Elimina vocales
+slug: elimina-vocales
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 20.0
+  - id: test-pub-1
+    name: Test Público 1
+    input: public-tests/input01.txt
+    expected: public-tests/output01.txt
+    weight: 20.0
+  private:
+  - id: test-priv-2
+    name: Test Privado 2
+    input: private-tests/input02.txt
+    expected: private-tests/output02.txt
+    weight: 20.0
+  - id: test-priv-3
+    name: Test Privado 3
+    input: private-tests/input03.txt
+    expected: private-tests/output03.txt
+    weight: 20.0
+  - id: test-priv-4
+    name: Test Privado 4
+    input: private-tests/input04.txt
+    expected: private-tests/output04.txt
+    weight: 20.0

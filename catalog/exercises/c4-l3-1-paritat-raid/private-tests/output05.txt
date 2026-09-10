@@ -1,0 +1,4 @@
+Disk 1: 1111
+Disk 2: 0000
+Disk 3: 1010
+Parity: 0101

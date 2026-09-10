@@ -1,0 +1,3 @@
+user1001:$1$vDPhC74V3fXYq18yO6t8ZQ==:1001:1000:Usuari 1001:/home/user1001:/bin/bash
+user1002:$1$AtlJg9+o4AcNq3dxAK9c4g==:1002:1000:Usuari 1002:/home/user1002:/bin/bash
+user1003:$1$nGojHzFqYeA7AoY4Ko9fpg==:1003:1000:Usuari 1003:/home/user1003:/bin/bash

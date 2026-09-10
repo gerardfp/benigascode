@@ -1,0 +1,20 @@
+6
+{
+    Everything you need to know about the newest garbage collectors in #Java.
+}
+{
+    #python:  The boolean values False and True are equal to zero and one.
+}
+{
+    Write everything in #JavaScript?
+}
+{
+    Yet Another #javascript Framework
+}
+{
+    got photo bombed by Guido van Rossum creator of #python
+}
+{
+    Tonight I manipulated the DOM to add elements to a webpage using #javascript!
+    Mind freaking blown!
+}

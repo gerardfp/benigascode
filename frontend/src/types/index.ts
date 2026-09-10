@@ -25,6 +25,7 @@ export interface Exercise {
   language: string;
   runtimeId: string;
   versionNumber: number;
+  starterCode?: string;
 }
 
 export interface PublicTest {

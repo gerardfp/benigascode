@@ -1,0 +1,24 @@
+static int min(String a, String b){
+    int[][] DP = new int[a.length()+1][b.length()+1];
+
+    for (int i = 0; i < b.length()+1; i++) {
+        DP[0][i] = i;
+    }
+    for (int i = 0; i < a.length()+1; i++) {
+        DP[i][0] = i;
+    }
+
+    for (int i = 1; i < a.length()+1; i++) {
+        for (int j = 1; j < b.length()+1; j++) {
+            int ADD = DP[i-1][j]+1;
+            int DEL = DP[i][j-1]+1;
+            int SUB = DP[i-1][j-1] + (a.charAt(i-1) != b.charAt(j-1) ? 1 : 0);
+
+            DP[i][j] = Math.min(ADD, Math.min(DEL, SUB));
+        }
+    }
+
+    Util.printMatrix(DP);
+    return DP[a.length()][b.length()];
+}
+END

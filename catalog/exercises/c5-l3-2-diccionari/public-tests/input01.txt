@@ -1,0 +1,5 @@
+una
+llista
+de
+paraules
+__END__

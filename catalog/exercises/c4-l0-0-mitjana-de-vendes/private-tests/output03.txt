@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<div style="display: flex; align-items: baseline;">
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 84px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 86px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 65px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 61px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 78px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 100px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 68px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 78px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 91px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: red; height: 76px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 100px;"></div>
+    <div style="width: 16px; margin: 2px; background-color: blue; height: 102px;"></div>
+    <div style="background-color: green; height: 2px; width: 240px; position: relative; bottom: 82px; right: 240px"></div>
+</div>

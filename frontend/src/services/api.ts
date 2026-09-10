@@ -84,6 +84,8 @@ export const api = {
 
   getExercise: (id: string): Promise<Exercise> =>
     request<Exercise>(`/exercises/${id}`),
+  getExercise: (id: string, collectionId?: string): Promise<Exercise> =>
+    request<Exercise>(`/exercises/${id}${collectionId ? `?collectionId=${collectionId}` : ''}`),
 
   getPublicTests: (id: string): Promise<PublicTest[]> =>
     request<PublicTest[]>(`/exercises/${id}/public-tests`),

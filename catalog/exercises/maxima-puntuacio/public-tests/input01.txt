@@ -1,0 +1,6 @@
+Bjarne 80
+Guido  77
+Dennis 99
+Yukihiro 89
+Alan 90
+James 100

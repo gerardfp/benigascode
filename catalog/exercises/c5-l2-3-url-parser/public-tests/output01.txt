@@ -1,0 +1,8 @@
+String scheme = "http";
+String user = "user";
+String password = "pass";
+String host = "example.com";
+int port = 3000;
+String[] path = {"docs", "api", "index.php"};
+String[] query = {"version=7", "lang=java"};
+String fragment = "strings";

@@ -1,0 +1,10 @@
+6 3
+Columna1 Columna2 Columna3
+Campo11  Campo12  Campo13
+Campo21  Campo22  Campo23
+Campo31  Campo32  Campo33
+Campo41  Campo42  Campo43
+Campo51  Campo52  Campo53
+
+2
+2 3

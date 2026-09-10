@@ -1,0 +1,9 @@
+Insert coin
+Balance:4.5
+Your water, thanks
+Balance:3.0
+Your water, thanks
+Balance:1.5
+Product unavailable
+Balance:1.5
+Refund:1.5

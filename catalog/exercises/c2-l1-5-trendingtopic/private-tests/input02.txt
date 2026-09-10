@@ -1,0 +1,13 @@
+4
+{
+    The #Java world
+}
+{
+    Programming in #Python #Java
+}
+{
+    Everybody loves #PHP
+}
+{
+    #Python is easy, #Java mmmm
+}

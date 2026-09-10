@@ -1,0 +1,6 @@
+Aqui sota apareix una linea de 30 ^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Aqui sota apareix una linea de 40 #
+########################################
+Aqui sota apareix una linea de 50 =
+==================================================

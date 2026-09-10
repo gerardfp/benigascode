@@ -1,0 +1,4 @@
+2,false -> [falso, falso]
+3,true -> [cierto, cierto, cierto]
+5,false -> [falso, falso, falso, falso, falso]
+6,true -> [cierto, cierto, cierto, cierto, cierto, cierto]

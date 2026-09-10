@@ -1,0 +1,15 @@
+while(!false){
+    if(true){
+        l--;
+        sout();
+        l++;
+    } else if(false){
+        sout();
+        l++;
+    } else if(true){
+        l--;
+        sout();
+    } else {
+        sout();
+    }
+}

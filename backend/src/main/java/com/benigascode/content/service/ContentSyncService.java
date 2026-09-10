@@ -140,9 +140,11 @@ public class ContentSyncService {
         String runJson = jsonMapper.writeValueAsString(yamlNode.path("execution"));
         String scoringJson = jsonMapper.writeValueAsString(yamlNode.path("scoring"));
         String comparatorJson = jsonMapper.writeValueAsString(yamlNode.path("comparator"));
+        String templatesJson = jsonMapper.writeValueAsString(loadTemplates(exerciseDir, yamlNode));
 
         // Calcular Hash del contenido
         String contentHash = computeHash(statement + testsJson + compileJson + runJson);
+        String contentHash = computeHash(statement + testsJson + compileJson + runJson + templatesJson);
 
         Exercise exercise = exerciseRepository.findBySlug(slug)
                 .orElseGet(() -> exerciseRepository.save(new Exercise(slug)));
@@ -167,6 +169,7 @@ public class ContentSyncService {
         version.setScoringConfig(scoringJson);
         version.setComparatorConfig(comparatorJson);
         version.setTestsConfig(testsJson);
+        version.setTemplatesConfig(templatesJson);
         version.setContentHash(contentHash);
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
@@ -232,6 +235,7 @@ public class ContentSyncService {
         String description = yamlNode.path("description").asText("");
         String visibility = yamlNode.path("visibility").asText("PRIVATE").toUpperCase();
         String itemsJson = jsonMapper.writeValueAsString(yamlNode.path("items"));
+        String templatesJson = jsonMapper.writeValueAsString(loadTemplates(colDir, yamlNode));
 
         Collection collection = collectionRepository.findBySlug(slug)
                 .orElseGet(() -> collectionRepository.save(new Collection(slug, visibility)));
@@ -245,9 +249,58 @@ public class ContentSyncService {
         version.setTitle(title);
         version.setDescription(description);
         version.setItems(itemsJson);
+        version.setTemplatesConfig(templatesJson);
 
         collectionVersionRepository.save(version);
         return "Collection: " + slug + " (v" + nextVersion + ")";
+    }
+
+    private Map<String, String> loadTemplates(File baseDir, JsonNode yamlNode) throws Exception {
+        Map<String, String> templates = new LinkedHashMap<>();
+        JsonNode templatesNode = yamlNode.path("templates");
+        if (templatesNode.isArray()) {
+            for (JsonNode tNode : templatesNode) {
+                String code = null;
+                if (tNode.has("empty") && tNode.get("empty").asBoolean()) {
+                    code = "";
+                } else if (tNode.has("code")) {
+                    code = tNode.get("code").asText("");
+                } else if (tNode.has("file")) {
+                    File f = new File(baseDir, tNode.get("file").asText());
+                    if (f.exists()) {
+                        code = Files.readString(f.toPath());
+                    } else {
+                        code = "";
+                    }
+                } else if (tNode.has("template")) {
+                    File f = new File(baseDir, tNode.get("template").asText());
+                    if (f.exists()) {
+                        code = Files.readString(f.toPath());
+                    } else {
+                        code = "";
+                    }
+                }
+
+                if (code == null) {
+                    code = "";
+                }
+
+                List<String> runtimes = new ArrayList<>();
+                if (tNode.has("runtimes") && tNode.get("runtimes").isArray()) {
+                    for (JsonNode r : tNode.get("runtimes")) {
+                        runtimes.add(r.asText());
+                    }
+                } else if (tNode.has("runtime")) {
+                    runtimes.add(tNode.get("runtime").asText());
+                }
+
+                // La última plantilla especificada para un runtime sobreescribe a las anteriores
+                for (String rt : runtimes) {
+                    templates.put(rt, code);
+                }
+            }
+        }
+        return templates;
     }
 
     private String computeHash(String data) throws Exception {

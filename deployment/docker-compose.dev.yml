@@ -38,6 +38,7 @@ services:
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:3000/teacher/sync/github/callback}
     volumes:
       - ../content-example:/var/lib/benigascode/content
+      - ../catalog:/var/lib/benigascode/catalog
     ports:
       - "8080:8080"
     networks:

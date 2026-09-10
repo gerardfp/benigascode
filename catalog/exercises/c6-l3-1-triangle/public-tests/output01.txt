@@ -1,0 +1,2 @@
+Area triangle1: 6.00
+Area triangle2: 5.00

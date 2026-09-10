@@ -1,0 +1,48 @@
+id: b0ae0-cotxe-class-l0
+title: '[b0ae0] Cotxe #class #L0'
+slug: b0ae0-cotxe-class-l0
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 50.0
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\n\nclass Car {\n    String model;\n    int topSpeed;\n\
+    \    float acceleration;\n    float braking;\n    float cornering;\n\n    // escriu\
+    \ el codi aqui\n}\n\npublic class Main {\n\n    public static void main(String[]\
+    \ args) {\n        Scanner scanner = new Scanner(System.in);\n        scanner.useLocale(Locale.US);\n\
+    \n        int numCars = scanner.nextInt();\n        scanner.nextLine();\n\n  \
+    \      Car[] cars = new Car[numCars];\n\n        for (int i = 0; i < numCars;\
+    \ i++) {\n            cars[i] = new Car(scanner.nextLine(), scanner.nextInt(),\
+    \ scanner.nextFloat(), scanner.nextFloat(), scanner.nextFloat());\n          \
+    \  scanner.nextLine();\n        }\n\n        Arrays.sort(cars, Comparator.comparingInt(a\
+    \ -> -a.topSpeed));\n        for (int i = 0; i < numCars; i++) {\n           \
+    \ System.out.format(\"%-20s  %4d  %4.2f  %4.2f  %4.2f %n\", cars[i].model, cars[i].topSpeed,\
+    \ cars[i].acceleration, cars[i].braking, cars[i].cornering);\n        }\n    }\n\
+    }"

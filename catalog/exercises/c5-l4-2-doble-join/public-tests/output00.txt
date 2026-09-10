@@ -1,0 +1,7 @@
+cognom|nom  |modul         |nota 
+------+-----+--------------+-----
+Turing|Alan |Programacio   |10.00
+Turing|Alan |Bases de dades| 9.00
+Codd  |Edgar|Programacio   | 9.00
+Codd  |Edgar|Bases de dades|10.00
+(4 rows)

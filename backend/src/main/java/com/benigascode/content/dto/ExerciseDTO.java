@@ -12,8 +12,14 @@ public record ExerciseDTO(
     String language,
     String runtimeId,
     int versionNumber
+    int versionNumber,
+    String starterCode
 ) {
     public static ExerciseDTO fromVersion(ExerciseVersion version) {
+        return fromVersion(version, null);
+    }
+
+    public static ExerciseDTO fromVersion(ExerciseVersion version, String starterCode) {
         return new ExerciseDTO(
             version.getId(),
             version.getExercise().getId(),
@@ -23,6 +29,8 @@ public record ExerciseDTO(
             version.getLanguage(),
             version.getRuntimeId(),
             version.getVersionNumber()
+            version.getVersionNumber(),
+            starterCode
         );
     }
 }

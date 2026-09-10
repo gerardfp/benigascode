@@ -1,0 +1,6 @@
+#javascript 14
+#java 13
+#php 11
+#python 10
+#csharp 8
+#human 1

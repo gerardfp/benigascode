@@ -1,0 +1,8 @@
+String scheme = "https";
+String user = "linus";
+String password = "torvalds";
+String host = "git-scm.com";
+int port = 8080;
+String[] path = {"downloads", "gnu", "linux"};
+String[] query = {"v=2.21", "dev=true"};
+String fragment = "arch";

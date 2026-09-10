@@ -1,0 +1,9 @@
+class Mktr {}
+
+abstract class Pkjy extends Mktr{
+   int i;
+   
+   void xcvb();
+}
+
+END

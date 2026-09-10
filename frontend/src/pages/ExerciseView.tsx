@@ -5,7 +5,11 @@ import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation } from '
 import { CodeEditor } from '../components/CodeEditor';
 
 export const ExerciseView: React.FC = () => {
-  const { activityId, exerciseId } = useParams<{ activityId: string; exerciseId: string }>();
+  const { activityId, collectionId, exerciseId } = useParams<{
+    activityId?: string;
+    collectionId?: string;
+    exerciseId: string;
+  }>();
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [publicTests, setPublicTests] = useState<PublicTest[]>([]);
@@ -26,12 +30,28 @@ export const ExerciseView: React.FC = () => {
 
     api.getExercise(exerciseId)
       .then(setExercise)
+    api.getExercise(exerciseId, collectionId)
+      .then((ex) => {
+        setExercise(ex);
+        if (ex.starterCode !== undefined && ex.starterCode !== null) {
+          setCode(ex.starterCode);
+        }
+      })
       .catch((err) => setErrorMsg(err.message));
 
     api.getPublicTests(exerciseId)
       .then(setPublicTests)
       .catch(console.error);
   }, [exerciseId]);
+  }, [exerciseId, collectionId]);
+
+  const handleResetTemplate = () => {
+    if (exercise && exercise.starterCode !== undefined && exercise.starterCode !== null) {
+      if (window.confirm('¿Deseas restablecer el código a la plantilla inicial? Se descartarán las modificaciones actuales.')) {
+        setCode(exercise.starterCode);
+      }
+    }
+  };
 
   // Ejecución de pruebas preliminares (no consume intentos)
   const handlePreviewRun = async () => {
@@ -102,7 +122,15 @@ export const ExerciseView: React.FC = () => {
   return (
     <div className="app-container" style={{ maxWidth: 1400 }}>
       <div style={{ marginBottom: '1rem' }}>
-        <Link to="/" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>&larr; Volver al Dashboard</Link>
+        {collectionId ? (
+          <Link to={`/collections/${collectionId}`} style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
+            &larr; Volver a la Colección
+          </Link>
+        ) : (
+          <Link to="/" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
+            &larr; Volver al Dashboard
+          </Link>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '1.5rem', alignItems: 'start' }}>
@@ -113,6 +141,9 @@ export const ExerciseView: React.FC = () => {
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
               <span className="badge badge-info">{exercise.language}</span>
               <span className="badge badge-neutral">Versión {exercise.versionNumber}</span>
+              {(!activityId || activityId === 'practice') && (
+                <span className="badge badge-success">Práctica Libre</span>
+              )}
             </div>
 
             <div style={{ lineHeight: '1.6', fontSize: '0.9375rem', whiteSpace: 'pre-wrap', color: '#334155' }}>
@@ -152,6 +183,20 @@ export const ExerciseView: React.FC = () => {
           <div className="card" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Solución Java (Main.java)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Solución Java (Main.java)</span>
+                {exercise.starterCode !== undefined && (
+                  <button
+                    type="button"
+                    onClick={handleResetTemplate}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', color: '#64748b' }}
+                    title="Restablecer código a la plantilla inicial"
+                  >
+                    ↺ Restablecer plantilla
+                  </button>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
                   onClick={handlePreviewRun}
@@ -161,14 +206,16 @@ export const ExerciseView: React.FC = () => {
                 >
                   {previewLoading ? 'Ejecutando...' : '▶ Probar Tests Públicos'}
                 </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={previewLoading || submitLoading}
-                  className="btn-primary"
-                  style={{ fontSize: '0.8125rem' }}
-                >
-                  {submitLoading ? 'Enviando a cola...' : 'Enviar Solución Oficial'}
-                </button>
+                {activityId && activityId !== 'practice' && (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={previewLoading || submitLoading}
+                    className="btn-primary"
+                    style={{ fontSize: '0.8125rem' }}
+                  >
+                    {submitLoading ? 'Enviando a cola...' : 'Enviar Solución Oficial'}
+                  </button>
+                )}
               </div>
             </div>
 

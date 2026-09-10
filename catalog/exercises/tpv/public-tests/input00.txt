@@ -1,0 +1,8 @@
+5
+Hamburguesa Refresco Patatas Ensalada Tarta
+4           1        2       3        5
+
+3
+Hamburguesa 2
+Refresco 2
+Tarta 1

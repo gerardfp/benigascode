@@ -1,0 +1,47 @@
+id: ea92e-shopping-cart-class-l0
+title: '[ea92e] Shopping Cart #class #L0'
+slug: ea92e-shopping-cart-class-l0
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 50.0
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\n\n// escriu el codi aqui\n\npublic class Main {\n\
+    \n    public static void main(String[] args) {\n        Scanner scanner = new\
+    \ Scanner(System.in);\n\n        ShoppingCart shoppingCart = new ShoppingCart();\n\
+    \n        int nProducts = scanner.nextInt();\n        scanner.nextLine();\n\n\
+    \        shoppingCart.products = new Product[nProducts];\n\n        for (int i\
+    \ = 0; i < nProducts; i++) {\n            shoppingCart.products[i] = new Product();\n\
+    \            shoppingCart.products[i].name = scanner.nextLine();\n           \
+    \ shoppingCart.products[i].price = scanner.nextFloat();\n            scanner.nextLine();\n\
+    \        }\n\n        System.out.println(\"ShoppingCart\");\n        for (int\
+    \ i = 0; i < nProducts; i++) {\n            System.out.format(\"%40s  %6.2f%n\"\
+    , shoppingCart.products[i].name, shoppingCart.products[i].price);\n        }\n\
+    \    }\n}"

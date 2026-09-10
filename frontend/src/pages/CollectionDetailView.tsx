@@ -110,7 +110,7 @@ export const CollectionDetailView: React.FC = () => {
                 </div>
 
                 <Link
-                  to={`/activity/practice/exercise/${ex.id}`}
+                  to={`/collections/${collectionId}/exercise/${ex.id}`}
                   className="btn-primary"
                   style={{ textDecoration: 'none', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
                 >

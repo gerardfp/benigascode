@@ -1,0 +1,4 @@
+index.ts Archivo TypeScript
+out.asm Archivo assembler
+query.sql Archivo Structured Query Language
+main.rs Archivo Rust

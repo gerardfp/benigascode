@@ -1,0 +1,10 @@
+3
+Hamburguesa Patatas Bebida
+3           2       1
+
+5
+Hamburguesa 2
+Patatas 1
+Hamburguesa 1
+Bebida 2
+Patatas 2

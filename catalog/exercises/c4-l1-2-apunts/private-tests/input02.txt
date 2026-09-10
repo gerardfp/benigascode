@@ -1,0 +1,6 @@
+5
+5 La sentencia while tiene esta sintaxis: while(){}
+2 Los operadores booleanos son OR || y AND &&
+1 Los datos primitivos en Java son: byte, short, int, long, float, double, boolean y char
+4 La sentencia for tiene esta sintaxis: for(;;) {}
+3 La sentencia if tiene esta sintaxis: if {} else {}

@@ -1,0 +1,5 @@
+Benvingut a l'enquesta.
+Coneixes algun framework?
+Quin?
+S'ha registrat la resposta: svelte
+Gracies per contestar

@@ -1,0 +1,8 @@
+Ingres realitzat: 10.50
+>> Saldo: 10.50
+Ingres realitzat: 10.50
+>> Saldo: 21.00
+>> Saldo: 21.00
+Retirar diners -> 5.50
+>> Saldo: 15.50
+>> Saldo: 15.50

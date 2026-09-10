@@ -1,0 +1,1 @@
+abstract transactional data source spring context tests

@@ -110,10 +110,84 @@ public class ContentService {
 
     @Transactional(readOnly = true)
     public ExerciseDTO getExerciseVersion(UUID exerciseVersionId, User user) {
+        return getExerciseVersion(exerciseVersionId, null, user);
+    }
+
+    @Transactional(readOnly = true)
+    public ExerciseDTO getExerciseVersion(UUID exerciseVersionId, UUID collectionId, User user) {
         ExerciseVersion version = exerciseVersionRepository.findById(exerciseVersionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
         return ExerciseDTO.fromVersion(version);
+        String starterCode = resolveStarterCode(version, collectionId);
+        return ExerciseDTO.fromVersion(version, starterCode);
+    }
+
+    private String resolveStarterCode(ExerciseVersion version, UUID collectionId) {
+        String runtimeId = version.getRuntimeId();
+        String starterCode = null;
+
+        // 1. Plantilla específica a nivel de ejercicio
+        try {
+            if (version.getTemplatesConfig() != null) {
+                JsonNode exTemplates = objectMapper.readTree(version.getTemplatesConfig());
+                if (exTemplates.has(runtimeId)) {
+                    starterCode = exTemplates.get(runtimeId).asText();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        // 2. Si el ejercicio no definió plantilla para este runtime, buscar en la colección
+        if (starterCode == null) {
+            CollectionVersion colVersion = null;
+            if (collectionId != null) {
+                colVersion = collectionVersionRepository.findLatestByCollectionId(collectionId).orElse(null);
+            } else {
+                List<CollectionVersion> allColVersions = collectionVersionRepository.findAll();
+                for (CollectionVersion cv : allColVersions) {
+                    try {
+                        JsonNode items = objectMapper.readTree(cv.getItems());
+                        if (items.isArray()) {
+                            for (JsonNode item : items) {
+                                if (version.getExercise().getSlug().equalsIgnoreCase(item.path("id").asText())) {
+                                    colVersion = cv;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    if (colVersion != null) break;
+                }
+            }
+
+            if (colVersion != null && colVersion.getTemplatesConfig() != null) {
+                try {
+                    JsonNode colTemplates = objectMapper.readTree(colVersion.getTemplatesConfig());
+                    if (colTemplates.has(runtimeId)) {
+                        starterCode = colTemplates.get(runtimeId).asText();
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        // 3. Fallback al esqueleto por defecto del sistema SOLO si sigue siendo null (no definido)
+        if (starterCode == null) {
+            starterCode = getDefaultStarterCodeForRuntime(runtimeId);
+        }
+
+        return starterCode;
+    }
+
+    private String getDefaultStarterCodeForRuntime(String runtimeId) {
+        if (runtimeId != null && runtimeId.toLowerCase().startsWith("java")) {
+            return "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Escribe tu solución aquí\n    }\n}\n";
+        } else if (runtimeId != null && runtimeId.toLowerCase().startsWith("python")) {
+            return "# Escribe tu solución aquí\n";
+        }
+        return "";
     }
 
     @Transactional(readOnly = true)

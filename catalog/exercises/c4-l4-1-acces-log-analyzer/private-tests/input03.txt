@@ -1,0 +1,9 @@
+123.221.14.56 - - [28/05/2019:12:05:17] "POST /forks HTTP/1.1" 404 9342 "http://www.casualcyclist.com" "Mozilla/5.0 (Linux; U; Android 2.3.5; en-us; HTC Vision Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"
+16.180.70.237 - - [28/05/2019:12:09:21] "POST /shifters HTTP/1.0" 400 5067 "-" "Mozilla/5.0 (Linux; U; Android 2.3.5; en-us; HTC Vision Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"
+237.43.24.118 - - [28/05/2019:12:12:07] "POST /stems HTTP/1.1" 403 5667 "http://bleater.com" "Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0"
+237.43.24.118 - - [28/05/2019:12:14:21] "POST /saddles HTTP/1.0" 401 5998 "http://www.casualcyclist.com" "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"
+233.192.62.103 - - [28/05/2019:12:15:34] "POST /forks HTTP/1.0" 500 10796 "http://bleater.com" "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"
+233.192.62.103 - - [28/05/2019:12:17:00] "GET /Store/cart.jsp HTTP/1.0" 400 4157 "http://bestcyclingreviews.com/top_online_shops" "Mozilla/5.0 (Windows; U; Windows NT 6.1; rv:2.2) Gecko/20110201"
+198.122.118.164 - - [28/05/2019:12:18:09] "POST /forks HTTP/1.1" 403 10388 "http://searchengine.com" "Mozilla/5.0 (Linux; U; Android 2.3.5; en-us; HTC Vision Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"
+218.193.16.244 - - [28/05/2019:12:21:12] "POST /shifters HTTP/1.1" 200 6273 "http://www.casualcyclist.com" "Mozilla/5.0 (Windows; U; MSIE 9.0; WIndows NT 9.0; en-US))"
+__END__

@@ -1,0 +1,27 @@
+15
+1 1 Java 0
+2 1 OracleDB 109.4
+3 2 Windows 37.3
+4 3 Android 0
+5 4 OSX 74.1
+6 5 Photoshop 55
+7 6 Gnome 0
+8 6 Gimp 0
+9 6 Guix 0
+10 6 gcc 0
+11 7 Apache 0
+12 7 Hadoop 0
+13 7 Spark 0
+14 8 Firefox 0
+15 9 PostgreSQL 0
+
+9
+1 Oracle
+2 Microsoft
+3 Google
+4 Apple
+5 Adobe
+6 GNU
+7 Apache SF
+8 Mozilla
+9 PGDB

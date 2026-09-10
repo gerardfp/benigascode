@@ -1,0 +1,4 @@
+cognom     |nom |modul                |nota 
+-----------+----+---------------------+-----
+Von Neumann|John|Fonaments de Hardware|10.00
+(1 rows)

@@ -1,0 +1,6 @@
+Ingres realitzat: 10.00
+>> Saldo: 10.00
+Retirar diners -> 10.00
+>> Saldo: 0.00
+Saldo insuficient
+>> Saldo: 0.00

@@ -1,0 +1,39 @@
+id: tipus-correctes
+title: 'Tipus correctes  #variables'
+slug: tipus-correctes
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-0
+    name: Test Privado 0
+    input: private-tests/input00.txt
+    expected: private-tests/output00.txt
+    weight: 50.0
+templates:
+- runtimes:
+  - java-21
+  code: "public class Main {\n\n    public static void main(String[] args) {\n   \
+    \ \ty = 2020;\n      \tm = \"Abril\";\n      \tt = 37.5f;\n      \ts = false;\n\
+    \      \tc = ';';\n      \n      \tSystem.out.println(y);\n      \tSystem.out.println(m);\n\
+    \      \tSystem.out.println(t);\n      \tSystem.out.println(s);\n      \tSystem.out.println(c);\n\
+    \    }\n}"

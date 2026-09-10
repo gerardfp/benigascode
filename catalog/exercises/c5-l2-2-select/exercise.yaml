@@ -1,0 +1,43 @@
+id: c5-l2-2-select
+title: '[C5-L2-2] SELECT'
+slug: c5-l2-2-select
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 50.0
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\nimport java.time.LocalDate;\nimport java.time.format.DateTimeFormatter;\n\
+    \npublic class Main {\n\n    public static void main(String[] args) {\n      \
+    \  /*\n        DateTimeFormatter dtf = DateTimeFormatter.ofPattern(\"uuuu-M-d\"\
+    );\n        \n        LocalDate ini = LocalDate.parse(\"1707-04-15\", dtf);\n\
+    \        LocalDate fi = LocalDate.parse(\"1937-12-26\", dtf);\n        LocalDate\
+    \ birthdate = LocalDate.parse(\"1845-03-03\", dtf);\n\n        if(!(birthdate.isAfter(fi)\
+    \ || birthdate.isBefore(ini))){\n            System.out.println(\"birthdate BETWEEN\
+    \ '1707-04-15' AND '1937-12-26'\");\n        }\n        */\n    }\n}"

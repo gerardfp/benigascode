@@ -1,0 +1,4 @@
+Nom:        Kingston HyperX Fury Black
+Descripcio: 16GB DDR4 2666Mhz PC-21300 (2x8GB) CL16
+Preu:       79.5
+Stock:      3

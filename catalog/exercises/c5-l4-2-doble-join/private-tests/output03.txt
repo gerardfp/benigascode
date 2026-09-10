@@ -1,0 +1,10 @@
+cognom  |nom  |modul                                      |nota 
+--------+-----+-------------------------------------------+-----
+Torvalds|Linus|Implantacio de sistemes operatius          |10.00
+Torvalds|Linus|Planificacio i administracio de xarxes     | 8.00
+Cerf    |Vint |Implantacio de sistemes operatius          | 7.00
+Cerf    |Vint |Implantacio de sistemes operatius          | 7.00
+Rubin   |Andy |Implantacio de sistemes operatius          |10.00
+Rubin   |Andy |Planificacio i administracio de xarxes     | 9.00
+Rubin   |Andy |Programacio                                | 8.00
+(7 rows)

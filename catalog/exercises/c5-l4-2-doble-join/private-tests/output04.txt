@@ -1,0 +1,14 @@
+cognom     |nom  |modul                                 |nota 
+-----------+-----+--------------------------------------+-----
+Codd       |Edgar|Formacio i orientacio laboral         | 6.00
+Codd       |Edgar|Gestio de bases de dades              |10.00
+Berners-Lee|Tim  |Fonaments de maquinari                | 6.00
+Berners-Lee|Tim  |Llenguatges de marques                |10.00
+Von Neumann|John |Fonaments de maquinari                |10.00
+Von Neumann|John |Gestio de bases de dades              |10.00
+Von Neumann|John |Llenguatges de marques                |10.00
+Von Neumann|John |Planificacio i administracio de xarxes|10.00
+Marx       |Karl |Empresa i iniciativa emprenedora      |10.00
+Marx       |Karl |Formacio i orientacio laboral         |10.00
+Marx       |Karl |Planificacio i administracio de xarxes| 5.00
+(11 rows)

@@ -1,0 +1,18 @@
+Termometre 1
+   0.00C
+  32.00F
+ 273.15K
+Termometre 2
+ 100.00C
+ 212.00F
+ 373.15K
+--------
+Termometre 1
+-273.10C
+-459.58F
+   0.05K
+Termometre 2
+ 232.78C
+ 451.00F
+ 505.93K
+--------

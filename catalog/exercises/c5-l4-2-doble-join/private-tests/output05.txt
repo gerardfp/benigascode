@@ -1,0 +1,10 @@
+cognom |nom    |modul             |nota 
+-------+-------+------------------+-----
+Dijkstra|Edsger |Programacio basica|10.00
+Knuth  |Donald |Programacio basica|10.00
+Floyd  |Robert |Programacio basica|10.00
+Thompson|Ken    |Programacio basica|10.00
+Ritchie|Dennis |Programacio basica|10.00
+Kay    |Alan   |Programacio basica|10.00
+Liskov |Barbara|Programacio basica|10.00
+(7 rows)

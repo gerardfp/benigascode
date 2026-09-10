@@ -1,0 +1,20 @@
+7
+87 Dijkstra, Edsger
+10 Knuth, Donald
+1 Floyd, Robert
+23 Thompson, Ken
+56 Ritchie, Dennis
+96 Kay, Alan
+44 Liskov, Barbara
+
+1
+106 Programacio basica
+
+7
+87 106 10
+10 106 10
+1 106 10
+23 106 10
+56 106 10
+96 106 10
+44 106 10

@@ -1,0 +1,9 @@
+class Dictionari {
+    String[] words = {
+        "festival",
+        "triangle",
+        "municipi",
+        "batalla",
+        "voleibol"
+    };
+}

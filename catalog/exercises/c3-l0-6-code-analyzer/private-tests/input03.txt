@@ -1,0 +1,7 @@
+class Mktr {
+   class Trws {}
+}
+
+class Pkjy {}
+
+END

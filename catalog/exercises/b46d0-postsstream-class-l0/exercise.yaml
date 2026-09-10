@@ -1,0 +1,47 @@
+id: b46d0-postsstream-class-l0
+title: '[b46d0] PostsStream #class #L0'
+slug: b46d0-postsstream-class-l0
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 50.0
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 50.0
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\n\nclass Author {\n    String name;\n    String photoURL;\n\
+    }\n\nclass Post {\n    Author author;\n    String content;\n}\n\nclass Stream\
+    \ {\n    Post[] posts;\n}\n\npublic class Main {\n\n    public static void main(String[]\
+    \ args) {\n        Scanner scanner = new Scanner(System.in);\n\n        int nPosts\
+    \ = scanner.nextInt();\n\n        Stream stream = new Stream();\n\n        stream.posts\
+    \ = new Post[nPosts];\n\n        for (int i = 0; i < nPosts; i++) {\n\n      \
+    \      // escriu aqui el codi\n\n            stream.posts[i].author.name = scanner.next();\n\
+    \            stream.posts[i].author.photoURL = scanner.next();\n            stream.posts[i].content\
+    \ = scanner.next() + scanner.nextLine();\n        }\n\n        for (int i = 0;\
+    \ i < nPosts; i++) {\n            System.out.println(stream.posts[i].author.name);\n\
+    \            System.out.println(stream.posts[i].content);\n            System.out.println(\"\
+    ------------------------------\");\n        }\n    }\n}"

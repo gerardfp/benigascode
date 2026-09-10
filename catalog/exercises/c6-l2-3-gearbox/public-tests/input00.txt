@@ -1,0 +1,7 @@
+5
+UP
+UP
+UP
+DOWN
+DOWN
+__END__

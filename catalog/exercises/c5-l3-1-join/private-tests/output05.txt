@@ -1,0 +1,18 @@
+name            |merchant        |price     
+----------------+----------------+----------
+Java            |Oracle          |      0.00
+OracleDB        |Oracle          |    109.40
+Windows         |Microsoft       |     37.30
+Android         |Google          |      0.00
+OSX             |Apple           |     74.10
+Photoshop       |Adobe           |     55.00
+Gnome           |GNU             |      0.00
+Gimp            |GNU             |      0.00
+Guix            |GNU             |      0.00
+gcc             |GNU             |      0.00
+Apache          |Apache SF       |      0.00
+Hadoop          |Apache SF       |      0.00
+Spark           |Apache SF       |      0.00
+Firefox         |Mozilla         |      0.00
+PostgreSQL      |PGDB            |      0.00
+(15 rows)

@@ -1,0 +1,33 @@
+8 8
+8
+5
+eeeee
+ee
+eeee
+ee
+eeeee
+3
+ooo
+o o
+ooo
+1
+a
+4
+i
+i
+i
+i
+2
+u u
+uuu
+3
+x x
+ x
+x x
+3
+y   y
+ y y
+  y
+2
+zz
+zz

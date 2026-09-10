@@ -1,0 +1,5 @@
+A {2} trobaras el cami
+Potser al {1} hi ha alguna cosa
+Segueix buscant per {4}
+Prova al {3} a veure
+PREMI

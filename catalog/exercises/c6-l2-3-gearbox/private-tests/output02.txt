@@ -1,0 +1,5 @@
+Current gear: 1
+Current gear: 2
+Current gear: 1
+Current gear: N
+Current gear: R

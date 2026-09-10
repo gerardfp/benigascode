@@ -1,0 +1,8 @@
+3
+1 1 Java 0
+7 6 Gnome 0
+10 6 gcc 0
+
+2
+1 Oracle
+6 GNU

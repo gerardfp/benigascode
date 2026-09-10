@@ -1,0 +1,6 @@
+class Dictionari {
+    String[] words = {
+        "metaprogramming",
+        "rocks"
+    };
+}

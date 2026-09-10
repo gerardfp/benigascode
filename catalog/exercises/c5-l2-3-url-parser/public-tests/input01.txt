@@ -1,0 +1,1 @@
+http://user:pass@example.com:3000/docs/api/index.php?version=7&lang=java#strings

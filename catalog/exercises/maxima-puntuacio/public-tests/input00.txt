@@ -1,0 +1,6 @@
+Larry 100
+Ken 101
+Philip 105
+Niklaus 110
+Rasmus 99
+Chris 70

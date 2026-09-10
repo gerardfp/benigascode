@@ -1,0 +1,3 @@
+CaseStyles
+case-styles
+CASE_STYLES

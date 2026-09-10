@@ -1,0 +1,21 @@
+Insert coin
+Refund:0.0
+Insert coin
+Price:0.5
+Insert coin
+Balance:0.5
+Balance:1.0
+Your water, thanks
+Balance:0.5
+Balance:0.75
+Refund:0.75
+Insert coin
+Balance:0.75
+Your water, thanks
+Balance:0.25
+Refund:0.25
+Insert coin
+Refund:0.0
+Insert coin
+Balance:0.25
+Refund:0.25

@@ -8,6 +8,19 @@
         Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
     }
 
+    # Assets estáticos con hash inmutables
+    @assets {
+        path /assets/*
+    }
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    # Rutas SPA y HTML nunca deben cachearse en el navegador
+    @notAssets {
+        not path /assets/*
+    }
+    header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
+    header @notAssets Pragma "no-cache"
+
     # API Backend Reverse Proxy
     handle /api/* {
         reverse_proxy backend:8080 {

@@ -1,0 +1,17 @@
+5 3.33
+Mi_TV_4S 349
+Mi_Band_4 19
+Nest_Mini2 19
+IdeaPad_3 649
+A51_5G 289
+
+3 7
+Cyclone_V10 399
+iPhone_11 584
+TV_QLED_65 1299
+
+2 13
+HW_T530 149
+MediaPad_M5 175
+
+0 0

@@ -1,0 +1,51 @@
+id: e2ac7-rebajas-class-l0
+title: '[e2ac7] Rebaixes #class #L0'
+slug: e2ac7-rebajas-class-l0
+language: java
+runtime: java-21
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
+tests:
+  public:
+  - id: test-pub-0
+    name: Test Público 0
+    input: public-tests/input00.txt
+    expected: public-tests/output00.txt
+    weight: 33.33
+  private:
+  - id: test-priv-1
+    name: Test Privado 1
+    input: private-tests/input01.txt
+    expected: private-tests/output01.txt
+    weight: 33.33
+  - id: test-priv-2
+    name: Test Privado 2
+    input: private-tests/input02.txt
+    expected: private-tests/output02.txt
+    weight: 33.34
+templates:
+- runtimes:
+  - java-21
+  code: "import java.io.*;\nimport java.util.*;\nimport java.text.*;\nimport java.math.*;\n\
+    import java.util.regex.*;\n\nclass Producto {\n    String descripcion;\n    float\
+    \ precio;\n\n    Producto(String descripcion, float precio) {\n        this.descripcion\
+    \ = descripcion;\n        this.precio = precio;\n    }\n\n    public String toString()\
+    \ {\n        // escriu el codi aqui\n    }\n}\n\nclass Descuento {\n    float\
+    \ valor;\n\n    Descuento(float valor) {\n        this.valor = valor;\n    }\n\
+    \n  \t// escriu el codi aqui\n}\n\npublic class Main {\n\n    public static void\
+    \ main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n \
+    \       scanner.useLocale(Locale.US);\n\n        Producto producto = new Producto(scanner.next(),\
+    \ scanner.nextFloat());\n\n        System.out.println(producto);\n\n        Descuento\
+    \ descuento = new Descuento(scanner.nextFloat());\n\n        descuento.aplicar(producto);\n\
+    \n        System.out.println(producto);\n    }\n}"

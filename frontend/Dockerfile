@@ -13,6 +13,19 @@ FROM caddy:2.8-alpine
 COPY --from=builder /app/dist /var/www/html
 COPY <<EOF /etc/caddy/Caddyfile
 :80 {
+    # Assets estáticos con hash inmutables
+    @assets {
+        path /assets/*
+    }
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    # Rutas SPA y HTML nunca deben cachearse en el navegador
+    @notAssets {
+        not path /assets/*
+    }
+    header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
+    header @notAssets Pragma "no-cache"
+
     # API Backend Reverse Proxy
     handle /api/* {
         reverse_proxy backend:8080 {

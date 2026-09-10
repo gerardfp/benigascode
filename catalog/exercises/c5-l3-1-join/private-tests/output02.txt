@@ -1,0 +1,4 @@
+name            |merchant        |price     
+----------------+----------------+----------
+Firefox         |Mozilla         |      0.00
+(1 rows)

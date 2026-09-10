@@ -1,0 +1,137 @@
+40
+{
+    #Java: New Developments & Features. #Java is growing and changing quickly,
+    and there's a lot to keep up with.
+}
+{
+    Everything you need to know about the newest garbage collectors in #Java.
+}
+{
+    For #Java developers, learning Spring Boot is the first step to learning to developer
+    applications for the cloud.
+}
+{
+    A Reading List for #Java Programmers
+}
+{
+    I used the last two days to complete the JUnit tutorial. #java
+}
+{
+    Starting with my first #Java app
+}
+{
+    Now I know #Java
+}
+{
+    #Python is the most popular language in 2019
+}
+{
+    How To: Configure #Python Virtual Environment
+}
+{
+    console.log("good morning"); #JavaScript
+    System.out.println("good morning"); #JAVA
+    print "good morning"; #Python
+    echo "good morning"; #PHP
+    Good morning. #Human
+}
+{
+    1 Minute #Python - String Indexing: Positive Indexes Enjoy! :)
+}
+{
+    Creating a Neural Network from Scratch in #Python
+}
+{
+    #python tip:  The boolean values False and True are equal to zero and one.
+}
+{
+    got photo bombed by Guido van Rossum creator of #python
+}
+{
+    Tonight I manipulated the DOM to add elements to a webpage using #javascript!
+    Mind freaking blown!
+}
+{
+    Today was spent going over regular expressions in #JavaScript
+}
+{
+    I started learning React before having a solid grasp of #JavaScript and I regretted it.
+}
+{
+    What if... Oh, it actually works. #javascript
+}
+{
+    Write everything in #JavaScript
+}
+{
+    This is going to change my entire workflow of building #javascript
+}
+{
+    Yet Another #javascript Framework
+}
+{
+    Time to relax after work and not think about #JavaScript Errors.
+}
+{
+    if an image failed to load, show a customized broken image #javascript
+}
+{
+    all about Machine Learning with #JavaScript
+}
+{
+    Can you spot the vulnerability? #PHP
+}
+{
+    Improve the security of your #PHP app
+}
+{
+    <? this tweet is not parsed as #PHP anymore: get over it
+}
+{
+    Vue and Laravel To-Do App - Restful API Project #PHP
+}
+{
+    What #PHP version are you running?
+}
+{
+    Learn to Create a #PHP MVC Framework
+}
+{
+    That #PHP clip too crazy!!!
+}
+{
+    Hello, naming convention:
+    camelCase
+    kebab-case
+    PascalCase
+    snake_case
+    #java #javascript #python #CSharp #PHP
+}
+{
+    Languages to learn this year;
+    #Python #JavaScript #PHP #CSharp
+    Maybe;
+    #Java
+}
+{
+    Looks like PAUSE has taken a pause. #Java
+}
+{
+    Which programming language would you recommend to start learning first?
+    #Python #Java #CSharp #PHP #Javascript
+}
+{
+    All computers wait at same speed #CSharp
+}
+{
+    Do #CSharp developers have 20/20 vision?
+}
+{
+    Anyone out there know if there are any good books on #CSharp?
+}
+{
+    Wish I could declare local variables as `readonly` in #csharp so I can't accidentally overwrite them.
+}
+{
+    It doesn't seem to be #csharp
+}

@@ -33,6 +33,10 @@ public class CollectionVersion {
     @Column(columnDefinition = "JSONB")
     private String items = "[]";
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "templates_config", columnDefinition = "JSONB")
+    private String templatesConfig = "{}";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -85,6 +89,14 @@ public class CollectionVersion {
 
     public void setItems(String items) {
         this.items = items;
+    }
+
+    public String getTemplatesConfig() {
+        return templatesConfig;
+    }
+
+    public void setTemplatesConfig(String templatesConfig) {
+        this.templatesConfig = templatesConfig;
     }
 
     public Instant getCreatedAt() {

@@ -1,0 +1,6 @@
+Ingres realitzat: 10.00
+>> Saldo: 10.00
+Operacio no valida
+Retirar diners -> 5.00
+>> Saldo: 5.00
+>> Saldo: 5.00

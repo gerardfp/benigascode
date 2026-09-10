@@ -1,0 +1,5 @@
+[java, javascript] -> 1
+[java, javascript, java] -> 2
+[swift, dart, python, c#, TypeScript] -> 0
+[java, php, java, java, java, C] -> 4
+[c++, java, python, java, haskell, go, rust, kotlin, perl, bash] -> 2

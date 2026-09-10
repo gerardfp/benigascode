@@ -1,0 +1,26 @@
+4
+99 Codd, Edgar
+76 Berners-Lee, Tim
+47 Von Neumann, John
+10 Marx, Karl
+
+6
+12 Gestio de bases de dades
+13 Llenguatges de marques
+14 Fonaments de maquinari
+15 Planificacio i administracio de xarxes
+16 Formacio i orientacio laboral
+17 Empresa i iniciativa emprenedora
+
+11
+47 14 10
+99 16 6
+10 17 10
+76 14 6
+10 16 10
+47 12 10
+99 12 10
+47 13 10
+76 13 10
+10 15 5
+47 15 10
