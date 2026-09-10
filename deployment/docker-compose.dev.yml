@@ -33,8 +33,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: benigascode_password
       RUNNER_TOKEN: dev_runner_token_secure_12345
       CONTENT_STORAGE_PATH: /var/lib/benigascode/content
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:3000/teacher/sync/github/callback}
     volumes:
-      - benigascode_content_data:/var/lib/benigascode/content
+      - ../content-example:/var/lib/benigascode/content
     ports:
       - "8080:8080"
     networks:

@@ -58,6 +58,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       RUNNER_TOKEN: ${RUNNER_TOKEN}
       CONTENT_STORAGE_PATH: /var/lib/benigascode/content
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://${DOMAIN_NAME:-localhost}/teacher/sync/github/callback}
     volumes:
       - benigascode_prod_content:/var/lib/benigascode/content
     networks:

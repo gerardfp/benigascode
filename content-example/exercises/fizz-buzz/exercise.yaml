@@ -1,0 +1,55 @@
+id: "fizz-buzz"
+title: "FizzBuzz en Rango"
+slug: "fizz-buzz"
+difficulty: "EASY"
+tags:
+  - "bucles"
+  - "condicionales"
+  - "aritmetica"
+  - "java"
+language: "java"
+runtime: "java-21"
+
+compile:
+  command: "javac Main.java"
+  timeout_seconds: 10
+
+execution:
+  command: "java Main"
+  timeout_seconds: 3
+  memory_limit_mb: 256
+  cpu_limit: 1.0
+  pids_limit: 64
+  max_output_bytes: 65536
+
+scoring:
+  model: "WEIGHTED"
+  pass_threshold: 50.0
+
+comparator:
+  type: "TRIM"
+  case_sensitive: true
+
+tests:
+  public:
+    - id: "pub-01"
+      name: "Rango corto del 1 al 5"
+      weight: 20.0
+      input: "public-tests/test-01.in"
+      expected: "public-tests/test-01.out"
+    - id: "pub-02"
+      name: "Rango medio con múltiplos de 3, 5 y 15"
+      weight: 20.0
+      input: "public-tests/test-02.in"
+      expected: "public-tests/test-02.out"
+  private:
+    - id: "priv-01"
+      name: "Rango unitario (inicio igual a fin)"
+      weight: 30.0
+      input: "private-tests/test-03.in"
+      expected: "private-tests/test-03.out"
+    - id: "priv-02"
+      name: "Rango con múltiplos mayores"
+      weight: 30.0
+      input: "private-tests/test-04.in"
+      expected: "private-tests/test-04.out"

@@ -25,7 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <Link to="/" style={{ textDecoration: 'none', color: '#1e293b', fontWeight: 700, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Link to={user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? '/teacher' : '/'} style={{ textDecoration: 'none', color: '#1e293b', fontWeight: 700, fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#2563eb' }}>&lt;/&gt;</span> Benigascode
           </Link>
 

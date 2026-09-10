@@ -81,13 +81,25 @@ export const TeacherDashboard: React.FC = () => {
         {/* Cursos y Actividades */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem' }}>Mis Cursos</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0 }}>Mis Cursos</h2>
+              <Link to="/teacher/courses" className="btn-secondary" style={{ fontSize: '0.8125rem', textDecoration: 'none' }}>
+                Gestionar Cursos &rarr;
+              </Link>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
               {courses.map((c) => (
-                <div key={c.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '0.375rem' }}>
-                  <span className="badge badge-info" style={{ marginBottom: '0.25rem' }}>{c.code}</span>
-                  <h4 style={{ margin: '0 0 0.25rem', fontSize: '1rem' }}>{c.name}</h4>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Curso {c.academicYear}</div>
+                <div key={c.id} style={{ border: '1px solid #e2e8f0', padding: '1rem', borderRadius: '0.375rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <span className="badge badge-info" style={{ marginBottom: '0.25rem' }}>{c.code}</span>
+                    <h4 style={{ margin: '0 0 0.25rem', fontSize: '1rem' }}>{c.name}</h4>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Curso {c.academicYear}</div>
+                  </div>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <Link to={`/teacher/courses/${c.id}/submissions`} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', textDecoration: 'none' }}>
+                      Ver Entregas
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

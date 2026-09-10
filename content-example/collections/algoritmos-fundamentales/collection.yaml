@@ -1,0 +1,33 @@
+id: "algoritmos-fundamentales"
+title: "Algoritmos Fundamentales en Java"
+slug: "algoritmos-fundamentales"
+description: "Colección pública de retos esenciales de algoritmia: palíndromos, números primos, ordenación, sucesiones y lógica aritmética."
+language: "java"
+visibility: "PUBLIC"
+
+items:
+  - type: "EXERCISE"
+    id: "es-palindromo"
+    position: 1
+    required: true
+    weight: 20.0
+  - type: "EXERCISE"
+    id: "fizz-buzz"
+    position: 2
+    required: true
+    weight: 20.0
+  - type: "EXERCISE"
+    id: "numero-primo"
+    position: 3
+    required: true
+    weight: 20.0
+  - type: "EXERCISE"
+    id: "ordenar-numeros"
+    position: 4
+    required: true
+    weight: 20.0
+  - type: "EXERCISE"
+    id: "fibonacci-n"
+    position: 5
+    required: true
+    weight: 20.0

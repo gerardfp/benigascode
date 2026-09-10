@@ -8,6 +8,9 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { ExerciseView } from './pages/ExerciseView';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherActivityView } from './pages/TeacherActivityView';
+import { TeacherCoursesView } from './pages/TeacherCoursesView';
+import { TeacherActivitiesView } from './pages/TeacherActivitiesView';
+import { CollectionDetailView } from './pages/CollectionDetailView';
 import { GitSyncView } from './pages/GitSyncView';
 import { GitHubCallbackView } from './pages/GitHubCallbackView';
 
@@ -37,12 +40,46 @@ export const App: React.FC = () => {
         <Routes>
           <Route
             path="/login"
-            element={user ? <Navigate to="/" replace /> : <LoginPage onLoginSuccess={setUser} />}
+            element={
+              user ? (
+                <Navigate to={user.role === 'TEACHER' || user.role === 'ADMIN' ? "/teacher" : "/"} replace />
+              ) : (
+                <LoginPage onLoginSuccess={setUser} />
+              )
+            }
           />
 
           {/* Rutas de Alumno */}
           <Route
             path="/"
+            element={
+              !user ? (
+                <Navigate to="/login" replace />
+              ) : user.role === 'TEACHER' || user.role === 'ADMIN' ? (
+                <Navigate to="/teacher" replace />
+              ) : (
+                <StudentDashboard />
+              )
+            }
+          />
+          <Route
+            path="/collections"
+            element={user ? <StudentDashboard /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/collections/:collectionId"
+            element={user ? <CollectionDetailView /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/collections/:collectionId/exercise/:exerciseId"
+            element={user ? <ExerciseView /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/exercise/:exerciseId"
+            element={user ? <ExerciseView /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/history"
             element={user ? <StudentDashboard /> : <Navigate to="/login" replace />}
           />
           <Route
@@ -56,6 +93,26 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <TeacherDashboard />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/courses"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherCoursesView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/activities"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherActivitiesView />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -93,7 +150,15 @@ export const App: React.FC = () => {
           />
 
           {/* Redirección por defecto */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? "/teacher" : "/"}
+                replace
+              />
+            }
+          />
         </Routes>
       </main>
     </BrowserRouter>
