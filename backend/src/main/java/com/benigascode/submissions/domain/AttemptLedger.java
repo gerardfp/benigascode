@@ -1,15 +1,14 @@
 package com.benigascode.submissions.domain;
 
 import com.benigascode.activities.domain.ActivityVersion;
+import com.benigascode.content.domain.ExerciseVersion;
 import com.benigascode.identity.domain.User;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "attempt_ledger", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"student_id", "activity_version_id", "attempt_number"})
-})
+@Table(name = "attempt_ledger")
 public class AttemptLedger {
 
     @Id
@@ -20,9 +19,13 @@ public class AttemptLedger {
     @JoinColumn(name = "student_id", nullable = false)
     private User student;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "activity_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "activity_version_id", nullable = true)
     private ActivityVersion activityVersion;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "exercise_version_id", nullable = true)
+    private ExerciseVersion exerciseVersion;
 
     @Column(name = "attempt_number", nullable = false)
     private int attemptNumber;
@@ -43,6 +46,17 @@ public class AttemptLedger {
     public AttemptLedger(User student, ActivityVersion activityVersion, int attemptNumber, Submission submission) {
         this.student = student;
         this.activityVersion = activityVersion;
+        this.exerciseVersion = activityVersion != null ? activityVersion.getExerciseVersion() : null;
+        this.attemptNumber = attemptNumber;
+        this.submission = submission;
+        this.status = "CONSUMED";
+        this.createdAt = Instant.now();
+    }
+
+    public AttemptLedger(User student, ExerciseVersion exerciseVersion, int attemptNumber, Submission submission) {
+        this.student = student;
+        this.activityVersion = null;
+        this.exerciseVersion = exerciseVersion;
         this.attemptNumber = attemptNumber;
         this.submission = submission;
         this.status = "CONSUMED";
@@ -59,6 +73,10 @@ public class AttemptLedger {
 
     public ActivityVersion getActivityVersion() {
         return activityVersion;
+    }
+
+    public ExerciseVersion getExerciseVersion() {
+        return exerciseVersion;
     }
 
     public int getAttemptNumber() {
@@ -81,4 +99,3 @@ public class AttemptLedger {
         return createdAt;
     }
 }
-

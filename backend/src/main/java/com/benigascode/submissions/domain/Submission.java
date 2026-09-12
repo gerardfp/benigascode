@@ -4,6 +4,9 @@ import com.benigascode.activities.domain.ActivityVersion;
 import com.benigascode.content.domain.ExerciseVersion;
 import com.benigascode.identity.domain.User;
 import jakarta.persistence.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,8 +22,8 @@ public class Submission {
     @JoinColumn(name = "student_id", nullable = false)
     private User student;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "activity_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "activity_version_id", nullable = true)
     private ActivityVersion activityVersion;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -30,11 +33,23 @@ public class Submission {
     @Column(name = "source_code", nullable = false, columnDefinition = "TEXT")
     private String sourceCode;
 
+    @Column(name = "source_hash", length = 64)
+    private String sourceHash;
+
     @Column(nullable = false, length = 50)
     private String language;
 
     @Column(name = "delivery_channel", nullable = false, length = 30)
     private String deliveryChannel = "WEB"; // WEB, GITHUB
+
+    @Column(name = "attempt_number", nullable = false)
+    private int attemptNumber = 1;
+
+    @Column(name = "runtime_id", nullable = false, length = 50)
+    private String runtimeId = "java-26";
+
+    @Column(name = "tests_hash", length = 64)
+    private String testsHash;
 
     @Column(nullable = false, length = 30)
     private String status = "PENDING"; // PENDING, QUEUED, EVALUATING, FINISHED, CANCELLED
@@ -50,10 +65,28 @@ public class Submission {
         this.activityVersion = activityVersion;
         this.exerciseVersion = exerciseVersion;
         this.sourceCode = sourceCode;
+        this.sourceHash = computeSha256(sourceCode);
         this.language = language;
         this.deliveryChannel = "WEB";
+        this.runtimeId = "java-26";
+        this.testsHash = exerciseVersion != null ? exerciseVersion.getContentHash() : null;
         this.status = "QUEUED";
         this.createdAt = Instant.now();
+    }
+
+    public static String computeSha256(String data) {
+        if (data == null) return null;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     public UUID getId() {
@@ -72,6 +105,10 @@ public class Submission {
         return activityVersion;
     }
 
+    public void setActivityVersion(ActivityVersion activityVersion) {
+        this.activityVersion = activityVersion;
+    }
+
     public ExerciseVersion getExerciseVersion() {
         return exerciseVersion;
     }
@@ -80,12 +117,44 @@ public class Submission {
         return sourceCode;
     }
 
+    public String getSourceHash() {
+        return sourceHash;
+    }
+
+    public void setSourceHash(String sourceHash) {
+        this.sourceHash = sourceHash;
+    }
+
     public String getLanguage() {
         return language;
     }
 
     public String getDeliveryChannel() {
         return deliveryChannel;
+    }
+
+    public int getAttemptNumber() {
+        return attemptNumber;
+    }
+
+    public void setAttemptNumber(int attemptNumber) {
+        this.attemptNumber = attemptNumber;
+    }
+
+    public String getRuntimeId() {
+        return runtimeId;
+    }
+
+    public void setRuntimeId(String runtimeId) {
+        this.runtimeId = runtimeId;
+    }
+
+    public String getTestsHash() {
+        return testsHash;
+    }
+
+    public void setTestsHash(String testsHash) {
+        this.testsHash = testsHash;
     }
 
     public String getStatus() {
@@ -100,4 +169,3 @@ public class Submission {
         return createdAt;
     }
 }
-

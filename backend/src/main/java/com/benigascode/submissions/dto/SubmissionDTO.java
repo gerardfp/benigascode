@@ -10,27 +10,40 @@ public record SubmissionDTO(
     String studentName,
     UUID activityId,
     String activityName,
+    UUID exerciseId,
     UUID exerciseVersionId,
     String exerciseTitle,
     String language,
     String status,
     String sourceCode,
+    String sourceHash,
+    int attemptNumber,
     Instant createdAt
 ) {
     public static SubmissionDTO fromEntity(Submission submission) {
+        UUID actId = submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null ?
+                submission.getActivityVersion().getActivity().getId() : null;
+        String actName = submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null ?
+                submission.getActivityVersion().getActivity().getName() : "Práctica directa";
+
+        UUID exId = submission.getExerciseVersion() != null && submission.getExerciseVersion().getExercise() != null ?
+                submission.getExerciseVersion().getExercise().getId() : null;
+
         return new SubmissionDTO(
             submission.getId(),
             submission.getStudent().getId(),
             submission.getStudent().getFullName(),
-            submission.getActivityVersion().getActivity().getId(),
-            submission.getActivityVersion().getActivity().getName(),
+            actId,
+            actName,
+            exId,
             submission.getExerciseVersion().getId(),
             submission.getExerciseVersion().getTitle(),
             submission.getLanguage(),
             submission.getStatus(),
             submission.getSourceCode(),
+            submission.getSourceHash(),
+            submission.getAttemptNumber(),
             submission.getCreatedAt()
         );
     }
 }
-

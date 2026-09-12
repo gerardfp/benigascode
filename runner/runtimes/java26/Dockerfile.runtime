@@ -1,5 +1,5 @@
-# Benigascode Java 21 Sandbox Execution Environment
-FROM eclipse-temurin:21-jdk-alpine
+# Benigascode Java 26 Sandbox Execution Environment
+FROM eclipse-temurin:26-jdk-alpine
 
 # Crear usuario sin privilegios para ejecutar código de alumno
 RUN addgroup -g 10001 student && adduser -u 10001 -G student -D -s /sbin/nologin student

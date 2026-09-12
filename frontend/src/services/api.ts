@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -106,6 +106,30 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sourceCode, language }),
     }),
+
+  submitPracticeSolution: (exerciseId: string, sourceCode: string, language: string): Promise<Submission> =>
+    request<Submission>(`/exercises/${exerciseId}/submissions`, {
+      method: 'POST',
+      body: JSON.stringify({ sourceCode, language }),
+    }),
+
+  getExerciseSubmissions: (exerciseId: string): Promise<Submission[]> =>
+    request<Submission[]>(`/exercises/${exerciseId}/submissions`),
+
+  getWorkspace: (exerciseId: string): Promise<StudentWorkspace> =>
+    request<StudentWorkspace>(`/exercises/${exerciseId}/workspace`),
+
+  saveWorkspace: (exerciseId: string, sourceCode: string): Promise<StudentWorkspace> =>
+    request<StudentWorkspace>(`/exercises/${exerciseId}/workspace`, {
+      method: 'PUT',
+      body: JSON.stringify({ sourceCode }),
+    }),
+
+  getMyProgress: (): Promise<StudentProgress[]> =>
+    request<StudentProgress[]>('/me/progress'),
+
+  getExerciseProgress: (exerciseId: string): Promise<StudentProgress> =>
+    request<StudentProgress>(`/me/progress/exercises/${exerciseId}`),
 
   getMySubmissions: (): Promise<Submission[]> =>
     request<Submission[]>('/me/submissions'),

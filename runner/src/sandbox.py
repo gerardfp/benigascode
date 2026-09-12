@@ -3,7 +3,10 @@ import shutil
 import tempfile
 import time
 import subprocess
+import logging
 from typing import Dict, Any, Optional, List
+
+logger = logging.getLogger("BenigascodeSandbox")
 
 class ExecutionResult:
     def __init__(self, exit_code: int, stdout: str, stderr: str, duration_ms: int, timed_out: bool = False, oom_killed: bool = False):
@@ -26,21 +29,35 @@ class ExecutionResult:
 
 class Sandbox:
     """
-    Gestiona la ejecución aislada de código en contenedores efímeros
-    aplicando restricciones estrictas de seguridad (red, memoria, CPU, procesos).
+    Gestiona la ejecución aislada de código Java 26 en contenedores efímeros
+    aplicando restricciones estrictas de seguridad (red none, memoria, CPU, procesos, no-new-privileges).
     """
 
     MAX_OUTPUT_BYTES = 64 * 1024  # 64 KB limit
 
-    def __init__(self, image_name: str = "eclipse-temurin:21-jdk-alpine"):
-        self.image_name = image_name
+    def __init__(self, image_name: Optional[str] = None):
+        self.image_name = image_name or os.environ.get("RUNNER_SANDBOX_IMAGE", "eclipse-temurin:26-jdk-alpine")
+        self.hostname = os.environ.get("HOSTNAME", os.uname().nodename)
         self.docker_available = self._check_docker()
+        self.inside_container = self._check_inside_container() if self.docker_available else False
 
     def _check_docker(self) -> bool:
         try:
             res = subprocess.run(["docker", "version"], capture_output=True, timeout=3)
             return res.returncode == 0
         except Exception:
+            return False
+
+    def _check_inside_container(self) -> bool:
+        if not self.docker_available:
+            return False
+        try:
+            res = subprocess.run(["docker", "inspect", self.hostname], capture_output=True, timeout=3)
+            is_inside = (res.returncode == 0)
+            logger.info(f"Sandbox container detection: hostname={self.hostname}, inside_container={is_inside}")
+            return is_inside
+        except Exception as e:
+            logger.warning(f"Error comprobando si se ejecuta dentro de un contenedor: {e}")
             return False
 
     def execute_in_sandbox(
@@ -54,7 +71,7 @@ class Sandbox:
         pids_limit: int = 64,
     ) -> ExecutionResult:
         """
-        Ejecuta un comando dentro del sandbox aislado.
+        Ejecuta un comando dentro del sandbox aislado con Java 26.
         Si Docker está disponible, usa 'docker run' con todas las protecciones.
         Si Docker no está presente (entorno dev/test local sin docker), ejecuta el proceso
         directamente con límites de tiempo y captura de buffers.
@@ -78,7 +95,7 @@ class Sandbox:
         cpu_limit: float,
         pids_limit: int,
     ) -> ExecutionResult:
-        container_name = f"benigascode_sandbox_{int(time.time() * 1000)}"
+        container_name = f"benigascode_sandbox_{int(time.time() * 1000)}_{os.getpid()}"
         docker_cmd = [
             "docker", "run", "--rm", "-i",
             "--name", container_name,
@@ -91,10 +108,15 @@ class Sandbox:
             "--security-opt", "no-new-privileges:true",
             "--user", "10001:10001",
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=32m",
-            "-v", f"{os.path.abspath(workspace_dir)}:/workspace:rw",
-            "-w", "/workspace",
-            self.image_name,
-        ] + command
+        ]
+
+        if self.inside_container:
+            docker_cmd.extend(["--volumes-from", self.hostname, "-w", os.path.abspath(workspace_dir)])
+        else:
+            docker_cmd.extend(["-v", f"{os.path.abspath(workspace_dir)}:/workspace:rw", "-w", "/workspace"])
+
+        docker_cmd.append(self.image_name)
+        docker_cmd.extend(command)
 
         timed_out = False
         start_time = time.time()
@@ -102,18 +124,18 @@ class Sandbox:
         try:
             process = subprocess.Popen(
                 docker_cmd,
-                stdin=subprocess.PIPE if stdin_data else None,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
 
             try:
-                stdout, stderr = process.communicate(input=stdin_data, timeout=timeout_seconds)
+                stdout, stderr = process.communicate(input=stdin_data if stdin_data is not None else "", timeout=timeout_seconds)
                 exit_code = process.returncode
             except subprocess.TimeoutExpired:
                 timed_out = True
-                # Matar contenedor forzosamente
+                # Matar contenedor forzosamente para no dejar procesos huérfanos
                 subprocess.run(["docker", "kill", container_name], capture_output=True)
                 stdout, stderr = process.communicate()
                 exit_code = -1
@@ -138,6 +160,9 @@ class Sandbox:
                 duration_ms=duration_ms,
                 timed_out=False,
             )
+        finally:
+            # Asegurar que el contenedor muere incluso en caso de excepción imprevista
+            subprocess.run(["docker", "kill", container_name], capture_output=True)
 
     def _run_local_fallback(
         self,
@@ -156,14 +181,14 @@ class Sandbox:
             process = subprocess.Popen(
                 command,
                 cwd=workspace_dir,
-                stdin=subprocess.PIPE if stdin_data is not None else None,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
 
             try:
-                stdout, stderr = process.communicate(input=stdin_data, timeout=timeout_seconds)
+                stdout, stderr = process.communicate(input=stdin_data if stdin_data is not None else "", timeout=timeout_seconds)
                 exit_code = process.returncode
             except subprocess.TimeoutExpired:
                 timed_out = True
@@ -190,4 +215,3 @@ class Sandbox:
                 duration_ms=duration_ms,
                 timed_out=False,
             )
-

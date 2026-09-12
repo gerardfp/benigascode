@@ -24,12 +24,15 @@ public class Evaluation {
     @JoinColumn(name = "exercise_version_id", nullable = false)
     private ExerciseVersion exerciseVersion;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "activity_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "activity_version_id", nullable = true)
     private ActivityVersion activityVersion;
 
     @Column(name = "runtime_id", nullable = false, length = 50)
-    private String runtimeId;
+    private String runtimeId; // Required runtime declared by exercise (e.g. java-21)
+
+    @Column(name = "actual_runtime", nullable = false, length = 50)
+    private String actualRuntime = "java-26"; // Actual execution runtime (always Java 26)
 
     @Column(name = "runtime_image_digest", length = 100)
     private String runtimeImageDigest;
@@ -42,6 +45,15 @@ public class Evaluation {
 
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal score = BigDecimal.ZERO;
+
+    @Column(name = "compile_success")
+    private Boolean compileSuccess;
+
+    @Column(name = "compile_stdout", columnDefinition = "TEXT")
+    private String compileStdout;
+
+    @Column(name = "compile_stderr", columnDefinition = "TEXT")
+    private String compileStderr;
 
     @Column(nullable = false, length = 50)
     private String reason = "INITIAL_SUBMISSION";
@@ -98,6 +110,14 @@ public class Evaluation {
         this.runtimeId = runtimeId;
     }
 
+    public String getActualRuntime() {
+        return actualRuntime;
+    }
+
+    public void setActualRuntime(String actualRuntime) {
+        this.actualRuntime = actualRuntime;
+    }
+
     public String getRuntimeImageDigest() {
         return runtimeImageDigest;
     }
@@ -130,6 +150,30 @@ public class Evaluation {
         this.score = score;
     }
 
+    public Boolean getCompileSuccess() {
+        return compileSuccess;
+    }
+
+    public void setCompileSuccess(Boolean compileSuccess) {
+        this.compileSuccess = compileSuccess;
+    }
+
+    public String getCompileStdout() {
+        return compileStdout;
+    }
+
+    public void setCompileStdout(String compileStdout) {
+        this.compileStdout = compileStdout;
+    }
+
+    public String getCompileStderr() {
+        return compileStderr;
+    }
+
+    public void setCompileStderr(String compileStderr) {
+        this.compileStderr = compileStderr;
+    }
+
     public String getReason() {
         return reason;
     }
@@ -158,4 +202,3 @@ public class Evaluation {
         return createdAt;
     }
 }
-

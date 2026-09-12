@@ -236,11 +236,9 @@ No utilizar Spring Boot 3 salvo incompatibilidad técnica demostrada.
 
 # 6. JAVA DE LOS EJERCICIOS
 
-El runtime inicial para los ejercicios será:
+El lenguaje soportado inicialmente para los ejercicios será exclusivamente Java.
 
-```text
-Java 21
-```
+La **versión de Java utilizada realmente para ejecutar los ejercicios en la plataforma será Java 26**.
 
 Esto es independiente de la versión de Java utilizada para ejecutar Benigascode.
 
@@ -251,24 +249,91 @@ Benigascode backend
     Java 25
 
 Student exercise
-    Java 21
+    runtime real de la plataforma = Java 26
 ```
 
-El runtime del alumno debe ser tratado como un componente versionado.
+## Runtime declarado en `exercise.yaml`
 
-Posteriormente podrán añadirse:
+El campo:
+
+```yaml
+runtime: java-21
+```
+
+**NO selecciona la versión concreta con la que se ejecutará el ejercicio**.
+
+Ese campo expresa únicamente el **runtime mínimo requerido por el ejercicio**, es decir, la versión mínima de Java compatible con el contenido del ejercicio.
+
+Por ejemplo:
+
+```yaml
+runtime: java-21
+```
+
+significa:
 
 ```text
-Java 17
-Java 25
-Python
-C
-C++
-JavaScript
+Java 21 o superior
+```
+
+Si la plataforma utiliza Java 26, el ejercicio se ejecutará realmente con:
+
+```text
+Java 26
+```
+
+y no con Java 21.
+
+La regla es:
+
+```text
+runtime mínimo declarado por el ejercicio
+                <=
+runtime real de la plataforma
+```
+
+El sistema debe rechazar o marcar como incompatible un ejercicio cuyo runtime mínimo sea superior al runtime actualmente soportado por la plataforma.
+
+La versión real de ejecución **no puede ser elegida por el ejercicio ni por el alumno**.
+
+Debe existir un único runtime de ejecución de Java para la plataforma.
+
+La plataforma se actualizará únicamente hacia versiones superiores:
+
+```text
+Java 26
+   ↓
+Java 27
+   ↓
+Java 28
+   ↓
 ...
 ```
 
-sin modificar el modelo de Submission/Evaluation.
+Cuando se actualice la plataforma, los ejercicios que declaren, por ejemplo:
+
+```yaml
+runtime: java-21
+```
+
+seguirán utilizando el nuevo runtime real de la plataforma, siempre que este satisfaga su runtime mínimo.
+
+Por tanto, el contenido docente declara una **compatibilidad mínima**, mientras que la plataforma determina el **runtime real de ejecución**.
+
+La evaluación debe conservar ambos conceptos:
+
+```text
+required_runtime = runtime mínimo declarado por ExerciseVersion
+actual_runtime   = runtime real utilizado por la plataforma
+```
+
+Esto es especialmente importante para la reproducibilidad histórica.
+
+El runtime del alumno debe ser tratado como un componente versionado de la plataforma. En MVP solo se soporta Java 26 y no debe existir un selector de versión para el alumno.
+
+No implementar múltiples versiones de Java simultáneamente.
+
+La arquitectura debe permitir una futura actualización global del runtime sin modificar el modelo de Submission/Evaluation.
 
 ---
 
@@ -1193,13 +1258,27 @@ image_digest
 compiler_version
 ```
 
-Nunca confiar solamente en:
+El valor de runtime declarado por un ejercicio representa únicamente el **runtime mínimo requerido** y no debe utilizarse para seleccionar la imagen concreta de ejecución.
+
+Por ejemplo:
 
 ```text
-java:21
+exercise.yaml
+    runtime: java-21
+
+plataforma
+    runtime real: Java 26
 ```
 
-La evaluación debe registrar el digest real de la imagen.
+La evaluación debe ejecutarse con Java 26.
+
+Nunca confiar solamente en un tag como:
+
+```text
+java:26
+```
+
+La evaluación debe registrar el runtime mínimo requerido por el ejercicio y el runtime real utilizado, incluyendo el digest real de la imagen de ejecución.
 
 ---
 
@@ -2279,7 +2358,7 @@ benigascode-content/
 │       └── collection.yaml
 │
 └── runtimes/
-    └── java-21/
+    └── java-26/
         └── runtime.yaml
 ```
 
@@ -3045,7 +3124,7 @@ Las submissions entran en cola.
 
 Runner:
 
-- Java 21 image;
+- Java 26 image;
 - compilation;
 - execution;
 - timeout;
@@ -3175,7 +3254,7 @@ Queue
 Runner
    |
    v
-Java 21 sandbox
+Java 26 sandbox
    |
    v
 Evaluation
@@ -3501,7 +3580,8 @@ con:
 - examples;
 - public tests;
 - private tests;
-- Java 21;
+- Java 26 como runtime real de ejecución;
+- `runtime: java-21` como runtime mínimo declarado;
 - comparator;
 - scoring.
 

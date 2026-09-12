@@ -27,5 +27,11 @@ public class StudentEvaluationController {
         User user = userService.getCurrentUser();
         return ResponseEntity.ok(evaluationService.getEvaluationsForSubmission(id, user));
     }
-}
 
+    @GetMapping("/exercises/{exerciseId}/evaluations/latest")
+    public ResponseEntity<EvaluationDTO> getLatestEvaluationForExercise(@PathVariable UUID exerciseId) {
+        User user = userService.getCurrentUser();
+        EvaluationDTO eval = evaluationService.getLatestEvaluationForExercise(exerciseId, user);
+        return eval != null ? ResponseEntity.ok(eval) : ResponseEntity.noContent().build();
+    }
+}

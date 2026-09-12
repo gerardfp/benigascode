@@ -127,7 +127,7 @@ public class ContentService {
         return ExerciseDTO.fromVersion(version, starterCode);
     }
 
-    private String resolveStarterCode(ExerciseVersion version, UUID collectionId) {
+    public String resolveStarterCode(ExerciseVersion version, UUID collectionId) {
         String runtimeId = version.getRuntimeId();
         String starterCode = null;
 

@@ -15,14 +15,16 @@ public record TestResultDTO(
     String actualOutput,
     BigDecimal score
 ) {
-    public static TestResultDTO fromEntity(TestResult tr, boolean isTeacherOrAdmin) {
-        String exp = (tr.isPublic() || isTeacherOrAdmin) ? tr.getExpectedOutput() : "[PROTEGIDO - TEST PRIVADO]";
-        String act = (tr.isPublic() || isTeacherOrAdmin) ? tr.getActualOutput() : "[PROTEGIDO - TEST PRIVADO]";
-        String out = (tr.isPublic() || isTeacherOrAdmin) ? tr.getStdout() : "";
+    public static TestResultDTO fromEntity(TestResult tr, boolean isTeacherOrAdmin, int privateIndex) {
+        boolean canSeeDetails = tr.isPublic() || isTeacherOrAdmin;
+        String displayTestId = tr.isPublic() ? tr.getTestId() : (isTeacherOrAdmin ? tr.getTestId() : "Test Privado " + privateIndex);
+        String exp = canSeeDetails ? tr.getExpectedOutput() : null;
+        String act = canSeeDetails ? tr.getActualOutput() : null;
+        String out = canSeeDetails ? tr.getStdout() : null;
 
         return new TestResultDTO(
             tr.getId(),
-            tr.getTestId(),
+            displayTestId,
             tr.isPublic(),
             tr.getStatus(),
             tr.getDurationMs(),
@@ -33,4 +35,3 @@ public record TestResultDTO(
         );
     }
 }
-

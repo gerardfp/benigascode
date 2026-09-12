@@ -64,13 +64,16 @@ export interface Submission {
   id: string;
   studentId: string;
   studentName: string;
-  activityId: string;
-  activityName: string;
+  activityId?: string;
+  activityName?: string;
+  exerciseId?: string;
   exerciseVersionId: string;
   exerciseTitle: string;
   language: string;
   status: string;
   sourceCode: string;
+  sourceHash?: string;
+  attemptNumber?: number;
   createdAt: string;
 }
 
@@ -81,11 +84,44 @@ export interface Evaluation {
   score: number;
   reason: string;
   runtimeId: string;
+  actualRuntime?: string;
   runtimeImageDigest: string;
+  compileSuccess?: boolean;
+  compileStdout?: string;
+  compileStderr?: string;
+  totalTests?: number;
+  passedTests?: number;
+  totalPublicTests?: number;
+  passedPublicTests?: number;
+  totalPrivateTests?: number;
+  passedPrivateTests?: number;
   startedAt: string;
   finishedAt: string;
   createdAt: string;
   testResults: TestResult[];
+}
+
+export interface StudentWorkspace {
+  exerciseId: string;
+  sourceCode: string;
+  updatedAt: string | null;
+  isStarter: boolean;
+}
+
+export interface StudentProgress {
+  exerciseId: string;
+  exerciseTitle: string;
+  exerciseSlug: string;
+  activityId?: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ATTEMPTED' | 'PASSED' | 'MASTERED';
+  bestScore: number;
+  totalSubmissions: number;
+  consumedAttempts: number;
+  lastSubmissionId?: string;
+  lastEvaluationId?: string;
+  lastStatus?: string;
+  completedAt?: string;
+  updatedAt: string;
 }
 
 export interface TestResult {
@@ -95,6 +131,7 @@ export interface TestResult {
   status: 'PASSED' | 'FAILED' | 'TIMEOUT' | 'RUNTIME_ERROR';
   durationMs: number;
   stdout: string;
+  stderr?: string;
   expectedOutput: string;
   actualOutput: string;
   score: number;

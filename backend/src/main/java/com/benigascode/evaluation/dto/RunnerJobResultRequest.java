@@ -1,5 +1,7 @@
 package com.benigascode.evaluation.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -7,7 +9,7 @@ public record RunnerJobResultRequest(
     String status, // CORRECT, INCORRECT, COMPILE_ERROR, TIMEOUT, RUNTIME_ERROR, SYSTEM_ERROR
     BigDecimal score,
     CompileDetails compile,
-    List<RunnerTestResult> testResults
+    @JsonAlias("test_results") @JsonProperty("testResults") List<RunnerTestResult> testResults
 ) {
     public record CompileDetails(
         boolean success,
@@ -16,15 +18,14 @@ public record RunnerJobResultRequest(
     ) {}
 
     public record RunnerTestResult(
-        String testId,
-        boolean isPublic,
+        @JsonAlias("test_id") @JsonProperty("testId") String testId,
+        @JsonAlias("is_public") @JsonProperty("isPublic") boolean isPublic,
         String status,
-        int durationMs,
+        @JsonAlias("duration_ms") @JsonProperty("durationMs") int durationMs,
         String stdout,
         String stderr,
-        String expectedOutput,
-        String actualOutput,
+        @JsonAlias("expected_output") @JsonProperty("expectedOutput") String expectedOutput,
+        @JsonAlias("actual_output") @JsonProperty("actualOutput") String actualOutput,
         BigDecimal score
     ) {}
 }
-

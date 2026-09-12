@@ -17,10 +17,10 @@ import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.learning.repository.CourseMembershipRepository;
-import com.benigascode.submissions.domain.AttemptLedger;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.submissions.service.StudentProgressService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -38,12 +38,18 @@ public class EvaluationService {
 
     private static final Logger log = LoggerFactory.getLogger(EvaluationService.class);
 
+    public static final String PLATFORM_ACTUAL_RUNTIME = "java-26";
+    public static final String PLATFORM_RUNTIME_IMAGE = "eclipse-temurin:26-jdk-alpine";
+    public static final String PLATFORM_RUNTIME_IMAGE_DIGEST = "sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c";
+    public static final String EVALUATOR_VERSION = "1.0.0";
+
     private final EvaluationJobRepository evaluationJobRepository;
     private final EvaluationRepository evaluationRepository;
     private final TestResultRepository testResultRepository;
     private final SubmissionRepository submissionRepository;
     private final AttemptLedgerRepository attemptLedgerRepository;
     private final CourseMembershipRepository membershipRepository;
+    private final StudentProgressService studentProgressService;
     private final ObjectMapper objectMapper;
 
     public EvaluationService(EvaluationJobRepository evaluationJobRepository,
@@ -52,6 +58,7 @@ public class EvaluationService {
                              SubmissionRepository submissionRepository,
                              AttemptLedgerRepository attemptLedgerRepository,
                              CourseMembershipRepository membershipRepository,
+                             StudentProgressService studentProgressService,
                              ObjectMapper objectMapper) {
         this.evaluationJobRepository = evaluationJobRepository;
         this.evaluationRepository = evaluationRepository;
@@ -59,7 +66,19 @@ public class EvaluationService {
         this.submissionRepository = submissionRepository;
         this.attemptLedgerRepository = attemptLedgerRepository;
         this.membershipRepository = membershipRepository;
+        this.studentProgressService = studentProgressService;
         this.objectMapper = objectMapper;
+    }
+
+    public static boolean isRuntimeCompatible(String requiredRuntime, String platformRuntime) {
+        if (requiredRuntime == null || platformRuntime == null) return true;
+        try {
+            int req = Integer.parseInt(requiredRuntime.replaceAll("\\D+", ""));
+            int plat = Integer.parseInt(platformRuntime.replaceAll("\\D+", ""));
+            return req <= plat;
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     @Transactional
@@ -81,6 +100,15 @@ public class EvaluationService {
         submissionRepository.save(sub);
 
         ExerciseVersion exVer = sub.getExerciseVersion();
+
+        // Validar compatibilidad de runtime (required_runtime <= PLATFORM_ACTUAL_RUNTIME)
+        if (!isRuntimeCompatible(exVer.getRuntimeId(), PLATFORM_ACTUAL_RUNTIME)) {
+            log.error("Incompatibilidad de runtime para job {}: ejercicio requiere {} > plataforma {}",
+                    job.getId(), exVer.getRuntimeId(), PLATFORM_ACTUAL_RUNTIME);
+            job.setStatus("FAILED");
+            evaluationJobRepository.save(job);
+            return Optional.empty();
+        }
 
         try {
             Map<String, Object> compileConfig = objectMapper.readValue(exVer.getCompileConfig(), new TypeReference<>() {});
@@ -142,19 +170,35 @@ public class EvaluationService {
         evaluation.setSubmission(submission);
         evaluation.setExerciseVersion(exerciseVersion);
         evaluation.setActivityVersion(activityVersion);
-        evaluation.setRuntimeId(exerciseVersion.getRuntimeId());
+        evaluation.setRuntimeId(exerciseVersion.getRuntimeId()); // Required runtime
+        evaluation.setActualRuntime(PLATFORM_ACTUAL_RUNTIME);     // Actual runtime Java 26
+        evaluation.setRuntimeImageDigest(PLATFORM_RUNTIME_IMAGE_DIGEST);
+        evaluation.setEvaluatorVersion(EVALUATOR_VERSION);
         evaluation.setStatus(result.status());
         evaluation.setScore(result.score() != null ? result.score() : BigDecimal.ZERO);
-        evaluation.setReason("JOB_RESULT");
+        evaluation.setReason(job.getAttempts() > 1 ? "RETRY_RESULT" : "JOB_RESULT");
         evaluation.setStartedAt(job.getCreatedAt());
         evaluation.setFinishedAt(Instant.now());
+
+        if (result.compile() != null) {
+            evaluation.setCompileSuccess(result.compile().success());
+            evaluation.setCompileStdout(result.compile().stdout());
+            evaluation.setCompileStderr(result.compile().stderr());
+        } else if ("COMPILE_ERROR".equalsIgnoreCase(result.status())) {
+            evaluation.setCompileSuccess(false);
+        } else {
+            evaluation.setCompileSuccess(true);
+        }
+
         evaluation = evaluationRepository.save(evaluation);
 
         // Si fue un fallo del sistema / infraestructura, devolver el intento al alumno
         if ("SYSTEM_ERROR".equalsIgnoreCase(result.status())) {
             log.error("Error del sistema en evaluación de submission {}. Procediendo a reembolso de intento.", submission.getId());
-            // Buscar y marcar intento como REFUNDED
-            // (se mantiene en ledger con estado REFUNDED para trazabilidad sin consumir intento neto)
+            attemptLedgerRepository.findBySubmissionId(submission.getId()).ifPresent(attempt -> {
+                attempt.setStatus("REFUNDED");
+                attemptLedgerRepository.save(attempt);
+            });
         }
 
         if (result.testResults() != null) {
@@ -179,6 +223,9 @@ public class EvaluationService {
 
         job.setStatus("FINISHED");
         evaluationJobRepository.save(job);
+
+        // Actualizar seguimiento del progreso del alumno
+        studentProgressService.updateProgress(submission, evaluation);
     }
 
     @Transactional
@@ -186,9 +233,15 @@ public class EvaluationService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada"));
 
-        UUID courseId = submission.getActivityVersion().getActivity().getCourse().getId();
-        if (teacher.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseIdAndRole(teacher.getId(), courseId, "TEACHER")) {
-            throw new AccessDeniedException("No tienes permisos de profesor en este curso");
+        if (submission.getActivityVersion() != null) {
+            UUID courseId = submission.getActivityVersion().getActivity().getCourse().getId();
+            if (teacher.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseIdAndRole(teacher.getId(), courseId, "TEACHER")) {
+                throw new AccessDeniedException("No tienes permisos de profesor en este curso");
+            }
+        } else {
+            if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
+                throw new AccessDeniedException("No tienes permisos de profesor para reevaluar esta entrega");
+            }
         }
 
         // Crear nuevo trabajo de evaluación con alta prioridad
@@ -205,11 +258,19 @@ public class EvaluationService {
         submissionRepository.save(submission);
 
         Evaluation latest = evaluationRepository.findLatestBySubmissionId(submissionId).orElse(null);
-        List<TestResultDTO> results = latest != null ?
-                testResultRepository.findByEvaluationId(latest.getId()).stream().map(tr -> TestResultDTO.fromEntity(tr, true)).toList() :
-                List.of();
+        if (latest == null) {
+            return null;
+        }
 
-        return latest != null ? EvaluationDTO.fromEntity(latest, results) : null;
+        List<TestResult> testResults = testResultRepository.findByEvaluationId(latest.getId());
+        int privateIndex = 1;
+        List<TestResultDTO> dtos = new ArrayList<>();
+        for (TestResult tr : testResults) {
+            dtos.add(TestResultDTO.fromEntity(tr, true, privateIndex));
+            if (!tr.isPublic()) privateIndex++;
+        }
+
+        return EvaluationDTO.fromEntity(latest, dtos);
     }
 
     @Transactional(readOnly = true)
@@ -227,13 +288,33 @@ public class EvaluationService {
         List<EvaluationDTO> dtos = new ArrayList<>();
 
         for (Evaluation eval : evals) {
-            List<TestResultDTO> testResults = testResultRepository.findByEvaluationId(eval.getId()).stream()
-                    .map(tr -> TestResultDTO.fromEntity(tr, isTeacherOrAdmin))
-                    .toList();
-            dtos.add(EvaluationDTO.fromEntity(eval, testResults));
+            List<TestResult> testResults = testResultRepository.findByEvaluationId(eval.getId());
+            int privateIndex = 1;
+            List<TestResultDTO> testResultDTOs = new ArrayList<>();
+            for (TestResult tr : testResults) {
+                testResultDTOs.add(TestResultDTO.fromEntity(tr, isTeacherOrAdmin, privateIndex));
+                if (!tr.isPublic()) {
+                    privateIndex++;
+                }
+            }
+            dtos.add(EvaluationDTO.fromEntity(eval, testResultDTOs));
         }
 
         return dtos;
     }
-}
 
+    @Transactional(readOnly = true)
+    public EvaluationDTO getLatestEvaluationForExercise(UUID exerciseId, User user) {
+        List<Submission> subs = submissionRepository.findByStudentAndExercise(user.getId(), exerciseId);
+        if (subs.isEmpty()) {
+            return null;
+        }
+        for (Submission sub : subs) {
+            List<EvaluationDTO> evals = getEvaluationsForSubmission(sub.getId(), user);
+            if (!evals.isEmpty()) {
+                return evals.get(0);
+            }
+        }
+        return null;
+    }
+}
