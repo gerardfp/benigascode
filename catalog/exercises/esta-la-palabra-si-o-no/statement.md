@@ -20,76 +20,12 @@ Guarda en una variable boolean que has encontrado la palabra. En este punto, pue
 
 - Imprime `YES` si la variable boolean te indica que has encontrado la palabra. `NO` en caso contrario
 
-## Input Format
+## Input
 
 El primer número  indica la cantidad de palabras
 
 A continuación vienen las  palabras.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 `YES` | `NO`
-
-## Sample Input 0
-
-```text
-5
-main class void static main
-
-main
-```
-
-## Sample Output 0
-
-```text
-YES
-```
-
-## Sample Input 1
-
-```text
-6
-public static void main string args
-
-void
-```
-
-## Sample Output 1
-
-```text
-YES
-```
-
-## Sample Input 2
-
-```text
-3
-char int string
-
-float
-```
-
-## Sample Output 2
-
-```text
-NO
-```
-
-## Sample Input 3
-
-```text
-13
-continue for switch boolean do if break else case int char float while
-
-break
-```
-
-## Sample Output 3
-
-```text
-YES
-```

@@ -36,17 +36,15 @@ Nuestro programa leerá este registro y calculará cuantas monedas se han lanzad
 
 - 385 - Se ha lanzado una moneda de 200 céntimos
 
-## Input Format
+## Input
 
 5 15 35 85 185 385 0
-
-## Constraints
 
 La entrada SIEMPRE será correcta. No se producirán incrementos diferentes a los indicados.
 
 La entrada acabará con un 0.
 
-## Output Format
+## Output
 
 5) 1
 
@@ -59,59 +57,3 @@ La entrada acabará con un 0.
 100) 1
 
 200) 1
-
-## Sample Input 0
-
-```text
-10 15 20 25 0
-```
-
-## Sample Output 0
-
-```text
-5) 3
-10) 1
-20) 0
-50) 0
-100) 0
-200) 0
-```
-
-## Explanation 0
-
-3 monedas de 5 céntimos
-1 moneda de 10 céntimos
-
-## Sample Input 1
-
-```text
-100 105 115 135 0
-```
-
-## Sample Output 1
-
-```text
-5) 1
-10) 1
-20) 1
-50) 0
-100) 1
-200) 0
-```
-
-## Sample Input 2
-
-```text
-5 10 15 25 125 0
-```
-
-## Sample Output 2
-
-```text
-5) 3
-10) 1
-20) 0
-50) 0
-100) 1
-200) 0
-```

@@ -1,5 +1,5 @@
 id: c2-l2-1-permisos-unix
-title: '[C2-L4-3] Permisos octals UNIX #if'
+title: 'Permisos octals UNIX'
 slug: c2-l2-1-permisos-unix
 language: java
 runtime: java-21

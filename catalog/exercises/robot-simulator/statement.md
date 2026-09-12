@@ -1,4 +1,4 @@
-# [C3-L1-5] Robot simulator #for
+# Robot simulator
 
 Un robot pot moure's en una quadrícula en direcció , , , .
 
@@ -25,106 +25,11 @@ N E E N .
 
 Posició final: {2,2}
 
-## Input Format
+## Input
 
 Un String amb les instruccions `N`, `S`, `E`, `W`, `.`
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 Dos enters indicant la posició final separats per un salt de línia.
 Primer la posició , i després la posició .
-
-## Sample Input 0
-
-```text
-N N N .
-```
-
-## Sample Output 0
-
-```text
-0
-3
-```
-
-## Sample Input 1
-
-```text
-N E E .
-```
-
-## Sample Output 1
-
-```text
-2
-1
-```
-
-## Sample Input 2
-
-```text
-N N S S .
-```
-
-## Sample Output 2
-
-```text
-0
-0
-```
-
-## Sample Input 3
-
-```text
-N E .
-```
-
-## Sample Output 3
-
-```text
-1
-1
-```
-
-## Sample Input 4
-
-```text
-S W N N E E .
-```
-
-## Sample Output 4
-
-```text
-1
-1
-```
-
-## Sample Input 5
-
-```text
-S N W W E N S E N N E S .
-```
-
-## Sample Output 5
-
-```text
-1
-1
-```
-
-## Sample Input 6
-
-```text
-S S W W W .
-```
-
-## Sample Output 6
-
-```text
--3
--2
-```

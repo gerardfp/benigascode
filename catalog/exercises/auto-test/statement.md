@@ -1,4 +1,4 @@
-# Auto-test #arrays
+# Auto-test
 
 ![image](1612798024-15855da7e7-dgt.png)
 
@@ -14,15 +14,11 @@ Las respuestas correctas a las preguntas del test son estas:
 "a", "b", "a", "c", "a", "b", "b", "c", "b", "c", "a", "c", "b", "a", "a", "a", "c", "c", "b", "a", "c", "b", "c", "c", "a", "a", "c", "a", "a", "c"
 ```
 
-## Input Format
+## Input
 
 La entrada consiste en las respuestas del usuario: 30 letras (`a`, `b`, `c`) separadas por espacios
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 - En la primera línea se imprimirá `TEST SUPENDIDO` o `TEST APROBADO`
 
@@ -33,50 +29,3 @@ La entrada consiste en las respuestas del usuario: 30 letras (`a`, `b`, `c`) sep
 - En la cuarta línia se imprimirán las respuestas dadas por el usuario. Cada respuesta irá precedida y sucedida por un espacio en blanco.
 
 - En la quinta línia se alinearán las respuestas correctas a aquellas preguntas que se hayan fallado.
-
-## Sample Input 0
-
-```text
-a b c c a a b c b c a c b a a a c c b a c b c c a a c a a c
-```
-
-## Sample Output 0
-
-```text
-TEST APROBADO
-2 fallos.
- 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
- a  b  c  c  a  a  b  c  b  c  a  c  b  a  a  a  c  c  b  a  c  b  c  c  a  a  c  a  a  c
-       a        b
-```
-
-## Sample Input 1
-
-```text
-a b a c a b b c b c a c b a a a c c b a c b c c a a c a a c
-```
-
-## Sample Output 1
-
-```text
-TEST APROBADO
-0 fallos.
- 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
- a  b  a  c  a  b  b  c  b  c  a  c  b  a  a  a  c  c  b  a  c  b  c  c  a  a  c  a  a  c
-```
-
-## Sample Input 2
-
-```text
-a b b c a c a c b a a c b a a a b a b a c a c c a a c c a c
-```
-
-## Sample Output 2
-
-```text
-TEST SUSPENDIDO
-8 fallos.
- 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
- a  b  b  c  a  c  a  c  b  a  a  c  b  a  a  a  b  a  b  a  c  a  c  c  a  a  c  c  a  c
-       a        b  b        c                    c  c           b                 a
-```

@@ -1,21 +1,11 @@
-# Noms correctes  #variables
+# Noms correctes
 
 Dona el nom que li pertoca a cada variable.
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-Java 15 incorpora Text Blocks, que es delimiten amb """
-```

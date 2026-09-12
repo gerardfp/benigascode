@@ -1,23 +1,11 @@
-# Gatito ASCII-art  #literals
+# Gatito ASCII-art
 
 Gatito ASCII-art (dedicado a Arnau)
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-(\___/)
-(=` .`)
-(_(")(")
-```

@@ -1,5 +1,5 @@
 id: c4-l4-1-acces-log-analyzer
-title: '[C5-L4-1] Access.log analyzer'
+title: 'Access.log analyzer'
 slug: c4-l4-1-acces-log-analyzer
 language: java
 runtime: java-21

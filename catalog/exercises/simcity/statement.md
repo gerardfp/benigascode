@@ -1,4 +1,4 @@
-# Simcity #arrays
+# Simcity
 
 Los **Tilemaps** son una técnica popular en el desarrollo de juegos 2D, que consiste en construir el mundo del juego a partir de pequeñas imagenes regulares llamadas *tiles*.
 
@@ -14,166 +14,12 @@ Necesitaremos 3 semáforos en aquellas intersecciones donde se crucen 3 carreter
 
 ![image](1612869695-4137da2748-iso1.png)
 
-## Input Format
+## Input
 
 En primer lugar, los números  y  indican el ancho y alto del mapa, respectivamente.
 
 A continuación vienen los x *tiles* del mapa (`#` `.`). Los *tiles* están separados por espacios en blanco y saltos de línea.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 Un entero indicando la cantidad de semáforos necesaria
-
-## Sample Input 0
-
-```text
-5 5
-. . . . .
-. . # . .
-. # # # .
-. . # . .
-. . . . .
-```
-
-## Sample Output 0
-
-```text
-4
-```
-
-## Explanation 0
-
-![image](1612870272-b3cc3fed74-isotest1.png)
-
-## Sample Input 1
-
-```text
-4 5
-. . . .
-. . # .
-. # # .
-. . # .
-. . . .
-```
-
-## Sample Output 1
-
-```text
-3
-```
-
-## Explanation 1
-
-![image](1612870439-faf61d0ae7-isotest2.png)
-
-## Sample Input 2
-
-```text
-7 4
-. . . . . . .
-. # # # . # .
-. # . # # # .
-. . . . . . .
-```
-
-## Sample Output 2
-
-```text
-0
-```
-
-## Explanation 2
-
-![image](1612870793-3a1cd41e84-isotest3.png)
-
-## Sample Input 3
-
-```text
-6 3
-. # . # . #
-# # # # # #
-. . . # . .
-```
-
-## Sample Output 3
-
-```text
-7
-```
-
-## Explanation 3
-
-![image](1612871080-7dfa0f4797-isotest4.png)
-
-## Sample Input 4
-
-```text
-7 4
-. . # . . . .
-# # # # # # #
-. . . # . # .
-. . . # . # .
-```
-
-## Sample Output 4
-
-```text
-9
-```
-
-## Sample Input 5
-
-```text
-8 5
-. # . # . . # .
-# # # # . . # #
-. # . # . . # .
-. # # # # # # .
-. . # . . # . .
-```
-
-## Sample Output 5
-
-```text
-19
-```
-
-## Sample Input 6
-
-```text
-11 8
-# . . # . . . # . . #
-# . . # # # # # . . #
-# # . # . . . # # # #
-. # # # . . # # . . #
-. . . # . . # . . . #
-. # # # # # # # # # #
-# # . # . . # . . # .
-# . . # # # # # # # .
-```
-
-## Sample Output 6
-
-```text
-29
-```
-
-## Sample Input 7
-
-```text
-4 4
-. . # .
-. . # .
-# # # #
-# . # .
-```
-
-## Sample Output 7
-
-```text
-4
-```

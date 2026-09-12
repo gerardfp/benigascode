@@ -1,4 +1,4 @@
-# [C3-L1-8] RandomSix #for
+# RandomSix
 
 Donat un nombre inicial de dues xifres (al que anomenarem llavor), genera una seqüència de nombres a partir d'aquest.
 
@@ -22,7 +22,7 @@ Llavor inicial = 13
 ...
 ```
 
-## Input Format
+## Input
 
 La entrada consisteix en dos nombres.
 
@@ -30,110 +30,6 @@ El primer nombre  és la llavor inicial.
 
 El segon nombre  és la quantitat de nombres a generar.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 La seqüència de nombres generada, separats per un salt de línía.
-
-## Sample Input 0
-
-```text
-13
-10
-```
-
-## Sample Output 0
-
-```text
-19
-55
-35
-33
-21
-8
-48
-52
-17
-43
-```
-
-## Sample Input 1
-
-```text
-35
-4
-```
-
-## Sample Output 1
-
-```text
-33
-21
-8
-48
-```
-
-## Sample Input 2
-
-```text
-27
-5
-```
-
-## Sample Output 2
-
-```text
-44
-28
-50
-5
-30
-```
-
-## Sample Input 3
-
-```text
-10
-3
-```
-
-## Sample Output 3
-
-```text
-1
-6
-36
-```
-
-## Sample Input 4
-
-```text
-1 19
-```
-
-## Sample Output 4
-
-```text
-6
-36
-39
-57
-47
-46
-40
-4
-24
-26
-38
-51
-11
-7
-42
-16
-37
-45
-34
-```

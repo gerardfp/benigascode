@@ -1,4 +1,4 @@
-# Assignacions  #variables
+# Assignacions
 
 Canvia el codi següent per fer que la sortida sigui aquesta:
 
@@ -8,20 +8,10 @@ Canvia el codi següent per fer que la sortida sigui aquesta:
 
 Per fer-ho, assigna correctament els valors a les variables.
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-3 5 4
-```

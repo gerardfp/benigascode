@@ -1,4 +1,4 @@
-# Inode flags #if
+# Inode flags
 
 ![image](1605282938-d03fec0419-inodeflags.png)
 
@@ -31,15 +31,11 @@ Per exemple: si un arixu té activats els atributs `EXT4_UNRM_FL` i `EXT4_APPEND
 
 Escriu un programa que a partir del **bit-field** d'un fitxer imprimeixi els atributs que té activats.
 
-## Input Format
+## Input
 
 Un número enter que representa el **bit-field** d'un arxiu.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 S'imprimirà el **Nom** dels atributs que té activats el fitxer en ordre de major a menor puntuació:
 
@@ -77,143 +73,3 @@ Per exemple: suposem que el bit-field es **34**:
 - tractem de restar 2: sí es pot. Imprimim `EXT4_UNRM_FL`. Restem 2 i queda **0**
 
 - tractem de restar 1: no es pot
-
-## Sample Input 0
-
-```text
-10
-```
-
-## Sample Output 0
-
-```text
-EXT4_SYNC_FL
-EXT4_UNRM_FL
-```
-
-## Explanation 0
-
-10 = 8 + 2
-
-## Sample Input 1
-
-```text
-11
-```
-
-## Sample Output 1
-
-```text
-EXT4_SYNC_FL
-EXT4_UNRM_FL
-EXT4_SECRM_FL
-```
-
-## Explanation 1
-
-11 = 8 + 2 + 1
-
-## Sample Input 2
-
-```text
-23
-```
-
-## Sample Output 2
-
-```text
-EXT4_IMMUTABLE_FL
-EXT4_COMPR_FL
-EXT4_UNRM_FL
-EXT4_SECRM_FL
-```
-
-## Explanation 2
-
-23 = 16 + 4 + 2 + 1
-
-## Sample Input 3
-
-```text
-31
-```
-
-## Sample Output 3
-
-```text
-EXT4_IMMUTABLE_FL
-EXT4_SYNC_FL
-EXT4_COMPR_FL
-EXT4_UNRM_FL
-EXT4_SECRM_FL
-```
-
-## Explanation 3
-
-31 = 16 + 8 + 4 + 2 + 1
-
-## Sample Input 4
-
-```text
-170
-```
-
-## Sample Output 4
-
-```text
-EXT4_NOATIME_FL
-EXT4_APPEND_FL
-EXT4_SYNC_FL
-EXT4_UNRM_FL
-```
-
-## Explanation 4
-
-170 = 128 + 32 + 8 + 2
-
-## Sample Input 5
-
-```text
-255
-```
-
-## Sample Output 5
-
-```text
-EXT4_NOATIME_FL
-EXT4_NODUMP_FL
-EXT4_APPEND_FL
-EXT4_IMMUTABLE_FL
-EXT4_SYNC_FL
-EXT4_COMPR_FL
-EXT4_UNRM_FL
-EXT4_SECRM_FL
-```
-
-## Explanation 5
-
-255 = 128 + 64 + 32 + 16 + 8 + 4 + 2 + 1
-
-## Sample Input 6
-
-```text
-1
-```
-
-## Sample Output 6
-
-```text
-EXT4_SECRM_FL
-```
-
-## Sample Input 7
-
-```text
-64
-```
-
-## Sample Output 7
-
-```text
-EXT4_NODUMP_FL
-```

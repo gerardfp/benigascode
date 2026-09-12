@@ -1,27 +1,11 @@
-# Jota amb asteriscs  #literals
+# Jota amb asteriscs
 
 Escriu un programa que imprimeixi la lletra `J` amb asteriscs.
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-********
-      **
-      **
-      **
-**    **
-**    **
- *******
-```

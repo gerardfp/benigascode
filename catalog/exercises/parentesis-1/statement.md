@@ -1,4 +1,4 @@
-# Parèntesis #for
+# Parèntesis
 
 Els parèntesis permeten definir l'ordre de les operacions en una expressió.
 
@@ -12,17 +12,13 @@ Volem fer un programa que ens indiqui si hi ha algun error d'emparellament de pa
 
 - La quantitat de parèntesis oberts que no s'hagin tancat
 
-## Input Format
+## Input
 
 L'entrada consisteix en una expressió. Els elements de l'expressió estan separats per espais en blanc.
 
 L'expressió finalitza amb la paraula `END`.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 S'imprimirà:
 
@@ -63,171 +59,3 @@ es suma 1 al de `tancats`
 si és així, és que hi ha un error de parèntesi mal tancat. Imprimim l'error, i restem 1 al comptador de `tancats`
 
 - Un cop s'ha acabat de llegir tota l'expressió, s'haurien d'haver comptat el mateix número d'`oberts` que de `tancats`. Si no és així, és que falten parèntesis per tancar.
-
-## Sample Input 0
-
-```text
-( 2 + 1 ) * 4     END
-```
-
-## Explanation 0
-
-Els parèntesis estan ben emparellats
-
-## Sample Input 1
-
-```text
-( ( 2 + 1 ) * 4 )    END
-```
-
-## Explanation 1
-
-Els parèntesis estan ben emparellats
-
-## Sample Input 2
-
-```text
-2 + 1 ) * 4     END
-```
-
-## Sample Output 2
-
-```text
-ERROR: parentesi 1 mal tancat
-```
-
-## Sample Input 3
-
-```text
-( 2 + 1 ) * 4 )     END
-```
-
-## Sample Output 3
-
-```text
-ERROR: parentesi 3 mal tancat
-```
-
-## Sample Input 4
-
-```text
-2 + 1 ) * 4 )     END
-```
-
-## Sample Output 4
-
-```text
-ERROR: parentesi 1 mal tancat
-ERROR: parentesi 2 mal tancat
-```
-
-## Sample Input 5
-
-```text
-( 2 + 1 ) * 4 )     END
-```
-
-## Sample Output 5
-
-```text
-ERROR: parentesi 3 mal tancat
-```
-
-## Sample Input 6
-
-```text
-( 2 + 2 ) * 3 ) + ( 3 + 2 ) * 3 )        END
-```
-
-## Sample Output 6
-
-```text
-ERROR: parentesi 3 mal tancat
-ERROR: parentesi 6 mal tancat
-```
-
-## Sample Input 7
-
-```text
-( 2 + 1 * 4     END
-```
-
-## Sample Output 7
-
-```text
-ERROR: falta tancar 1 parentesis
-```
-
-## Sample Input 8
-
-```text
-( 2 + ( 1 * 4     END
-```
-
-## Sample Output 8
-
-```text
-ERROR: falta tancar 2 parentesis
-```
-
-## Sample Input 9
-
-```text
-( 2 + ( 1 + ( 3 * 4 )     END
-```
-
-## Sample Output 9
-
-```text
-ERROR: falta tancar 2 parentesis
-```
-
-## Sample Input 10
-
-```text
-( 2 * ( 2 * ( 2 - 2 ) * ( 2 - 2 )   END
-```
-
-## Sample Output 10
-
-```text
-ERROR: falta tancar 2 parentesis
-```
-
-## Sample Input 11
-
-```text
-2 - ( 2 * 2 ) + ( 2 - 2      END
-```
-
-## Sample Output 11
-
-```text
-ERROR: falta tancar 1 parentesis
-```
-
-## Sample Input 12
-
-```text
-2 - ( 2 * 2 ) ) * ( 2 + 2     END
-```
-
-## Sample Output 12
-
-```text
-ERROR: parentesi 3 mal tancat
-ERROR: falta tancar 1 parentesis
-```
-
-## Sample Input 13
-
-```text
-2 * 2 ) + ( 2 - 2       END
-```
-
-## Sample Output 13
-
-```text
-ERROR: parentesi 1 mal tancat
-ERROR: falta tancar 1 parentesis
-```

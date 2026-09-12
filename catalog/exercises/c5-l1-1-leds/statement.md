@@ -1,4 +1,4 @@
-# [dafef] Leds #class #L0
+# Leds
 
 Implementa els mètodes switchOn() i switchOff() de la classe Led.
 
@@ -6,23 +6,10 @@ Implementa els mètodes switchOn() i switchOff() de la classe Led.
 
 - switchOff() canvia la variable 'state' a 'false'
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-( )( )
-(*)( )
-(*)(*)
-( )(*)
-```

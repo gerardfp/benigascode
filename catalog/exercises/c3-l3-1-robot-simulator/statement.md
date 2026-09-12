@@ -1,4 +1,4 @@
-# [C3-L3-1] Robot simulator #for
+# Robot simulator
 
 La instal·lació de proves d'una fàbrica de robots necessita un programa per verificar els moviments del robot.
 
@@ -32,7 +32,7 @@ Digueu que un robot comença a {0, 0} mirant al nord. A continuació, executar a
 
 ![image](1556722905-d4573a98ae-robot1.png)
 
-## Input Format
+## Input
 
 La entrada consisteix en:
 
@@ -42,8 +42,6 @@ Un caràcter  indicant la orientació inicial.
 
 Una cadena de  caràcters amb les instruccions
 
-## Constraints
-
 -100 <= X <= 100
 
 -100 <= Y <= 100
@@ -52,138 +50,6 @@ O = { |  |  | }
 
 1 <= L <= 100
 
-## Output Format
+## Output
 
 S'imprimiran les coordenades finals {, } i la orientació en que queda el robot
-
-## Sample Input 0
-
-```text
-0 0
-N
-AARARAL
-```
-
-## Sample Output 0
-
-```text
-{1, 1}
-E
-```
-
-## Explanation 0
-
-![image](1556724013-136b540c81-robot2.png)
-
-## Sample Input 1
-
-```text
-0 0
-N
-RALAARA
-```
-
-## Sample Output 1
-
-```text
-{2, 2}
-E
-```
-
-## Explanation 1
-
-![image](1556724175-5c764e8a77-robot3.png)
-
-## Sample Input 2
-
-```text
-2 2
-E
-ARALALA
-```
-
-## Sample Output 2
-
-```text
-{4, 2}
-N
-```
-
-## Explanation 2
-
-![image](1571225362-52f07d515b-Copyofrobot2.png)
-
-## Sample Input 3
-
-```text
-3 1
-E
-LARLAAR
-```
-
-## Sample Output 3
-
-```text
-{3, 4}
-E
-```
-
-## Sample Input 4
-
-```text
--1 -2
-S
-AAA
-```
-
-## Sample Output 4
-
-```text
-{-1, -5}
-S
-```
-
-## Sample Input 5
-
-```text
-17 -3
-E
-AAALAAA
-```
-
-## Sample Output 5
-
-```text
-{20, 0}
-N
-```
-
-## Sample Input 6
-
-```text
-20 10
-W
-ALARLARLARRARRR
-```
-
-## Sample Output 6
-
-```text
-{19, 8}
-W
-```
-
-## Sample Input 7
-
-```text
-134 -33
-S
-ALARRLAAALRLLAARLAARLLLARRRALARLRLALLLRAALRALRALLRAAALRAALR
-```
-
-## Sample Output 7
-
-```text
-{141, -36}
-E
-```

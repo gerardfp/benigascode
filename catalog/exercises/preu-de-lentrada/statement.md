@@ -1,4 +1,4 @@
-# [C2-L1-8] Preu de l'entrada #if
+# Preu de l'entrada
 
 ![image](1569595180-4a4864113f-ws9pryrtwvt7uqgpzdbo.png)
 Un web de venta de tickets per a espectacles calcula el preu d'una entrada a partir d'una sèrie de dades:
@@ -11,7 +11,7 @@ Un web de venta de tickets per a espectacles calcula el preu d'una entrada a par
 
 El descompte per edat i cupó són mútuament exclusius. És a dir, si s'aplica el tíquet descompte no es pot aplicar el descompte per edat.
 
-## Input Format
+## Input
 
 L'entrada consta de 4 dades.
 
@@ -23,8 +23,6 @@ L'entrada consta de 4 dades.
 
 - L'ultima dada C és un booleà que indica si el comprador té cupó.
 
-## Constraints
-
 1 <= P <= 1000000
 
 0 <= E <= 1000
@@ -33,200 +31,6 @@ L'entrada consta de 4 dades.
 
 C = true | false
 
-## Output Format
+## Output
 
 S'imprimirà el preu final de l'entrada amb 2 xifres decimals.
-
-## Sample Input 0
-
-```text
-10 25 1 false
-```
-
-## Sample Output 0
-
-```text
-10.00
-```
-
-## Explanation 0
-
-Preu base=10
-
-Edad=25. No se li aplica descompte
-
-Dia=Dilluns. No se li aplica descompte
-
-Cupó=false. No se li aplica descompte
-
-## Sample Input 1
-
-```text
-10 3 1 false
-```
-
-## Sample Output 1
-
-```text
-0.00
-```
-
-## Explanation 1
-
-Al ser menor de 6 anys, el tícket és gratuït
-
-## Sample Input 2
-
-```text
-10 70 4 false
-```
-
-## Sample Output 2
-
-```text
-8.50
-```
-
-## Explanation 2
-
-Al ser major de 65 anys, se li aplica un 15% de descompte.
-
-## Sample Input 3
-
-```text
-10 25 3 true
-```
-
-## Sample Output 3
-
-```text
-4.50
-```
-
-## Explanation 3
-
-Se li aplica un 25% per ser Dimecres, i un 30% pel cupó de descompte.
-
-## Sample Input 4
-
-```text
-10 13 4 true
-```
-
-## Sample Output 4
-
-```text
-7.00
-```
-
-## Explanation 4
-
-Se li aplica el 30% pel cupó de descompte, però no el 10% (menor 18 anys).
-
-## Sample Input 5
-
-```text
-10 13 2 false
-```
-
-## Sample Output 5
-
-```text
-9.00
-```
-
-## Explanation 5
-
-Se li aplica el 10% per ser menor de 18 anys.
-
-## Sample Input 6
-
-```text
-10 25 6 false
-```
-
-## Sample Output 6
-
-```text
-10.50
-```
-
-## Explanation 6
-
-S'incrementa el preu un 5% per ser dissabte.
-
-## Sample Input 7
-
-```text
-10 25 7 false
-```
-
-## Sample Output 7
-
-```text
-10.50
-```
-
-## Explanation 7
-
-S'incrementa el preu un 5% per ser diumenge.
-
-## Sample Input 8
-
-```text
-10 12 6 false
-```
-
-## Sample Output 8
-
-```text
-9.50
-```
-
-## Explanation 8
-
-Descompte del 10% per ser menor de 18, i increment del 5% per ser dissabte.
-
-## Sample Input 9
-
-```text
-10 12 7 true
-```
-
-## Sample Output 9
-
-```text
-7.50
-```
-
-## Explanation 9
-
-Descompte per del 30% per cupó. No se li aplica el de edad. Increment del 5% per diumenge.
-
-## Sample Input 10
-
-```text
-10 65 3 false
-```
-
-## Sample Output 10
-
-```text
-6.00
-```
-
-## Explanation 10
-
-Descompte del 15% per tenir 65 anys i del 25% per ser dimecres.
-
-## Sample Input 11
-
-```text
-10 65 3 true
-```
-
-## Sample Output 11
-
-```text
-4.50
-```

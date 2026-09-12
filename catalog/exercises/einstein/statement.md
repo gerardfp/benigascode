@@ -1,4 +1,4 @@
-# Cita Einstein #literals
+# Cita Einstein
 
 Escriu un programa Java que mostri aquesta cita d'Einstein:
 
@@ -6,20 +6,10 @@ Escriu un programa Java que mostri aquesta cita d'Einstein:
 Life is like riding a bicycle. To keep your balance you must keep moving.
 ```
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-Life is like riding a bicycle. To keep your balance you must keep moving.
-```

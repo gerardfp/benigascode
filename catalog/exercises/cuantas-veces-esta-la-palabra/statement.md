@@ -20,76 +20,12 @@ Augmenta una variable contador.
 
 - Imprime la variable contador
 
-## Input Format
+## Input
 
 El primer número  indica la cantidad de palabras
 
 A continuación vienen las  palabras.
 
-## Constraints
-
--
-
-## Output Format
+## Output
 
 entero
-
-## Sample Input 0
-
-```text
-5
-main class void static main
-
-main
-```
-
-## Sample Output 0
-
-```text
-2
-```
-
-## Sample Input 1
-
-```text
-6
-public static void main string args
-
-void
-```
-
-## Sample Output 1
-
-```text
-1
-```
-
-## Sample Input 2
-
-```text
-3
-char int string
-
-float
-```
-
-## Sample Output 2
-
-```text
-0
-```
-
-## Sample Input 3
-
-```text
-13
-continue for switch boolean do if break else case int char float while
-
-break
-```
-
-## Sample Output 3
-
-```text
-1
-```

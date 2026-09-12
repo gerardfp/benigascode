@@ -1,23 +1,11 @@
-# [a9adb] Post #class #L0
+# Post
 
 Implementa el constructor de la classe Post.
 
-## Input Format
+## Input
 
 -
 
-## Constraints
+## Output
 
 -
-
-## Output Format
-
--
-
-## Sample Output 0
-
-```text
-------------------------------------
-| @realdonaltrump                  |
-| Make America Great Again #MAGA   |
-|
