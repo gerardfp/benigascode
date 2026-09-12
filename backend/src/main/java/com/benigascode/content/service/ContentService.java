@@ -209,7 +209,8 @@ public class ContentService {
                             t.path("id").asText(),
                             t.path("name").asText(),
                             t.path("input").asText(),
-                            t.path("expected").asText()
+                            t.path("expected").asText(),
+                            t.has("explanation") && !t.get("explanation").isNull() ? t.get("explanation").asText() : null
                     ));
                 }
             }

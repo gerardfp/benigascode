@@ -4,6 +4,7 @@ slug: hackerrank
 description: Colección completa con los 289 ejercicios importados del catálogo de
   HackerRank.
 language: java
+runtime: java-21
 visibility: PUBLIC
 templates:
 - runtimes:
@@ -11,6 +12,19 @@ templates:
   code: "import java.util.Scanner;\n\npublic class Main {\n    public static void\
     \ main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n      \
     \  // Escribe tu solución aquí\n    }\n}\n"
+compile:
+  command: javac Main.java
+  timeout_seconds: 15
+execution:
+  command: java Main
+  timeout_seconds: 3
+  memory_limit_mb: 256
+scoring:
+  mode: weighted
+  total_score: 100
+comparator:
+  type: exact_line_by_line
+  ignore_trailing_whitespace: true
 items:
 - type: EXERCISE
   id: a-hello-world

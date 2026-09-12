@@ -10,6 +10,7 @@ public record PreviewRunResponse(
 ) {
     public record PreviewTestResult(
         String testId,
+        String testName,
         String status, // PASSED, FAILED, TIMEOUT, RUNTIME_ERROR
         int durationMs,
         String stdout,

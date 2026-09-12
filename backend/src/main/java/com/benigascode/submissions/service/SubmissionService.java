@@ -261,8 +261,16 @@ public class SubmissionService {
                 JsonNode testsArr = resNode.has("testResults") ? resNode.path("testResults") : resNode.path("test_results");
                 if (testsArr.isArray()) {
                     for (JsonNode t : testsArr) {
+                        String testId = t.has("testId") ? t.path("testId").asText() : t.path("test_id").asText();
+                        String fallbackName = publicTests.stream()
+                                .filter(pt -> testId.equals(pt.get("id")))
+                                .map(pt -> (String) pt.get("name"))
+                                .findFirst()
+                                .orElse(testId);
+                        String testName = t.has("testName") ? t.path("testName").asText() : (t.has("name") ? t.path("name").asText() : fallbackName);
                         results.add(new PreviewRunResponse.PreviewTestResult(
-                                t.has("testId") ? t.path("testId").asText() : t.path("test_id").asText(),
+                                testId,
+                                testName,
                                 t.path("status").asText(),
                                 t.has("durationMs") ? t.path("durationMs").asInt() : t.path("duration_ms").asInt(),
                                 t.path("stdout").asText(),

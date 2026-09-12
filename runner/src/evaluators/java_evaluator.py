@@ -162,6 +162,7 @@ class JavaEvaluator:
 
         for test in tests:
             test_id = test.get("id") or test.get("testId") or "test"
+            test_name = test.get("name") or test.get("testName") or test_id
             test_input = test.get("input", "")
             expected_output = test.get("expected") if "expected" in test else test.get("expectedOutput", "")
             weight = float(test.get("weight", 0.0))
@@ -195,6 +196,8 @@ class JavaEvaluator:
 
             test_results.append({
                 "testId": test_id,
+                "testName": test_name,
+                "name": test_name,
                 "isPublic": is_public,
                 "status": status,
                 "durationMs": exec_res.duration_ms,

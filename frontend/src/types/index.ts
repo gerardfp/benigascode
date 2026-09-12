@@ -33,6 +33,7 @@ export interface PublicTest {
   name: string;
   input: string;
   expectedOutput: string;
+  explanation?: string;
 }
 
 export interface Activity {
@@ -143,6 +144,7 @@ export interface PreviewRunResult {
   compileStderr: string;
   testResults: {
     testId: string;
+    testName?: string;
     status: string;
     durationMs: number;
     stdout: string;

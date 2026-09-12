@@ -345,6 +345,12 @@ export const ExerciseView: React.FC = () => {
                       <pre style={{ margin: '0.25rem 0 0', padding: '0.375rem', background: '#e2e8f0', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput}</pre>
                     </div>
                   </div>
+                  {t.explanation && (
+                    <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.375rem' }}>
+                      <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                      {t.explanation}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -447,6 +453,7 @@ export const ExerciseView: React.FC = () => {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
                         <span>{tr.testId} — {tr.status} ({tr.durationMs}ms)</span>
+                        <span>{(tr.testName || publicTests.find(p => p.id === tr.testId)?.name || tr.testId)} — {tr.status} ({tr.durationMs}ms)</span>
                         <span style={{ color: tr.passed ? '#15803d' : '#b91c1c' }}>
                           {tr.passed ? '✓ Superado' : '✗ Fallido'}
                         </span>
@@ -565,7 +572,7 @@ export const ExerciseView: React.FC = () => {
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                            <span>{tr.testId} (Público) — {tr.status} ({tr.durationMs}ms)</span>
+                            <span>{(publicTests.find(p => p.id === tr.testId)?.name || tr.testId)} — {tr.status} ({tr.durationMs}ms)</span>
                             <span style={{ color: tr.status === 'PASSED' ? '#15803d' : '#b91c1c' }}>
                               {tr.score} pts {tr.status === 'PASSED' ? '✓' : '✗'}
                             </span>
