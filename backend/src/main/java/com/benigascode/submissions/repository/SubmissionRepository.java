@@ -24,4 +24,6 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     @Query("SELECT s FROM Submission s WHERE s.activityVersion IS NOT NULL AND s.activityVersion.activity.course.id = :courseId ORDER BY s.createdAt DESC")
     List<Submission> findByCourseId(UUID courseId);
+
+    List<Submission> findAllByOrderByCreatedAtDesc();
 }

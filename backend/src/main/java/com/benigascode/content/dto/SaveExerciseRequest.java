@@ -19,6 +19,7 @@ public record SaveExerciseRequest(
     Map<String, Object> scoringConfig,
     Map<String, Object> comparatorConfig,
     Map<String, String> templates,
+    List<String> tags,
     List<TestCaseDTO> tests,
     List<TestCaseDTO> testCases
 ) {
@@ -28,4 +29,3 @@ public record SaveExerciseRequest(
         return List.of();
     }
 }
-

@@ -41,6 +41,12 @@ public class StudentProgress {
     @Column(name = "consumed_attempts", nullable = false)
     private int consumedAttempts = 0;
 
+    @Column(name = "tests_passed", nullable = false)
+    private int testsPassed = 0;
+
+    @Column(name = "total_tests", nullable = false)
+    private int totalTests = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "last_submission_id")
     private Submission lastSubmission;
@@ -118,6 +124,22 @@ public class StudentProgress {
 
     public void setConsumedAttempts(int consumedAttempts) {
         this.consumedAttempts = consumedAttempts;
+    }
+
+    public int getTestsPassed() {
+        return testsPassed;
+    }
+
+    public void setTestsPassed(int testsPassed) {
+        this.testsPassed = testsPassed;
+    }
+
+    public int getTotalTests() {
+        return totalTests;
+    }
+
+    public void setTotalTests(int totalTests) {
+        this.totalTests = totalTests;
     }
 
     public Submission getLastSubmission() {

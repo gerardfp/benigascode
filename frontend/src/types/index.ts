@@ -26,6 +26,7 @@ export interface Exercise {
   runtimeId: string;
   versionNumber: number;
   starterCode?: string;
+  tags?: string[];
 }
 
 export interface PublicTest {
@@ -59,6 +60,12 @@ export interface Course {
   academicYear: string;
   description: string;
   createdAt: string;
+}
+
+export interface Group {
+  id: string;
+  courseId: string;
+  name: string;
 }
 
 export interface Submission {
@@ -219,6 +226,7 @@ export interface TeacherExerciseDetail {
   versionNumber: number;
   starterCode?: string;
   templates?: Record<string, string>;
+  tags?: string[];
   testCases: TestCaseDTO[];
   assets: AssetDTO[];
 }
@@ -231,6 +239,7 @@ export interface SaveExerciseRequest {
   runtimeId: string;
   starterCode?: string;
   templates?: Record<string, string>;
+  tags?: string[];
   testCases: TestCaseDTO[];
 }
 
@@ -258,4 +267,181 @@ export interface SaveCollectionRequest {
   visibility: 'PUBLIC' | 'PRIVATE';
   exerciseIds: string[];
 }
+
+export interface ExerciseProgressItem {
+  exerciseId: string;
+  exerciseVersionId: string;
+  slug: string;
+  title: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ATTEMPTED' | 'PASSED' | 'MASTERED';
+  bestScore: number;
+  testsPassed: number;
+  totalTests: number;
+  passPercentage: number;
+  totalSubmissions: number;
+}
+
+export interface CollectionProgressDTO {
+  collectionId: string;
+  collectionTitle: string;
+  totalExercises: number;
+  completedExercises: number;
+  attemptedExercises: number;
+  notStartedExercises: number;
+  completionPercentage: number;
+  averageScore: number;
+  items: ExerciseProgressItem[];
+}
+
+export interface CollectionProgressSummary {
+  collectionId: string;
+  slug: string;
+  title: string;
+  totalExercises: number;
+  completedExercises: number;
+  attemptedExercises: number;
+  completionPercentage: number;
+  averageScore: number;
+}
+
+export interface TagProgressSummary {
+  tag: string;
+  totalExercises: number;
+  completedExercises: number;
+  attemptedExercises: number;
+  completionPercentage: number;
+}
+
+export interface DailyActivityItem {
+  date: string;
+  submissionsCount: number;
+  passedCount: number;
+}
+
+export interface StudentExerciseDetailItem {
+  exerciseId: string;
+  exerciseVersionId: string;
+  slug: string;
+  title: string;
+  collectionId: string;
+  collectionTitle: string;
+  tags: string[];
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ATTEMPTED' | 'PASSED' | 'MASTERED';
+  bestScore: number;
+  testsPassed: number;
+  totalTests: number;
+  passPercentage: number;
+  totalSubmissions: number;
+  lastSubmissionAt?: string;
+}
+
+export interface StudentInsightsDTO {
+  totalExercises: number;
+  completedExercises: number;
+  attemptedExercises: number;
+  notStartedExercises: number;
+  totalSubmissions: number;
+  completionPercentage: number;
+  averageScore: number;
+  collections: CollectionProgressSummary[];
+  tags: TagProgressSummary[];
+  activityTimeline: DailyActivityItem[];
+  exercises: StudentExerciseDetailItem[];
+}
+
+export interface DifficultExerciseItem {
+  exerciseId: string;
+  slug: string;
+  title: string;
+  totalSubmissions: number;
+  passedSubmissions: number;
+  passRate: number;
+}
+
+export interface GroupSummaryItem {
+  groupId: string;
+  groupName: string;
+  courseId: string;
+  courseName: string;
+  studentCount: number;
+  totalSubmissions: number;
+  averageScore: number;
+  passRate: number;
+}
+
+export interface StudentLeaderboardItem {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  groupId?: string;
+  groupName?: string;
+  exercisesSolved: number;
+  exercisesAttempted: number;
+  averageScore: number;
+  totalSubmissions: number;
+  lastActiveAt?: string;
+}
+
+export interface TeacherInsightsDTO {
+  scope: 'GENERAL' | 'GROUP' | 'STUDENT';
+  courseId?: string;
+  courseName?: string;
+  groupId?: string;
+  groupName?: string;
+  studentId?: string;
+  studentName?: string;
+  totalStudents: number;
+  totalSubmissions: number;
+  totalExercisesSolved: number;
+  overallPassRate: number;
+  overallAverageScore: number;
+  difficultExercises: DifficultExerciseItem[];
+  scoreDistribution: Record<string, number>;
+  activityTimeline: DailyActivityItem[];
+  groups: GroupSummaryItem[];
+  students: StudentLeaderboardItem[];
+  studentDetail?: StudentInsightsDTO;
+}
+
+export interface TeacherSubmissionItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  groupName: string;
+  activityId?: string;
+  activityName?: string;
+  exerciseId?: string;
+  exerciseSlug: string;
+  exerciseTitle: string;
+  language: string;
+  status: string;
+  evaluationStatus: string;
+  score: number;
+  testsPassed: number;
+  totalTests: number;
+  compileSuccess?: boolean;
+  attemptNumber: number;
+  createdAt: string;
+}
+
+export interface TeacherSubmissionDetail {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  groupName: string;
+  activityId?: string;
+  activityName?: string;
+  exerciseId?: string;
+  exerciseSlug: string;
+  exerciseTitle: string;
+  language: string;
+  sourceCode: string;
+  status: string;
+  attemptNumber: number;
+  createdAt: string;
+  evaluation?: Evaluation;
+}
+
 

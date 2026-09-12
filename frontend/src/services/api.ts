@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -144,6 +144,9 @@ export const api = {
   listCourses: (): Promise<Course[]> =>
     request<Course[]>('/teacher/courses'),
 
+  listGroups: (courseId: string): Promise<Group[]> =>
+    request<Group[]>(`/teacher/courses/${courseId}/groups`),
+
   createCourse: (course: { name: string; code: string; academicYear: string; description?: string }): Promise<Course> =>
     request<Course>('/teacher/courses', {
       method: 'POST',
@@ -279,5 +282,44 @@ export const api = {
 
   teacherExportCollectionZipUrl: (collectionId: string): string =>
     `${API_BASE}/teacher/collections/${collectionId}/export.zip`,
+
+  // Progreso & Insights (Alumno)
+  getCollectionProgress: (collectionId: string): Promise<CollectionProgressDTO> =>
+    request<CollectionProgressDTO>(`/collections/${collectionId}/progress`),
+
+  getMyInsights: (): Promise<StudentInsightsDTO> =>
+    request<StudentInsightsDTO>('/me/insights'),
+
+  // Insights y Envíos (Profesor)
+  getTeacherInsights: (params?: { courseId?: string; groupId?: string; studentId?: string }): Promise<TeacherInsightsDTO> => {
+    const sp = new URLSearchParams();
+    if (params?.courseId) sp.set('courseId', params.courseId);
+    if (params?.groupId) sp.set('groupId', params.groupId);
+    if (params?.studentId) sp.set('studentId', params.studentId);
+    const qs = sp.toString();
+    return request<TeacherInsightsDTO>(`/teacher/insights${qs ? `?${qs}` : ''}`);
+  },
+
+  getTeacherSubmissions: (params?: {
+    courseId?: string;
+    groupId?: string;
+    studentId?: string;
+    exerciseId?: string;
+    status?: string;
+    search?: string;
+  }): Promise<TeacherSubmissionItem[]> => {
+    const sp = new URLSearchParams();
+    if (params?.courseId) sp.set('courseId', params.courseId);
+    if (params?.groupId) sp.set('groupId', params.groupId);
+    if (params?.studentId) sp.set('studentId', params.studentId);
+    if (params?.exerciseId) sp.set('exerciseId', params.exerciseId);
+    if (params?.status) sp.set('status', params.status);
+    if (params?.search) sp.set('search', params.search);
+    const qs = sp.toString();
+    return request<TeacherSubmissionItem[]>(`/teacher/submissions${qs ? `?${qs}` : ''}`);
+  },
+
+  getTeacherSubmissionDetail: (id: string): Promise<TeacherSubmissionDetail> =>
+    request<TeacherSubmissionDetail>(`/teacher/submissions/${id}`),
 };
 

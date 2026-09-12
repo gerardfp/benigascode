@@ -35,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                 <>
                   <Link to="/" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Mis Actividades</Link>
                   <Link to="/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
+                  <Link to="/progress" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Mi Progreso</Link>
                   <Link to="/history" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Historial</Link>
                 </>
               )}
@@ -45,6 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                   <Link to="/teacher/exercises" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Ejercicios</Link>
                   <Link to="/teacher/courses" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Cursos</Link>
                   <Link to="/teacher/activities" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Actividades</Link>
+                  <Link to="/teacher/insights" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Insights</Link>
+                  <Link to="/teacher/submissions" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Envíos</Link>
                   <Link to="/teacher/sync" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Importar / Git</Link>
                 </>
               )}

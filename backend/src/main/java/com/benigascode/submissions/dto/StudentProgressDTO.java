@@ -18,12 +18,22 @@ public record StudentProgressDTO(
     BigDecimal bestScore,
     int totalSubmissions,
     int consumedAttempts,
+    int testsPassed,
+    int totalTests,
+    double passPercentage,
     String lastStatus,
     UUID lastEvaluationId,
     Instant completedAt,
     Instant updatedAt
 ) {
     public static StudentProgressDTO fromEntity(StudentProgress sp) {
+        double pct = 0.0;
+        if (sp.getTotalTests() > 0) {
+            pct = (double) sp.getTestsPassed() * 100.0 / sp.getTotalTests();
+        } else if (sp.getBestScore() != null) {
+            pct = sp.getBestScore().doubleValue();
+        }
+
         return new StudentProgressDTO(
             sp.getId(),
             sp.getStudent().getId(),
@@ -37,6 +47,9 @@ public record StudentProgressDTO(
             sp.getBestScore(),
             sp.getTotalSubmissions(),
             sp.getConsumedAttempts(),
+            sp.getTestsPassed(),
+            sp.getTotalTests(),
+            Math.round(pct * 100.0) / 100.0,
             sp.getLastStatus(),
             sp.getLastEvaluation() != null ? sp.getLastEvaluation().getId() : null,
             sp.getCompletedAt(),
@@ -44,4 +57,3 @@ public record StudentProgressDTO(
         );
     }
 }
-

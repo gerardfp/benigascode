@@ -12,6 +12,10 @@ import com.benigascode.identity.domain.User;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.benigascode.submissions.domain.StudentProgress;
+import com.benigascode.submissions.repository.StudentProgressRepository;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -31,6 +35,8 @@ import java.util.*;
 @Service
 public class ContentService {
 
+    private static final Logger log = LoggerFactory.getLogger(ContentService.class);
+
     private final CollectionRepository collectionRepository;
     private final CollectionVersionRepository collectionVersionRepository;
     private final ExerciseRepository exerciseRepository;
@@ -38,6 +44,7 @@ public class ContentService {
     private final ExerciseAssetRepository exerciseAssetRepository;
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
+    private final StudentProgressRepository studentProgressRepository;
     private final ObjectMapper objectMapper;
 
     public ContentService(CollectionRepository collectionRepository,
@@ -47,6 +54,7 @@ public class ContentService {
                           ExerciseAssetRepository exerciseAssetRepository,
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
+                          StudentProgressRepository studentProgressRepository,
                           ObjectMapper objectMapper) {
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
@@ -55,6 +63,7 @@ public class ContentService {
         this.exerciseAssetRepository = exerciseAssetRepository;
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
+        this.studentProgressRepository = studentProgressRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -114,6 +123,117 @@ public class ContentService {
             // Silently fallback to empty list
         }
         return exercises;
+    }
+
+    @Transactional(readOnly = true)
+    public CollectionProgressDTO getCollectionProgress(UUID collectionId, User user) {
+        Collection collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+
+        assertCanAccessCollection(user, collection);
+
+        CollectionVersion colVersion = collectionVersionRepository.findLatestByCollectionId(collectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Versión de colección no disponible"));
+
+        List<CollectionProgressDTO.ExerciseProgressItemDTO> items = new ArrayList<>();
+        int completedCount = 0;
+        int attemptedCount = 0;
+        double sumScore = 0.0;
+
+        try {
+            JsonNode itemsNode = objectMapper.readTree(colVersion.getItems());
+            if (itemsNode.isArray()) {
+                for (JsonNode item : itemsNode) {
+                    if ("EXERCISE".equalsIgnoreCase(item.path("type").asText())) {
+                        String slug = item.path("id").asText();
+                        Optional<Exercise> exOpt = exerciseRepository.findBySlug(slug);
+                        if (exOpt.isPresent()) {
+                            Exercise ex = exOpt.get();
+                            Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+                            if (evOpt.isPresent()) {
+                                ExerciseVersion ev = evOpt.get();
+                                Optional<StudentProgress> spOpt = studentProgressRepository
+                                        .findByStudentIdAndExerciseIdAndActivityIsNull(user.getId(), ex.getId());
+
+                                int totalTestsInConfig = 0;
+                                try {
+                                    JsonNode tcRoot = objectMapper.readTree(ev.getTestsConfig());
+                                    int pub = tcRoot.has("public") && tcRoot.get("public").isArray() ? tcRoot.get("public").size() : 0;
+                                    int priv = tcRoot.has("private") && tcRoot.get("private").isArray() ? tcRoot.get("private").size() : 0;
+                                    totalTestsInConfig = pub + priv;
+                                } catch (Exception ignored) {}
+
+                                String status = "NOT_STARTED";
+                                double bestScore = 0.0;
+                                int testsPassed = 0;
+                                int totalTests = totalTestsInConfig;
+                                double passPercentage = 0.0;
+                                int totalSubmissions = 0;
+
+                                if (spOpt.isPresent()) {
+                                    StudentProgress sp = spOpt.get();
+                                    status = sp.getStatus();
+                                    bestScore = sp.getBestScore() != null ? sp.getBestScore().doubleValue() : 0.0;
+                                    testsPassed = sp.getTestsPassed();
+                                    totalTests = sp.getTotalTests() > 0 ? sp.getTotalTests() : totalTestsInConfig;
+                                    totalSubmissions = sp.getTotalSubmissions();
+
+                                    if (bestScore >= 100.0 || "MASTERED".equalsIgnoreCase(status) || "PASSED".equalsIgnoreCase(status)) {
+                                        if (totalTests > 0 && testsPassed < totalTests) {
+                                            testsPassed = totalTests;
+                                        }
+                                        passPercentage = 100.0;
+                                    } else if (totalTests > 0) {
+                                        passPercentage = Math.round(((double) testsPassed * 100.0 / totalTests) * 10.0) / 10.0;
+                                    } else {
+                                        passPercentage = bestScore;
+                                    }
+
+                                    if (passPercentage >= 100.0 || "MASTERED".equalsIgnoreCase(status) || ("PASSED".equalsIgnoreCase(status) && bestScore >= 100.0)) {
+                                        completedCount++;
+                                    } else if (totalSubmissions > 0 || "ATTEMPTED".equalsIgnoreCase(status) || bestScore > 0.0) {
+                                        attemptedCount++;
+                                    }
+                                }
+
+                                sumScore += bestScore;
+                                items.add(new CollectionProgressDTO.ExerciseProgressItemDTO(
+                                        ex.getId(),
+                                        ev.getId(),
+                                        ex.getSlug(),
+                                        ev.getTitle(),
+                                        status,
+                                        bestScore,
+                                        testsPassed,
+                                        totalTests,
+                                        passPercentage,
+                                        totalSubmissions
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error al calcular progreso de colección " + collectionId, e);
+        }
+
+        int totalExercises = items.size();
+        int notStartedCount = Math.max(0, totalExercises - completedCount - attemptedCount);
+        double completionPct = totalExercises > 0 ? Math.round(((double) completedCount * 100.0 / totalExercises) * 10.0) / 10.0 : 0.0;
+        double avgScore = totalExercises > 0 ? Math.round((sumScore / totalExercises) * 10.0) / 10.0 : 0.0;
+
+        return new CollectionProgressDTO(
+                collection.getId(),
+                colVersion.getTitle(),
+                totalExercises,
+                completedCount,
+                attemptedCount,
+                notStartedCount,
+                completionPct,
+                avgScore,
+                items
+        );
     }
 
     @Transactional(readOnly = true)
@@ -386,6 +506,12 @@ public class ContentService {
                 if (search == null || search.isBlank()
                         || ev.getTitle().toLowerCase().contains(search.toLowerCase())
                         || ex.getSlug().toLowerCase().contains(search.toLowerCase())) {
+                    List<String> tagsList = List.of();
+                    if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                        try {
+                            tagsList = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
+                        } catch (Exception ignored) {}
+                    }
                     result.add(new ExerciseDTO(
                             ex.getId(),
                             ex.getId(),
@@ -395,7 +521,8 @@ public class ContentService {
                             ev.getLanguage(),
                             ev.getRuntimeId(),
                             ev.getVersionNumber(),
-                            null
+                            null,
+                            tagsList
                     ));
                 }
             }
@@ -453,6 +580,12 @@ public class ContentService {
 
         List<AssetDTO> assets = listAssets(exercise.getId());
         String starterCode = templates != null ? templates.get("java") : null;
+        List<String> tagsList = List.of();
+        try {
+            if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                tagsList = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
+            }
+        } catch (Exception ignored) {}
 
         return new TeacherExerciseDetailDTO(
                 exercise.getId(),
@@ -468,6 +601,7 @@ public class ContentService {
                 scoringConfig,
                 comparatorConfig,
                 templates,
+                tagsList,
                 tests,
                 tests,
                 assets,
@@ -585,6 +719,11 @@ public class ContentService {
             version.setComparatorConfig(comparatorJson);
             version.setTestsConfig(testsJson);
             version.setTemplatesConfig(templatesJson);
+            if (req.tags() != null) {
+                version.setTags(objectMapper.writeValueAsString(req.tags()));
+            } else {
+                version.setTags("[]");
+            }
             version.setContentHash(contentHash);
             version.setGitCommit("web_edit_" + System.currentTimeMillis());
             version.setStatus("PUBLISHED");

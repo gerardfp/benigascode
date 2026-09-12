@@ -77,33 +77,61 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Accesos directos principales: Colecciones y Ejercicios */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }}>
+      {/* Accesos directos principales: Colecciones, Ejercicios, Insights y Envíos */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }}>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#0369a1' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#0369a1' }}>
               📁 Colecciones
             </h2>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: '#0284c7' }}>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#0284c7' }}>
               {collections.length} colecciones en la plataforma
             </p>
           </div>
-          <Link to="/teacher/collections" className="btn-primary" style={{ textDecoration: 'none' }}>
+          <Link to="/teacher/collections" className="btn-primary" style={{ textDecoration: 'none', textAlign: 'center', fontSize: '0.8125rem' }}>
             Gestionar Colecciones &rarr;
           </Link>
         </div>
 
-        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#1e293b' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#1e293b' }}>
               📝 Ejercicios
             </h2>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#64748b' }}>
               Edición visual de enunciados, templates y tests
             </p>
           </div>
-          <Link to="/teacher/exercises" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#0f172a' }}>
+          <Link to="/teacher/exercises" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#0f172a', textAlign: 'center', fontSize: '0.8125rem' }}>
             Gestionar Ejercicios &rarr;
+          </Link>
+        </div>
+
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#fdf4ff', borderColor: '#f0abfc' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#86198f' }}>
+              📊 Insights
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#a21caf' }}>
+              Métricas globales, rankings por grupo y análisis de alumnos
+            </p>
+          </div>
+          <Link to="/teacher/insights" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#9333ea', textAlign: 'center', fontSize: '0.8125rem' }}>
+            Ver Insights &rarr;
+          </Link>
+        </div>
+
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#065f46' }}>
+              📥 Envíos
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#047857' }}>
+              Historial de entregas, filtros y visor de código de alumnos
+            </p>
+          </div>
+          <Link to="/teacher/submissions" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#059669', textAlign: 'center', fontSize: '0.8125rem' }}>
+            Consultar Envíos &rarr;
           </Link>
         </div>
       </div>

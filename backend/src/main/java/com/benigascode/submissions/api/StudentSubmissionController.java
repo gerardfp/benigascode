@@ -107,6 +107,13 @@ public class StudentSubmissionController {
         return ResponseEntity.ok(progressService.getMyProgress(student));
     }
 
+    // 8.1 Insights analíticos del alumno
+    @GetMapping("/me/insights")
+    public ResponseEntity<StudentInsightsDTO> getMyInsights() {
+        User student = userService.getCurrentUser();
+        return ResponseEntity.ok(progressService.getMyInsights(student));
+    }
+
     // 9. Pruebas preliminares públicas
     @PostMapping("/exercises/{exerciseVersionId}/preview-runs")
     public ResponseEntity<PreviewRunResponse> preview(

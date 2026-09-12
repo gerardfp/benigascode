@@ -17,12 +17,21 @@ import com.benigascode.evaluation.repository.EvaluationJobRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.learning.repository.CourseMembershipRepository;
+import com.benigascode.evaluation.domain.Evaluation;
+import com.benigascode.evaluation.domain.TestResult;
+import com.benigascode.evaluation.dto.EvaluationDTO;
+import com.benigascode.evaluation.dto.TestResultDTO;
+import com.benigascode.evaluation.repository.EvaluationRepository;
+import com.benigascode.evaluation.repository.TestResultRepository;
+import com.benigascode.learning.domain.CourseMembership;
 import com.benigascode.submissions.domain.AttemptLedger;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.dto.CreateSubmissionRequest;
 import com.benigascode.submissions.dto.PreviewRunRequest;
 import com.benigascode.submissions.dto.PreviewRunResponse;
 import com.benigascode.submissions.dto.SubmissionDTO;
+import com.benigascode.submissions.dto.TeacherSubmissionDetailDTO;
+import com.benigascode.submissions.dto.TeacherSubmissionItemDTO;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -34,6 +43,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -43,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -57,6 +68,8 @@ public class SubmissionService {
     private String runnerToken;
 
     private final SubmissionRepository submissionRepository;
+    private final EvaluationRepository evaluationRepository;
+    private final TestResultRepository testResultRepository;
     private final AttemptLedgerRepository attemptLedgerRepository;
     private final EvaluationJobRepository evaluationJobRepository;
     private final ActivityRepository activityRepository;
@@ -67,6 +80,8 @@ public class SubmissionService {
     private final ObjectMapper objectMapper;
 
     public SubmissionService(SubmissionRepository submissionRepository,
+                             EvaluationRepository evaluationRepository,
+                             TestResultRepository testResultRepository,
                              AttemptLedgerRepository attemptLedgerRepository,
                              EvaluationJobRepository evaluationJobRepository,
                              ActivityRepository activityRepository,
@@ -76,6 +91,8 @@ public class SubmissionService {
                              CourseMembershipRepository membershipRepository,
                              ObjectMapper objectMapper) {
         this.submissionRepository = submissionRepository;
+        this.evaluationRepository = evaluationRepository;
+        this.testResultRepository = testResultRepository;
         this.attemptLedgerRepository = attemptLedgerRepository;
         this.evaluationJobRepository = evaluationJobRepository;
         this.activityRepository = activityRepository;
@@ -287,5 +304,177 @@ public class SubmissionService {
             log.error("Error al ejecutar previewRun", e);
             return new PreviewRunResponse(false, "", "Error de ejecución: " + e.getMessage(), List.of());
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherSubmissionItemDTO> getTeacherSubmissions(UUID courseId, UUID groupId, UUID studentId, UUID exerciseId, String status, String search, User teacher) {
+        if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
+            throw new AccessDeniedException("Operación restringida a profesores");
+        }
+
+        List<Submission> allSubs;
+        if (courseId != null) {
+            allSubs = submissionRepository.findByCourseId(courseId);
+        } else {
+            allSubs = submissionRepository.findAllByOrderByCreatedAtDesc();
+        }
+
+        Map<UUID, String> groupNamesByStudent = new HashMap<>();
+        List<TeacherSubmissionItemDTO> items = new ArrayList<>();
+        String searchLower = search != null ? search.trim().toLowerCase() : null;
+
+        for (Submission s : allSubs) {
+            if (studentId != null && !s.getStudent().getId().equals(studentId)) {
+                continue;
+            }
+            if (exerciseId != null) {
+                UUID sExId = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
+                        s.getExerciseVersion().getExercise().getId() : null;
+                if (!exerciseId.equals(sExId)) {
+                    continue;
+                }
+            }
+
+            String grpName = groupNamesByStudent.computeIfAbsent(s.getStudent().getId(), stId -> {
+                List<CourseMembership> cms = membershipRepository.findByUserId(stId);
+                for (CourseMembership cm : cms) {
+                    if (cm.getGroup() != null) return cm.getGroup().getName();
+                }
+                return "Grupo A";
+            });
+
+            if (groupId != null) {
+                List<CourseMembership> cms = membershipRepository.findByUserId(s.getStudent().getId());
+                boolean inGroup = cms.stream().anyMatch(cm -> cm.getGroup() != null && groupId.equals(cm.getGroup().getId()));
+                if (!inGroup) continue;
+            }
+
+            Optional<Evaluation> evalOpt = evaluationRepository.findLatestBySubmissionId(s.getId());
+            String evalStatus = evalOpt.map(Evaluation::getStatus).orElse(s.getStatus());
+            BigDecimal score = evalOpt.map(Evaluation::getScore).orElse(BigDecimal.ZERO);
+            Boolean compileSuccess = evalOpt.map(Evaluation::getCompileSuccess).orElse(null);
+
+            int testsPassed = 0;
+            int totalTests = 0;
+            if (evalOpt.isPresent()) {
+                List<TestResult> trList = testResultRepository.findByEvaluationId(evalOpt.get().getId());
+                totalTests = trList.size();
+                testsPassed = (int) trList.stream().filter(tr -> "PASSED".equalsIgnoreCase(tr.getStatus())).count();
+            }
+
+            if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
+                if (!status.equalsIgnoreCase(evalStatus) && !status.equalsIgnoreCase(s.getStatus())) {
+                    continue;
+                }
+            }
+
+            String studentName = s.getStudent().getFullName();
+            String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() : "Ejercicio";
+            String exSlug = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
+                    s.getExerciseVersion().getExercise().getSlug() : "";
+
+            if (searchLower != null && !searchLower.isBlank()) {
+                boolean matchName = studentName != null && studentName.toLowerCase().contains(searchLower);
+                boolean matchTitle = exTitle != null && exTitle.toLowerCase().contains(searchLower);
+                boolean matchSlug = exSlug != null && exSlug.toLowerCase().contains(searchLower);
+                if (!matchName && !matchTitle && !matchSlug) {
+                    continue;
+                }
+            }
+
+            UUID actId = s.getActivityVersion() != null && s.getActivityVersion().getActivity() != null ?
+                    s.getActivityVersion().getActivity().getId() : null;
+            String actName = s.getActivityVersion() != null && s.getActivityVersion().getActivity() != null ?
+                    s.getActivityVersion().getActivity().getName() : "Práctica directa";
+            UUID exId = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
+                    s.getExerciseVersion().getExercise().getId() : null;
+
+            items.add(new TeacherSubmissionItemDTO(
+                    s.getId(),
+                    s.getStudent().getId(),
+                    studentName,
+                    s.getStudent().getUsername(),
+                    grpName,
+                    actId,
+                    actName,
+                    exId,
+                    exSlug,
+                    exTitle,
+                    s.getLanguage(),
+                    s.getStatus(),
+                    evalStatus,
+                    score,
+                    testsPassed,
+                    totalTests,
+                    compileSuccess,
+                    s.getAttemptNumber(),
+                    s.getCreatedAt()
+            ));
+        }
+
+        return items;
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherSubmissionDetailDTO getTeacherSubmissionDetail(UUID submissionId, User teacher) {
+        if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
+            throw new AccessDeniedException("Operación restringida a profesores");
+        }
+
+        Submission s = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada"));
+
+        Optional<Evaluation> evalOpt = evaluationRepository.findLatestBySubmissionId(submissionId);
+        EvaluationDTO evaluationDTO = null;
+
+        if (evalOpt.isPresent()) {
+            Evaluation eval = evalOpt.get();
+            List<TestResult> trList = testResultRepository.findByEvaluationId(eval.getId());
+            int privIdx = 1;
+            List<TestResultDTO> dtos = new ArrayList<>();
+            for (TestResult tr : trList) {
+                dtos.add(TestResultDTO.fromEntity(tr, true, privIdx));
+                if (!tr.isPublic()) privIdx++;
+            }
+            evaluationDTO = EvaluationDTO.fromEntity(eval, dtos);
+        }
+
+        String grpName = "Grupo A";
+        List<CourseMembership> cms = membershipRepository.findByUserId(s.getStudent().getId());
+        for (CourseMembership cm : cms) {
+            if (cm.getGroup() != null) {
+                grpName = cm.getGroup().getName();
+                break;
+            }
+        }
+
+        UUID actId = s.getActivityVersion() != null && s.getActivityVersion().getActivity() != null ?
+                s.getActivityVersion().getActivity().getId() : null;
+        String actName = s.getActivityVersion() != null && s.getActivityVersion().getActivity() != null ?
+                s.getActivityVersion().getActivity().getName() : "Práctica directa";
+        UUID exId = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
+                s.getExerciseVersion().getExercise().getId() : null;
+        String exSlug = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
+                s.getExerciseVersion().getExercise().getSlug() : "";
+        String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() : "Ejercicio";
+
+        return new TeacherSubmissionDetailDTO(
+                s.getId(),
+                s.getStudent().getId(),
+                s.getStudent().getFullName(),
+                s.getStudent().getUsername(),
+                grpName,
+                actId,
+                actName,
+                exId,
+                exSlug,
+                exTitle,
+                s.getLanguage(),
+                s.getSourceCode(),
+                s.getStatus(),
+                s.getAttemptNumber(),
+                s.getCreatedAt(),
+                evaluationDTO
+        );
     }
 }

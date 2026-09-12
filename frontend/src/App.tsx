@@ -15,6 +15,9 @@ import { GitSyncView } from './pages/GitSyncView';
 import { GitHubCallbackView } from './pages/GitHubCallbackView';
 import { TeacherExercisesView } from './pages/TeacherExercisesView';
 import { TeacherCollectionsView } from './pages/TeacherCollectionsView';
+import { StudentInsightsView } from './pages/StudentInsightsView';
+import { TeacherInsightsView } from './pages/TeacherInsightsView';
+import { TeacherSubmissionsView } from './pages/TeacherSubmissionsView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -83,6 +86,10 @@ export const App: React.FC = () => {
           <Route
             path="/history"
             element={user ? <StudentDashboard /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/progress"
+            element={user ? <StudentInsightsView /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/activity/:activityId/exercise/:exerciseId"
@@ -165,6 +172,26 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <GitHubCallbackView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/insights"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherInsightsView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/submissions"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherSubmissionsView />
               ) : (
                 <Navigate to="/" replace />
               )

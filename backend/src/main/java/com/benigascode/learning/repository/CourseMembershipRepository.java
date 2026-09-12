@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface CourseMembershipRepository extends JpaRepository<CourseMembership, UUID> {
     Optional<CourseMembership> findByUserIdAndCourseId(UUID userId, UUID courseId);
     List<CourseMembership> findByCourseId(UUID courseId);
+    List<CourseMembership> findByGroupId(UUID groupId);
     List<CourseMembership> findByUserId(UUID userId);
     boolean existsByUserIdAndCourseId(UUID userId, UUID courseId);
     boolean existsByUserIdAndCourseIdAndRole(UUID userId, UUID courseId, String role);

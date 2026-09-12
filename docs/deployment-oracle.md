@@ -108,7 +108,42 @@ sudo usermod -aG docker $USER
 
 ---
 
-## 5. Estrategia de Backups Automáticos con OCI Object Storage
+## 5. Despliegue Continuo Bajo Demanda mediante Git Tags (`v*`)
+
+El repositorio incluye el flujo automatizado `.github/workflows/deploy-oracle.yml`.
+
+### 5.1 Configuración de Secretos en GitHub
+En tu repositorio de GitHub (**Settings → Secrets and variables → Actions → Repository secrets**), añade los siguientes 3 secretos:
+1. `OCI_HOST`: La IP pública fija de tu máquina en Oracle Cloud (ej. `140.238.12.34`).
+2. `OCI_USER`: `ubuntu` (o `opc` si utilizas la imagen de Oracle Linux).
+3. `OCI_SSH_KEY`: El contenido íntegro de la clave privada SSH con la que creaste la instancia (el texto que empieza con `-----BEGIN OPENSSH PRIVATE KEY-----`).
+
+### 5.2 Cómo desplegar una nueva versión
+Cada vez que consideres que los avances de desarrollo deben reflejarse en producción, simplemente crea y envía un tag de versión:
+
+```bash
+# 1. Asegúrate de tener los cambios commiteados y subidos
+git checkout main
+git push origin main
+
+# 2. Crea la etiqueta de versión (ej. v0.1.0, v0.2.0, etc.)
+git tag v0.1.0
+
+# 3. Envía el tag a GitHub (esto dispara el despliegue en OCI)
+git push origin v0.1.0
+```
+
+GitHub Actions detectará el tag `v*`, se conectará vía SSH a la instancia de Oracle Cloud, descargará la versión exacta, reconstruirá los contenedores Docker y verificará que el backend responde con un código 200.
+
+### 5.3 Despliegue Manual desde GitHub (Fallback)
+Si en algún momento necesitas redesplegar sin crear un nuevo tag:
+1. Ve a la pestaña **Actions** en tu repositorio de GitHub.
+2. Selecciona **Deploy to Oracle Cloud (Release Tag / On-Demand)**.
+3. Haz clic en **Run workflow** (puedes indicar una rama o tag específico en el campo de entrada).
+
+---
+
+## 6. Estrategia de Backups Automáticos con OCI Object Storage
 
 El script `deployment/scripts/backup.sh` realiza un volcado diario con `pg_dump`, lo comprime con gzip y lo envía a un bucket de OCI Object Storage mediante `oci-cli` o API S3 compatible:
 
@@ -118,4 +153,5 @@ El script `deployment/scripts/backup.sh` realiza un volcado diario con `pg_dump`
 ```
 
 Procedimiento de recuperación documentado en `deployment/scripts/restore.sh`.
+
 

@@ -1,0 +1,82 @@
+name: Deploy to Oracle Cloud (Release Tag / On-Demand)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Tag o rama a desplegar (dejar vacío para desplegar el tag del evento o main)'
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    name: Despliegue en Oracle Cloud ARM64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determinar versión / referencia de Git
+        id: vars
+        run: |
+          if [ -n "${{ github.event.inputs.git_ref }}" ]; then
+            TARGET_REF="${{ github.event.inputs.git_ref }}"
+          elif [ -n "${{ github.ref_name }}" ]; then
+            TARGET_REF="${{ github.ref_name }}"
+          else
+            TARGET_REF="main"
+          fi
+          echo "target_ref=${TARGET_REF}" >> $GITHUB_OUTPUT
+          echo "Desplegando referencia: ${TARGET_REF}"
+
+      - name: Ejecutar despliegue vía SSH en Oracle Cloud
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USER || 'ubuntu' }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            echo "=========================================================="
+            echo "🚀 Iniciando despliegue de Benigascode (${{ steps.vars.outputs.target_ref }})"
+            echo "Fecha: $(date -u)"
+            echo "=========================================================="
+
+            # 1. Acceder al directorio del proyecto
+            cd /opt/benigascode
+
+            # 2. Descargar últimos cambios y tags desde GitHub
+            echo "📥 Obteniendo cambios desde el repositorio..."
+            git fetch --tags origin
+            
+            # 3. Cambiar a la versión solicitada (tag o rama)
+            echo "🏷️ Cambiando a referencia: ${{ steps.vars.outputs.target_ref }}"
+            git checkout ${{ steps.vars.outputs.target_ref }}
+
+            # 4. Construir y levantar contenedores en producción
+            echo "🐳 Reconstruyendo y arrancando servicios Docker..."
+            docker compose -f deployment/docker-compose.prod.yml up -d --build --remove-orphans
+
+            # 5. Limpieza preventiva de imágenes antiguas sin etiqueta para liberar disco
+            echo "🧹 Limpiando imágenes antiguas en desuso..."
+            docker image prune -f
+
+            # 6. Esperar a estabilización y verificar estado
+            echo "⏳ Esperando inicio de servicios..."
+            sleep 10
+            docker compose -f deployment/docker-compose.prod.yml ps
+
+            # 7. Comprobación de salud interna
+            echo "🩺 Verificando salud del backend..."
+            if curl -s -f http://localhost:8080/actuator/health > /dev/null 2>&1 || curl -s -k -f https://localhost/actuator/health > /dev/null 2>&1; then
+              echo "✅ Despliegue verificado: Backend operativo (200 OK)."
+            else
+              echo "⚠️ Advertencia: El backend todavía está iniciando o no respondió 200 en el primer intento."
+              echo "Consulta los logs con: docker compose -f /opt/benigascode/deployment/docker-compose.prod.yml logs --tail 50 backend"
+            fi
+
+            echo "=========================================================="
+            echo "🎉 Despliegue finalizado exitosamente."
+            echo "=========================================================="
+

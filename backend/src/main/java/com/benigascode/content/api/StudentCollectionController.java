@@ -46,6 +46,12 @@ public class StudentCollectionController {
         return ResponseEntity.ok(contentService.getCollectionById(id, user));
     }
 
+    @GetMapping("/collections/{id}/progress")
+    public ResponseEntity<CollectionProgressDTO> getCollectionProgress(@PathVariable UUID id) {
+        User user = userService.getCurrentUser();
+        return ResponseEntity.ok(contentService.getCollectionProgress(id, user));
+    }
+
     @GetMapping("/collections/{id}/exercises")
     public ResponseEntity<List<ExerciseDTO>> getExercisesForCollection(@PathVariable UUID id) {
         User user = userService.getCurrentUser();
