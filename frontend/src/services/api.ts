@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -230,5 +230,54 @@ export const api = {
 
   unlinkRepository: (id: string): Promise<void> =>
     request<void>(`/teacher/github/repository/${id}`, { method: 'DELETE' }),
+
+  // Teacher - Ejercicios & Colecciones CRUD (Web-First)
+  teacherGetExercises: (): Promise<Exercise[]> =>
+    request<Exercise[]>('/teacher/exercises'),
+
+  teacherGetExercise: (id: string): Promise<TeacherExerciseDetail> =>
+    request<TeacherExerciseDetail>(`/teacher/exercises/${id}`),
+
+  teacherSaveExercise: (data: SaveExerciseRequest, id?: string): Promise<TeacherExerciseDetail> =>
+    request<TeacherExerciseDetail>(id ? `/teacher/exercises/${id}` : '/teacher/exercises', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  teacherDeleteExercise: (id: string): Promise<void> =>
+    request<void>(`/teacher/exercises/${id}`, { method: 'DELETE' }),
+
+  teacherUploadAsset: async (exerciseId: string, file: File): Promise<AssetDTO> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<AssetDTO>(`/teacher/exercises/${exerciseId}/assets`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  teacherDeleteAsset: (exerciseId: string, filename: string): Promise<void> =>
+    request<void>(`/teacher/exercises/${exerciseId}/assets/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
+
+  teacherExportExerciseZipUrl: (exerciseId: string): string =>
+    `${API_BASE}/teacher/exercises/${exerciseId}/export.zip`,
+
+  teacherGetCollections: (): Promise<Collection[]> =>
+    request<Collection[]>('/teacher/collections'),
+
+  teacherGetCollection: (id: string): Promise<TeacherCollectionDetail> =>
+    request<TeacherCollectionDetail>(`/teacher/collections/${id}`),
+
+  teacherSaveCollection: (data: SaveCollectionRequest, id?: string): Promise<TeacherCollectionDetail> =>
+    request<TeacherCollectionDetail>(id ? `/teacher/collections/${id}` : '/teacher/collections', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  teacherDeleteCollection: (id: string): Promise<void> =>
+    request<void>(`/teacher/collections/${id}`, { method: 'DELETE' }),
+
+  teacherExportCollectionZipUrl: (collectionId: string): string =>
+    `${API_BASE}/teacher/collections/${collectionId}/export.zip`,
 };
 

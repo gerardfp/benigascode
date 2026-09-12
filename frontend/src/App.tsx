@@ -13,6 +13,8 @@ import { TeacherActivitiesView } from './pages/TeacherActivitiesView';
 import { CollectionDetailView } from './pages/CollectionDetailView';
 import { GitSyncView } from './pages/GitSyncView';
 import { GitHubCallbackView } from './pages/GitHubCallbackView';
+import { TeacherExercisesView } from './pages/TeacherExercisesView';
+import { TeacherCollectionsView } from './pages/TeacherCollectionsView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -93,6 +95,26 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <TeacherDashboard />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/collections"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherCollectionsView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/exercises"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherExercisesView />
               ) : (
                 <Navigate to="/" replace />
               )

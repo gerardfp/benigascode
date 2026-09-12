@@ -191,3 +191,71 @@ export interface DeployKey {
   privateKey: string;
 }
 
+export interface TestCaseDTO {
+  id?: string;
+  isPublic: boolean;
+  orderIndex: number;
+  weight: number;
+  input: string;
+  expectedOutput: string;
+  explanation?: string;
+}
+
+export interface AssetDTO {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+}
+
+export interface TeacherExerciseDetail {
+  id: string;
+  slug: string;
+  title: string;
+  statement: string;
+  language: string;
+  runtimeId: string;
+  versionNumber: number;
+  starterCode?: string;
+  templates?: Record<string, string>;
+  testCases: TestCaseDTO[];
+  assets: AssetDTO[];
+}
+
+export interface SaveExerciseRequest {
+  title: string;
+  slug: string;
+  statement: string;
+  language: string;
+  runtimeId: string;
+  starterCode?: string;
+  templates?: Record<string, string>;
+  testCases: TestCaseDTO[];
+}
+
+export interface CollectionItemDTO {
+  exerciseId: string;
+  exerciseTitle: string;
+  exerciseSlug: string;
+  orderIndex: number;
+}
+
+export interface TeacherCollectionDetail {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  versionNumber: number;
+  exercises: CollectionItemDTO[];
+}
+
+export interface SaveCollectionRequest {
+  title: string;
+  slug: string;
+  description?: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  exerciseIds: string[];
+}
+

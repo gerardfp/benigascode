@@ -40,10 +40,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               )}
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
                 <>
-                  <Link to="/teacher" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Panel Docente</Link>
+                  <Link to="/teacher" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Panel</Link>
+                  <Link to="/teacher/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
+                  <Link to="/teacher/exercises" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Ejercicios</Link>
                   <Link to="/teacher/courses" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Cursos</Link>
                   <Link to="/teacher/activities" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Actividades</Link>
-                  <Link to="/teacher/sync" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Sincronización Git</Link>
+                  <Link to="/teacher/sync" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Importar / Git</Link>
                 </>
               )}
             </nav>

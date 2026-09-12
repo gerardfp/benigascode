@@ -1,18 +1,18 @@
 package com.benigascode.content.service;
 
+import com.benigascode.common.exception.AccessDeniedException;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.common.exception.ValidationException;
 import com.benigascode.content.domain.*;
 import com.benigascode.content.domain.Collection;
-import com.benigascode.content.dto.CollectionDTO;
-import com.benigascode.content.dto.CreateAccessKeyResponse;
-import com.benigascode.content.dto.ExerciseDTO;
-import com.benigascode.content.dto.PublicTestDTO;
+import com.benigascode.content.dto.*;
 import com.benigascode.content.repository.*;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -35,6 +35,7 @@ public class ContentService {
     private final CollectionVersionRepository collectionVersionRepository;
     private final ExerciseRepository exerciseRepository;
     private final ExerciseVersionRepository exerciseVersionRepository;
+    private final ExerciseAssetRepository exerciseAssetRepository;
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final ObjectMapper objectMapper;
@@ -43,6 +44,7 @@ public class ContentService {
                           CollectionVersionRepository collectionVersionRepository,
                           ExerciseRepository exerciseRepository,
                           ExerciseVersionRepository exerciseVersionRepository,
+                          ExerciseAssetRepository exerciseAssetRepository,
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           ObjectMapper objectMapper) {
@@ -50,6 +52,7 @@ public class ContentService {
         this.collectionVersionRepository = collectionVersionRepository;
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
+        this.exerciseAssetRepository = exerciseAssetRepository;
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.objectMapper = objectMapper;
@@ -251,12 +254,11 @@ public class ContentService {
         String hash = sha256(rawKey);
 
         AccessKey key = new AccessKey(collection, hash, teacher, maxUses, expiresAt);
-        key = accessKeyRepository.save(key);
+        accessKeyRepository.save(key);
 
-        return new CreateAccessKeyResponse(key.getId(), collectionId, rawKey, maxUses, expiresAt);
+        return new CreateAccessKeyResponse(key.getId(), collection.getId(), rawKey, maxUses, expiresAt);
     }
 
-    @Transactional(readOnly = true)
     public Resource getExerciseAsset(UUID exerciseIdOrVersionId, String rawFilename) {
         if (rawFilename == null || rawFilename.isBlank()) {
             throw new ResourceNotFoundException("Nombre de archivo no especificado");
@@ -278,8 +280,16 @@ public class ContentService {
                 .or(() -> exerciseRepository.findById(exerciseIdOrVersionId).flatMap(e -> exerciseVersionRepository.findLatestByExerciseId(e.getId())))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
-        String slug = version.getExercise().getSlug();
+        UUID exerciseId = version.getExercise().getId();
 
+        // 1. Buscar en la Base de Datos (PostgreSQL) primero
+        Optional<ExerciseAsset> dbAsset = exerciseAssetRepository.findByExerciseIdAndFilename(exerciseId, filename);
+        if (dbAsset.isPresent()) {
+            return new ByteArrayResource(dbAsset.get().getData());
+        }
+
+        // 2. Fallback a disco (para assets no migrados todavía)
+        String slug = version.getExercise().getSlug();
         List<Path> candidateDirs = new ArrayList<>();
         candidateDirs.add(Path.of("/var/lib/benigascode/catalog/exercises", slug));
         candidateDirs.add(Path.of("/var/lib/benigascode/content/exercises", slug));
@@ -298,6 +308,482 @@ public class ContentService {
         throw new ResourceNotFoundException("Asset no encontrado: " + filename);
     }
 
+    // ==================== GESTIÓN DE ASSETS ====================
+
+    @Transactional
+    public AssetDTO saveAsset(UUID exerciseId, String filename, String contentType, byte[] data) {
+        if (data == null || data.length == 0) {
+            throw new ValidationException("El contenido del archivo no puede estar vacío");
+        }
+        if (data.length > 5 * 1024 * 1024) { // 5 MB
+            throw new ValidationException("El archivo excede el tamaño máximo permitido de 5 MB");
+        }
+
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        String cleanFilename = filename.replaceAll("[^a-zA-Z0-9._-]", "_");
+        Optional<ExerciseAsset> existing = exerciseAssetRepository.findByExerciseIdAndFilename(exercise.getId(), cleanFilename);
+
+        ExerciseAsset asset = existing.orElseGet(() -> new ExerciseAsset(exercise, cleanFilename, contentType, data));
+        asset.setContentType(contentType);
+        asset.setData(data);
+        asset.setSizeBytes(data.length);
+        asset = exerciseAssetRepository.save(asset);
+
+        return new AssetDTO(asset.getId(), asset.getFilename(), asset.getContentType(), asset.getSizeBytes(),
+                "/api/v1/exercises/" + exercise.getId() + "/assets/" + asset.getFilename());
+    }
+
+    @Transactional(readOnly = true)
+    public List<AssetDTO> listAssets(UUID exerciseId) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        return exerciseAssetRepository.findByExerciseId(exercise.getId()).stream()
+                .map(a -> new AssetDTO(a.getId(), a.getFilename(), a.getContentType(), a.getSizeBytes(),
+                        "/api/v1/exercises/" + exercise.getId() + "/assets/" + a.getFilename()))
+                .toList();
+    }
+
+    @Transactional
+    public void deleteAsset(UUID exerciseId, String assetIdentifier) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        Optional<ExerciseAsset> byFilename = exerciseAssetRepository.findByExerciseIdAndFilename(exercise.getId(), assetIdentifier);
+        if (byFilename.isPresent()) {
+            exerciseAssetRepository.delete(byFilename.get());
+            return;
+        }
+        try {
+            UUID assetId = UUID.fromString(assetIdentifier);
+            ExerciseAsset asset = exerciseAssetRepository.findById(assetId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Asset no encontrado"));
+            if (!asset.getExercise().getId().equals(exercise.getId())) {
+                throw new ValidationException("El asset no pertenece al ejercicio indicado");
+            }
+            exerciseAssetRepository.delete(asset);
+        } catch (IllegalArgumentException e) {
+            throw new ResourceNotFoundException("Asset no encontrado: " + assetIdentifier);
+        }
+    }
+
+    // ==================== GESTIÓN DOCENTE DE EJERCICIOS ====================
+
+    @Transactional(readOnly = true)
+    public List<ExerciseDTO> listTeacherExercises(String search) {
+        List<Exercise> all = exerciseRepository.findAll();
+        List<ExerciseDTO> result = new ArrayList<>();
+
+        for (Exercise ex : all) {
+            Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (latest.isPresent()) {
+                ExerciseVersion ev = latest.get();
+                if (search == null || search.isBlank()
+                        || ev.getTitle().toLowerCase().contains(search.toLowerCase())
+                        || ex.getSlug().toLowerCase().contains(search.toLowerCase())) {
+                    result.add(new ExerciseDTO(
+                            ex.getId(),
+                            ex.getId(),
+                            ex.getSlug(),
+                            ev.getTitle(),
+                            ev.getStatement(),
+                            ev.getLanguage(),
+                            ev.getRuntimeId(),
+                            ev.getVersionNumber(),
+                            null
+                    ));
+                }
+            }
+        }
+        result.sort(Comparator.comparing(ExerciseDTO::title));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherExerciseDetailDTO getTeacherExerciseDetail(UUID exerciseId) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        ExerciseVersion ev = exerciseVersionRepository.findLatestByExerciseId(exercise.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Versión no encontrada para el ejercicio"));
+
+        Map<String, Object> compileConfig = parseMap(ev.getCompileConfig());
+        Map<String, Object> runConfig = parseMap(ev.getRunConfig());
+        Map<String, Object> scoringConfig = parseMap(ev.getScoringConfig());
+        Map<String, Object> comparatorConfig = parseMap(ev.getComparatorConfig());
+        Map<String, String> templates = parseTemplatesMap(ev.getTemplatesConfig());
+
+        List<TestCaseDTO> tests = new ArrayList<>();
+        if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(ev.getTestsConfig());
+                int idx = 0;
+                for (JsonNode t : root.path("public")) {
+                    tests.add(new TestCaseDTO(
+                            t.path("id").asText(),
+                            t.path("name").asText(),
+                            true,
+                            idx++,
+                            t.path("weight").asDouble(10.0),
+                            t.path("input").asText(),
+                            t.path("expected").asText(),
+                            t.has("explanation") && !t.get("explanation").isNull() ? t.get("explanation").asText() : null
+                    ));
+                }
+                for (JsonNode t : root.path("private")) {
+                    tests.add(new TestCaseDTO(
+                            t.path("id").asText(),
+                            t.path("name").asText(),
+                            false,
+                            idx++,
+                            t.path("weight").asDouble(10.0),
+                            t.path("input").asText(),
+                            t.path("expected").asText(),
+                            t.has("explanation") && !t.get("explanation").isNull() ? t.get("explanation").asText() : null
+                    ));
+                }
+            } catch (Exception ignored) {}
+        }
+
+        List<AssetDTO> assets = listAssets(exercise.getId());
+        String starterCode = templates != null ? templates.get("java") : null;
+
+        return new TeacherExerciseDetailDTO(
+                exercise.getId(),
+                exercise.getSlug(),
+                ev.getTitle(),
+                ev.getStatement(),
+                ev.getLanguage(),
+                ev.getRuntimeId(),
+                ev.getVersionNumber(),
+                starterCode,
+                compileConfig,
+                runConfig,
+                scoringConfig,
+                comparatorConfig,
+                templates,
+                tests,
+                tests,
+                assets,
+                ev.getCreatedAt()
+        );
+    }
+
+    @Transactional
+    public TeacherExerciseDetailDTO createExercise(SaveExerciseRequest req, User teacher) {
+        String cleanSlug = req.slug().trim().toLowerCase().replaceAll("[^a-z0-9-]", "-").replaceAll("-+", "-");
+        if (exerciseRepository.findBySlug(cleanSlug).isPresent()) {
+            throw new ValidationException("Ya existe un ejercicio con el slug: " + cleanSlug);
+        }
+
+        Exercise exercise = exerciseRepository.save(new Exercise(cleanSlug));
+        ExerciseVersion version = buildExerciseVersion(exercise, 1, req);
+        exerciseVersionRepository.save(version);
+
+        return getTeacherExerciseDetail(exercise.getId());
+    }
+
+    @Transactional
+    public TeacherExerciseDetailDTO updateExercise(UUID exerciseId, SaveExerciseRequest req, User teacher) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        String cleanSlug = req.slug().trim().toLowerCase().replaceAll("[^a-z0-9-]", "-").replaceAll("-+", "-");
+        if (!exercise.getSlug().equalsIgnoreCase(cleanSlug)) {
+            if (exerciseRepository.findBySlug(cleanSlug).isPresent()) {
+                throw new ValidationException("Ya existe otro ejercicio con el slug: " + cleanSlug);
+            }
+            exercise.setSlug(cleanSlug);
+            exerciseRepository.save(exercise);
+        }
+
+        Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
+        int nextVersion = latest.map(v -> v.getVersionNumber() + 1).orElse(1);
+
+        ExerciseVersion version = buildExerciseVersion(exercise, nextVersion, req);
+        exerciseVersionRepository.save(version);
+
+        return getTeacherExerciseDetail(exercise.getId());
+    }
+
+    @Transactional
+    public void deleteExercise(UUID exerciseId, User teacher) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+        exerciseRepository.delete(exercise);
+    }
+
+    private ExerciseVersion buildExerciseVersion(Exercise exercise, int versionNumber, SaveExerciseRequest req) {
+        Map<String, Object> testSuite = new HashMap<>();
+        List<Map<String, Object>> pubTests = new ArrayList<>();
+        List<Map<String, Object>> privTests = new ArrayList<>();
+
+        List<TestCaseDTO> testsList = req.effectiveTests();
+        if (testsList != null) {
+            int pubIdx = 1;
+            int privIdx = 1;
+            for (TestCaseDTO tc : testsList) {
+                Map<String, Object> t = new HashMap<>();
+                t.put("id", tc.id() != null && !tc.id().isBlank() ? tc.id() : (tc.isPublic() ? "pub-" + pubIdx : "priv-" + privIdx));
+                t.put("name", tc.name() != null && !tc.name().isBlank() ? tc.name() : (tc.isPublic() ? "Test Publico #" + pubIdx : "Test Privado #" + privIdx));
+                t.put("input", tc.input() != null ? tc.input() : "");
+                t.put("expected", tc.effectiveExpected());
+                t.put("weight", tc.weight() > 0 ? tc.weight() : 10.0);
+                t.put("is_public", tc.isPublic());
+                if (tc.explanation() != null && !tc.explanation().isBlank()) {
+                    t.put("explanation", tc.explanation());
+                }
+
+                if (tc.isPublic()) {
+                    pubTests.add(t);
+                    pubIdx++;
+                } else {
+                    privTests.add(t);
+                    privIdx++;
+                }
+            }
+        }
+        testSuite.put("public", pubTests);
+        testSuite.put("private", privTests);
+
+        Map<String, String> templatesMap = new HashMap<>();
+        if (req.templates() != null) {
+            templatesMap.putAll(req.templates());
+        }
+        if (req.starterCode() != null && !req.starterCode().isBlank() && !templatesMap.containsKey("java")) {
+            templatesMap.put("java", req.starterCode());
+        }
+
+        try {
+            String testsJson = objectMapper.writeValueAsString(testSuite);
+            String compileJson = objectMapper.writeValueAsString(req.compileConfig() != null ? req.compileConfig() : Map.of("command", "javac Main.java", "timeout_seconds", 15));
+            String runJson = objectMapper.writeValueAsString(req.runConfig() != null ? req.runConfig() : Map.of("command", "java Main", "timeout_seconds", 3, "memory_limit_mb", 256));
+            String scoringJson = objectMapper.writeValueAsString(req.scoringConfig() != null ? req.scoringConfig() : Map.of("mode", "weighted", "total_score", 100));
+            String comparatorJson = objectMapper.writeValueAsString(req.comparatorConfig() != null ? req.comparatorConfig() : Map.of("type", "exact_line_by_line", "ignore_trailing_whitespace", true));
+            String templatesJson = objectMapper.writeValueAsString(templatesMap);
+
+            String contentHash = sha256(req.statement() + testsJson + compileJson + runJson + templatesJson);
+
+            ExerciseVersion version = new ExerciseVersion();
+            version.setExercise(exercise);
+            version.setVersionNumber(versionNumber);
+            version.setTitle(req.title().trim());
+            version.setStatement(req.statement());
+            version.setLanguage(req.language() != null && !req.language().isBlank() ? req.language() : "java");
+            version.setRuntimeId(req.runtimeId() != null && !req.runtimeId().isBlank() ? req.runtimeId() : "java-21");
+            version.setCompileConfig(compileJson);
+            version.setRunConfig(runJson);
+            version.setScoringConfig(scoringJson);
+            version.setComparatorConfig(comparatorJson);
+            version.setTestsConfig(testsJson);
+            version.setTemplatesConfig(templatesJson);
+            version.setContentHash(contentHash);
+            version.setGitCommit("web_edit_" + System.currentTimeMillis());
+            version.setStatus("PUBLISHED");
+            return version;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error al serializar configuración del ejercicio", e);
+        }
+    }
+
+    // ==================== GESTIÓN DOCENTE DE COLECCIONES ====================
+
+    @Transactional(readOnly = true)
+    public List<TeacherCollectionDetailDTO> listTeacherCollections(String search) {
+        List<Collection> all = collectionRepository.findAll();
+        List<TeacherCollectionDetailDTO> result = new ArrayList<>();
+
+        for (Collection c : all) {
+            Optional<CollectionVersion> latest = collectionVersionRepository.findLatestByCollectionId(c.getId());
+            if (latest.isPresent()) {
+                CollectionVersion cv = latest.get();
+                if (search == null || search.isBlank()
+                        || cv.getTitle().toLowerCase().contains(search.toLowerCase())
+                        || c.getSlug().toLowerCase().contains(search.toLowerCase())) {
+                    result.add(getTeacherCollectionDetail(c.getId()));
+                }
+            }
+        }
+        result.sort(Comparator.comparing(TeacherCollectionDetailDTO::title));
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherCollectionDetailDTO getTeacherCollectionDetail(UUID collectionId) {
+        Collection col = collectionRepository.findById(collectionId)
+                .or(() -> collectionVersionRepository.findById(collectionId).map(CollectionVersion::getCollection))
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+
+        CollectionVersion cv = collectionVersionRepository.findLatestByCollectionId(col.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Versión no encontrada para la colección"));
+
+        List<CollectionItemDTO> items = new ArrayList<>();
+        if (cv.getItems() != null && !cv.getItems().isBlank()) {
+            try {
+                JsonNode arr = objectMapper.readTree(cv.getItems());
+                if (arr.isArray()) {
+                    for (JsonNode it : arr) {
+                        String type = it.path("type").asText("EXERCISE");
+                        String slug = it.path("id").asText();
+                        int pos = it.path("position").asInt(1);
+                        boolean req = it.path("required").asBoolean(true);
+                        double wt = it.path("weight").asDouble(1.0);
+
+                        UUID exId = null;
+                        String title = slug;
+                        Optional<Exercise> exOpt = exerciseRepository.findBySlug(slug);
+                        if (exOpt.isPresent()) {
+                            exId = exOpt.get().getId();
+                            Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(exId);
+                            if (evOpt.isPresent()) {
+                                title = evOpt.get().getTitle();
+                            }
+                        }
+
+                        items.add(new CollectionItemDTO(type, slug, exId, title, pos, req, wt));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        Map<String, String> templates = parseTemplatesMap(cv.getTemplatesConfig());
+
+        return new TeacherCollectionDetailDTO(
+                col.getId(),
+                col.getSlug(),
+                cv.getTitle(),
+                cv.getDescription(),
+                col.getVisibility(),
+                cv.getVersionNumber(),
+                "java",
+                "java-21",
+                Map.of("command", "javac Main.java", "timeout_seconds", 15),
+                Map.of("command", "java Main", "timeout_seconds", 3, "memory_limit_mb", 256),
+                Map.of("mode", "weighted", "total_score", 100),
+                Map.of("type", "exact_line_by_line", "ignore_trailing_whitespace", true),
+                templates,
+                items,
+                cv.getCreatedAt()
+        );
+    }
+
+    @Transactional
+    public TeacherCollectionDetailDTO createCollection(SaveCollectionRequest req, User teacher) {
+        String cleanSlug = req.slug().trim().toLowerCase().replaceAll("[^a-z0-9-]", "-").replaceAll("-+", "-");
+        if (collectionRepository.findBySlug(cleanSlug).isPresent()) {
+            throw new ValidationException("Ya existe una colección con el slug: " + cleanSlug);
+        }
+
+        String visibility = req.visibility() != null ? req.visibility().toUpperCase() : "PUBLIC";
+        Collection collection = collectionRepository.save(new Collection(cleanSlug, visibility));
+
+        CollectionVersion version = buildCollectionVersion(collection, 1, req);
+        collectionVersionRepository.save(version);
+
+        return getTeacherCollectionDetail(collection.getId());
+    }
+
+    @Transactional
+    public TeacherCollectionDetailDTO updateCollection(UUID collectionId, SaveCollectionRequest req, User teacher) {
+        Collection collection = collectionRepository.findById(collectionId)
+                .or(() -> collectionVersionRepository.findById(collectionId).map(CollectionVersion::getCollection))
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+
+        String cleanSlug = req.slug().trim().toLowerCase().replaceAll("[^a-z0-9-]", "-").replaceAll("-+", "-");
+        if (!collection.getSlug().equalsIgnoreCase(cleanSlug)) {
+            if (collectionRepository.findBySlug(cleanSlug).isPresent()) {
+                throw new ValidationException("Ya existe otra colección con el slug: " + cleanSlug);
+            }
+            collection.setSlug(cleanSlug);
+        }
+        if (req.visibility() != null) {
+            collection.setVisibility(req.visibility().toUpperCase());
+        }
+        collectionRepository.save(collection);
+
+        Optional<CollectionVersion> latest = collectionVersionRepository.findLatestByCollectionId(collection.getId());
+        int nextVersion = latest.map(v -> v.getVersionNumber() + 1).orElse(1);
+
+        CollectionVersion version = buildCollectionVersion(collection, nextVersion, req);
+        collectionVersionRepository.save(version);
+
+        return getTeacherCollectionDetail(collection.getId());
+    }
+
+    @Transactional
+    public void deleteCollection(UUID collectionId, User teacher) {
+        Collection collection = collectionRepository.findById(collectionId)
+                .or(() -> collectionVersionRepository.findById(collectionId).map(CollectionVersion::getCollection))
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+        collectionRepository.delete(collection);
+    }
+
+    private CollectionVersion buildCollectionVersion(Collection col, int versionNumber, SaveCollectionRequest req) {
+        try {
+            List<CollectionItemDTO> itemsToSave = new ArrayList<>();
+            if (req.items() != null && !req.items().isEmpty()) {
+                itemsToSave.addAll(req.items());
+            } else if (req.exerciseIds() != null) {
+                int pos = 1;
+                for (UUID exId : req.exerciseIds()) {
+                    Optional<Exercise> exOpt = exerciseRepository.findById(exId)
+                            .or(() -> exerciseVersionRepository.findById(exId).map(ExerciseVersion::getExercise));
+                    if (exOpt.isPresent()) {
+                        Exercise ex = exOpt.get();
+                        String exTitle = ex.getSlug();
+                        Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+                        if (evOpt.isPresent()) exTitle = evOpt.get().getTitle();
+                        itemsToSave.add(new CollectionItemDTO("EXERCISE", ex.getSlug(), ex.getId(), exTitle, pos, true, 1.0));
+                        pos++;
+                    }
+                }
+            }
+
+            String itemsJson = objectMapper.writeValueAsString(itemsToSave);
+            String templatesJson = objectMapper.writeValueAsString(req.templates() != null ? req.templates() : Map.of());
+
+            CollectionVersion cv = new CollectionVersion();
+            cv.setCollection(col);
+            cv.setVersionNumber(versionNumber);
+            cv.setTitle(req.title().trim());
+            cv.setDescription(req.description() != null ? req.description().trim() : "");
+            cv.setItems(itemsJson);
+            cv.setTemplatesConfig(templatesJson);
+            return cv;
+        } catch (Exception e) {
+            throw new RuntimeException("Error al serializar colección", e);
+        }
+    }
+
+    // ==================== HELPERS ====================
+
+    private Map<String, Object> parseMap(String json) {
+        if (json == null || json.isBlank()) return Map.of();
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private Map<String, String> parseTemplatesMap(String json) {
+        if (json == null || json.isBlank()) return Map.of();
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
     public void assertCanAccessCollection(User user, Collection collection) {
         if (user.getRole() == Role.TEACHER || user.getRole() == Role.ADMIN) {
             return;
@@ -308,14 +794,13 @@ public class ContentService {
         if (accessGrantRepository.existsByUserIdAndCollectionId(user.getId(), collection.getId())) {
             return;
         }
-        // Devolver 404 para no filtrar que la colección privada existe
-        throw new ResourceNotFoundException("Colección no encontrada");
+        throw new AccessDeniedException("Acceso no autorizado a esta colección");
     }
 
-    public static String sha256(String input) {
+    public static String sha256(String data) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(data.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
                 String hex = Integer.toHexString(0xff & b);
@@ -339,4 +824,3 @@ public class ContentService {
         return sb.toString();
     }
 }
-

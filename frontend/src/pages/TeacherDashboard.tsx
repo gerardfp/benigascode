@@ -77,6 +77,37 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Accesos directos principales: Colecciones y Ejercicios */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#0369a1' }}>
+              📁 Colecciones
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#0284c7' }}>
+              {collections.length} colecciones en la plataforma
+            </p>
+          </div>
+          <Link to="/teacher/collections" className="btn-primary" style={{ textDecoration: 'none' }}>
+            Gestionar Colecciones &rarr;
+          </Link>
+        </div>
+
+        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', borderColor: '#cbd5e1' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#1e293b' }}>
+              📝 Ejercicios
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
+              Edición visual de enunciados, templates y tests
+            </p>
+          </div>
+          <Link to="/teacher/exercises" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#0f172a' }}>
+            Gestionar Ejercicios &rarr;
+          </Link>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
         {/* Cursos y Actividades */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
