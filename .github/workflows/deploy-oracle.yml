@@ -56,7 +56,7 @@ jobs:
 
             # 4. Construir y levantar contenedores en producción
             echo "🐳 Reconstruyendo y arrancando servicios Docker..."
-            docker compose -f deployment/docker-compose.prod.yml up -d --build --remove-orphans
+            docker compose --env-file /opt/benigascode/.env -f deployment/docker-compose.prod.yml up -d --build --remove-orphans
 
             # 5. Limpieza preventiva de imágenes antiguas sin etiqueta para liberar disco
             echo "🧹 Limpiando imágenes antiguas en desuso..."

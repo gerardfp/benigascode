@@ -1,4 +1,8 @@
-{$DOMAIN_NAME:localhost} {
+{
+    email {$LETSENCRYPT_EMAIL:admin@benigaslo.dev}
+}
+
+{$DOMAIN_NAME:benigaslo.dev} {
     log {
         output stdout
         format console
@@ -29,11 +33,7 @@
 
     # API Backend Reverse Proxy
     handle /api/* {
-        reverse_proxy backend:8080 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
+        reverse_proxy backend:8080
     }
 
     # Spring Actuator Health Check (solo /actuator/health)

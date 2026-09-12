@@ -44,7 +44,7 @@ services:
       POSTGRES_USER: ${DB_USER:-benigascode_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
+      - postgres_prod_data:/var/lib/postgresql
     networks:
       - benigascode-prod-net
     healthcheck:
@@ -77,6 +77,8 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://${DOMAIN_NAME:-localhost}/teacher/sync/github/callback}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-framework}
     volumes:
       - benigascode_prod_content:/var/lib/benigascode/content
     networks:

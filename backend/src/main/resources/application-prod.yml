@@ -9,6 +9,6 @@ server:
   servlet:
     session:
       cookie:
-        secure: true
-        same-site: strict
+        secure: ${COOKIE_SECURE:false}
+        same-site: lax
 
