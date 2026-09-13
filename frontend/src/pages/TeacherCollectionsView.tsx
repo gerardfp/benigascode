@@ -4,7 +4,6 @@ import { api } from '../services/api';
 import { Collection, Exercise, CollectionItemDTO } from '../types';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, 
-  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers
   ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers, Edit3
 } from 'lucide-react';
 
@@ -359,7 +358,6 @@ export const TeacherCollectionsView: React.FC = () => {
       {/* Top Bar with Navigation & Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
           <button onClick={handleBackToList} className="btn-secondary">
             <ArrowLeft size={16} /> Volver a la lista
           </button>
@@ -596,8 +594,6 @@ export const TeacherCollectionsView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Reorder and Delete Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                 {/* Reorder, Edit, and Delete Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <button
@@ -652,7 +648,6 @@ export const TeacherCollectionsView: React.FC = () => {
 
       {/* Bottom Save Bar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 0' }}>
-        <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
         <button onClick={handleBackToList} className="btn-secondary">
           Cancelar
         </button>

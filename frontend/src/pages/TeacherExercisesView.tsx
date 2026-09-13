@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Exercise, TestCaseDTO, AssetDTO } from '../types';
 import { Exercise, TestCaseDTO, AssetDTO, TeacherCollectionDetail } from '../types';
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
-  ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
   GripVertical, ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -180,7 +178,6 @@ export const TeacherExercisesView: React.FC = () => {
   }, [filteredExercises, page, pageSize]);
 
   // Open Editor for an existing exercise
-  const handleOpenEdit = async (id: string) => {
   const handleOpenEdit = async (id: string, colId?: string) => {
     try {
       setDetailLoading(true);
@@ -720,15 +717,10 @@ export const TeacherExercisesView: React.FC = () => {
       {/* Top Bar with Navigation & Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
-            <ArrowLeft size={16} /> Volver a la lista
           <button onClick={handleBack} className="btn-secondary">
             <ArrowLeft size={16} /> {collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
           </button>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
-              {selectedId ? `Editar: ${title || 'Sin título'}` : 'Nuevo Ejercicio'}
-            </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
                 {selectedId ? `Editar: ${title || 'Sin título'}` : 'Nuevo Ejercicio'}
@@ -747,7 +739,6 @@ export const TeacherExercisesView: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           {renderNavigationButtons(true)}
 
@@ -968,7 +959,6 @@ export const TeacherExercisesView: React.FC = () => {
         </div>
 
         {/* Editor Area (Edit, Split, or Preview) */}
-        <div style={{ display: 'grid', gridTemplateColumns: statementView === 'split' ? '1fr 1fr' : '1fr', gap: statementView === 'split' ? '1rem' : 0 }}>
         <div style={{
           display: 'grid',
           gridTemplateColumns: statementView === 'split' ? '1fr 1fr' : '1fr',
@@ -990,7 +980,6 @@ export const TeacherExercisesView: React.FC = () => {
                   lineHeight: 1.5,
                   borderRadius: statementView === 'split' ? '0 0 0 0.375rem' : '0 0 0.375rem 0.375rem',
                   borderTop: 'none',
-                  resize: 'vertical'
                   resize: 'vertical',
                   minHeight: '380px',
                   width: '100%',
@@ -1011,8 +1000,6 @@ export const TeacherExercisesView: React.FC = () => {
                 padding: '1rem 1.25rem',
                 backgroundColor: '#ffffff',
                 overflowY: 'auto',
-                maxHeight: '480px',
-                borderTop: statementView === 'split' ? '1px solid #e2e8f0' : 'none'
                 height: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : undefined,
                 minHeight: '380px',
                 maxHeight: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : (statementView === 'preview' ? '700px' : undefined),
@@ -1130,8 +1117,6 @@ export const TeacherExercisesView: React.FC = () => {
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 style={{
-                  border: `1px solid ${tc.isPublic ? '#bae6fd' : '#e2e8f0'}`,
-                  backgroundColor: tc.isPublic ? '#f0f9ff' : '#ffffff',
                   border: dragOverTestCaseIndex === index
                     ? '2px dashed #2563eb'
                     : `1px solid ${tc.isPublic ? '#bae6fd' : '#e2e8f0'}`,
@@ -1140,15 +1125,12 @@ export const TeacherExercisesView: React.FC = () => {
                     : (tc.isPublic ? '#f0f9ff' : '#ffffff'),
                   borderRadius: '0.5rem',
                   padding: '1rem',
-                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)'
                   boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
                   opacity: draggedTestCaseIndex === index ? 0.4 : 1,
                   transition: 'background-color 0.15s ease, border-color 0.15s ease'
                 }}
               >
                 {/* Header of Test Case */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     {/* Move Drag Handle */}
@@ -1261,9 +1243,6 @@ export const TeacherExercisesView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Body: Input, Expected Output, Explanation */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
-                  <div>
                 {/* Body: Input, Expected Output, Explanation (vertical stack, 100% width each) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                   <div style={{ width: '100%' }}>
@@ -1272,46 +1251,38 @@ export const TeacherExercisesView: React.FC = () => {
                     </label>
                     <textarea
                       className="input-field"
-                      rows={4}
                       rows={3}
                       value={tc.input || ''}
                       onChange={(e) => handleUpdateTestCase(index, { input: e.target.value })}
                       placeholder="Ej: 5 10"
-                      style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                       style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                     />
                   </div>
 
-                  <div>
                   <div style={{ width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
                       Salida Esperada (Expected stdout)
                     </label>
                     <textarea
                       className="input-field"
-                      rows={4}
                       rows={3}
                       value={tc.expectedOutput || ''}
                       onChange={(e) => handleUpdateTestCase(index, { expectedOutput: e.target.value })}
                       placeholder="Ej: 15"
-                      style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                       style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                     />
                   </div>
 
-                  <div>
                   <div style={{ width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
                       Explicación (Opcional)
                     </label>
                     <textarea
                       className="input-field"
-                      rows={4}
                       rows={2}
                       value={tc.explanation || ''}
                       onChange={(e) => handleUpdateTestCase(index, { explanation: e.target.value })}
                       placeholder="Explicación mostrada al estudiante sobre este caso..."
-                      style={{ fontSize: '0.8125rem' }}
                       style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.8125rem' }}
                     />
                   </div>
@@ -1322,19 +1293,6 @@ export const TeacherExercisesView: React.FC = () => {
         )}
       </div>
 
-      {/* Bottom Save Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 0' }}>
-        <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
-          Cancelar
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary"
-          style={{ padding: '0.625rem 1.5rem', fontSize: '0.9375rem' }}
-        >
-          <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Ejercicio'}
-        </button>
       {/* Bottom Action Bar */}
       <div style={{
         display: 'flex',
