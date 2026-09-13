@@ -5,6 +5,7 @@ import {
   GitRepository,
   GitHubRepo,
   GitHubConfig,
+  GitHubUserProfile,
   DeployKey,
   CatalogConflictStrategy,
   CatalogImportPreviewDTO,
@@ -19,6 +20,17 @@ export const GitSyncView: React.FC = () => {
   // Estado de conexión GitHub
   const [ghConfig, setGhConfig] = useState<GitHubConfig | null>(null);
   const [ghToken, setGhToken] = useState<string | null>(sessionStorage.getItem('github_access_token'));
+  const [ghProfile, setGhProfile] = useState<GitHubUserProfile | null>(() => {
+    const saved = sessionStorage.getItem('github_user_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [ghRepos, setGhRepos] = useState<GitHubRepo[]>([]);
   const [loadingGhRepos, setLoadingGhRepos] = useState(false);
 
@@ -76,7 +88,7 @@ export const GitSyncView: React.FC = () => {
       const storedToken = sessionStorage.getItem('github_access_token');
       if (storedToken) {
         setGhToken(storedToken);
-        loadGitHubRepos(storedToken);
+        loadGitHubData(storedToken);
       } else if (!config.oauthEnabled) {
         setImportSourceType('public_url');
         setSyncAuthTab('deploy_key');
@@ -86,11 +98,26 @@ export const GitSyncView: React.FC = () => {
     }
   };
 
-  const loadGitHubRepos = async (token: string) => {
+  const loadGitHubData = async (token: string) => {
     setLoadingGhRepos(true);
     try {
-      const repos = await api.getGitHubRepos(token);
+      const [repos, profile] = await Promise.all([
+        api.getGitHubRepos(token).catch((err) => {
+          console.warn('Error al cargar repositorios de GitHub:', err);
+          return [] as GitHubRepo[];
+        }),
+        api.getGitHubUserProfile(token).catch((err) => {
+          console.warn('Error al cargar perfil de GitHub:', err);
+          return null;
+        }),
+      ]);
+
       setGhRepos(repos);
+      if (profile) {
+        setGhProfile(profile);
+        sessionStorage.setItem('github_user_profile', JSON.stringify(profile));
+      }
+
       if (repos.length > 0) {
         setImportSelectedRepoUrl(repos[0].clone_url);
         setExportSelectedRepoUrl(repos[0].clone_url);
@@ -98,7 +125,7 @@ export const GitSyncView: React.FC = () => {
         setSyncRepoName(repos[0].name);
       }
     } catch (err: any) {
-      console.warn('Error al cargar repositorios de GitHub:', err);
+      console.warn('Error al cargar datos de GitHub:', err);
     } finally {
       setLoadingGhRepos(false);
     }
@@ -115,7 +142,9 @@ export const GitSyncView: React.FC = () => {
 
   const handleDisconnectGitHub = () => {
     sessionStorage.removeItem('github_access_token');
+    sessionStorage.removeItem('github_user_profile');
     setGhToken(null);
+    setGhProfile(null);
     setGhRepos([]);
     setImportSourceType('public_url');
     setExportSourceType('custom');
@@ -346,12 +375,35 @@ export const GitSyncView: React.FC = () => {
             borderRadius: '0.5rem',
             fontSize: '0.8125rem'
           }}>
-            <span style={{ fontSize: '1.25rem' }}>🐙</span>
+            {ghProfile?.avatarUrl ? (
+              <img
+                src={ghProfile.avatarUrl}
+                alt={ghProfile.login}
+                style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #86efac', objectFit: 'cover' }}
+              />
+            ) : (
+              <span style={{ fontSize: '1.25rem' }}>🐙</span>
+            )}
             <div>
               {ghToken ? (
                 <div>
-                  <div style={{ color: '#166534', fontWeight: 600 }}>Cuenta GitHub Conectada</div>
-                  <div style={{ color: '#15803d', fontSize: '0.75rem' }}>{ghRepos.length} repositorios accesibles</div>
+                  <div style={{ color: '#166534', fontWeight: 600 }}>
+                    {ghProfile?.login ? (
+                      <>
+                        Cuenta: @{ghProfile.login}
+                        {ghProfile.name && ghProfile.name !== ghProfile.login && (
+                          <span style={{ fontWeight: 400, color: '#15803d', fontSize: '0.75rem', marginLeft: '0.35rem' }}>
+                            ({ghProfile.name})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      'Cuenta GitHub Conectada'
+                    )}
+                  </div>
+                  <div style={{ color: '#15803d', fontSize: '0.75rem' }}>
+                    {loadingGhRepos ? 'Cargando repositorios...' : `${ghRepos.length} repositorios accesibles`}
+                  </div>
                 </div>
               ) : (
                 <div>

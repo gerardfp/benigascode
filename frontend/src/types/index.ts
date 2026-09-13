@@ -189,6 +189,14 @@ export interface GitHubRepo {
   description?: string;
 }
 
+export interface GitHubUserProfile {
+  id: string;
+  login: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string;
+}
+
 export interface GitHubConfig {
   oauthEnabled: boolean;
   clientId: string;

@@ -70,6 +70,12 @@ public class TeacherGitHubController {
         return ResponseEntity.ok(repos);
     }
 
+    @GetMapping("/user")
+    public ResponseEntity<GitHubUserProfile> getUserProfile(@RequestParam String token) {
+        GitHubUserProfile profile = oauthService.fetchUserProfile(token);
+        return ResponseEntity.ok(profile);
+    }
+
     @PostMapping("/generate-deploy-key")
     public ResponseEntity<DeployKeyResponse> generateDeployKey() {
         DeployKeyResponse keyPair = sshKeyService.generateDeployKey();

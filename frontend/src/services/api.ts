@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO } from '../types';
 
 
 
@@ -208,6 +208,9 @@ export const api = {
 
   getGitHubRepos: (token: string): Promise<GitHubRepo[]> =>
     request<GitHubRepo[]>(`/teacher/github/repos?token=${encodeURIComponent(token)}`),
+
+  getGitHubUserProfile: (token: string): Promise<GitHubUserProfile> =>
+    request<GitHubUserProfile>(`/teacher/github/user?token=${encodeURIComponent(token)}`),
 
   generateDeployKey: (): Promise<DeployKey> =>
     request<DeployKey>('/teacher/github/generate-deploy-key', { method: 'POST' }),
