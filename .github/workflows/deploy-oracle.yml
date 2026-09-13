@@ -46,13 +46,30 @@ jobs:
             # 1. Acceder al directorio del proyecto
             cd /opt/benigascode
 
+            # Backup preventivo de .env si existe
+            if [ -f /opt/benigascode/.env ]; then
+              cp /opt/benigascode/.env /tmp/benigascode.env.bak
+            fi
+
             # 2. Descargar últimos cambios y tags desde GitHub
             echo "📥 Obteniendo cambios desde el repositorio..."
             git fetch --tags origin
             
+            # Limpiar cambios locales no commiteados o archivos no rastreados en el servidor
+            echo "🧹 Descartando cambios residuales no commiteados en el servidor..."
+            git reset --hard HEAD
+            git clean -fd
+
             # 3. Cambiar a la versión solicitada (tag o rama)
             echo "🏷️ Cambiando a referencia: ${{ steps.vars.outputs.target_ref }}"
-            git checkout ${{ steps.vars.outputs.target_ref }}
+            git checkout -f ${{ steps.vars.outputs.target_ref }}
+            git reset --hard ${{ steps.vars.outputs.target_ref }}
+
+            # Restaurar .env si fue eliminado
+            if [ ! -f /opt/benigascode/.env ] && [ -f /tmp/benigascode.env.bak ]; then
+              echo "🔄 Restaurando archivo de configuración .env..."
+              cp /tmp/benigascode.env.bak /opt/benigascode/.env
+            fi
 
             # 4. Construir y levantar contenedores en producción
             echo "🐳 Reconstruyendo y arrancando servicios Docker..."
