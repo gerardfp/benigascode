@@ -86,7 +86,7 @@ jobs:
 
             # 7. Comprobación de salud interna
             echo "🩺 Verificando salud del backend..."
-            if curl -s -f http://localhost:8080/actuator/health > /dev/null 2>&1 || curl -s -k -f https://localhost/actuator/health > /dev/null 2>&1; then
+            if docker exec benigascode-backend-prod curl -s -f http://localhost:8080/actuator/health > /dev/null 2>&1 || curl -s -f https://benigaslo.dev/actuator/health > /dev/null 2>&1; then
               echo "✅ Despliegue verificado: Backend operativo (200 OK)."
             else
               echo "⚠️ Advertencia: El backend todavía está iniciando o no respondió 200 en el primer intento."
