@@ -7,12 +7,14 @@ import com.benigascode.content.repository.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -26,6 +28,7 @@ public class ContentExportService {
     private final ExerciseVersionRepository exerciseVersionRepository;
     private final ExerciseAssetRepository exerciseAssetRepository;
     private final ObjectMapper objectMapper;
+    private final ObjectMapper yamlMapper;
 
     public ContentExportService(CollectionRepository collectionRepository,
                                 CollectionVersionRepository collectionVersionRepository,
@@ -39,6 +42,7 @@ public class ContentExportService {
         this.exerciseVersionRepository = exerciseVersionRepository;
         this.exerciseAssetRepository = exerciseAssetRepository;
         this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +63,7 @@ public class ContentExportService {
             yamlBuilder.append("id: ").append(col.getSlug()).append("\n");
             yamlBuilder.append("title: \"").append(colVer.getTitle().replace("\"", "\\\"")).append("\"\n");
             yamlBuilder.append("slug: ").append(col.getSlug()).append("\n");
-            yamlBuilder.append("description: \"").append(colVer.getDescription().replace("\"", "\\\"")).append("\"\n");
+            yamlBuilder.append("description: \"").append(colVer.getDescription() != null ? colVer.getDescription().replace("\"", "\\\"") : "").append("\"\n");
             yamlBuilder.append("visibility: ").append(col.getVisibility()).append("\n");
 
             // Defaults
@@ -153,7 +157,14 @@ public class ContentExportService {
         zos.write(stmt.getBytes(StandardCharsets.UTF_8));
         zos.closeEntry();
 
-        // 2. templates/
+        // 2. exercise.yaml
+        Map<String, Object> yamlMap = buildExerciseYamlMap(ex, ev);
+        String yamlStr = yamlMapper.writeValueAsString(yamlMap);
+        zos.putNextEntry(new ZipEntry(prefix + "exercise.yaml"));
+        zos.write(yamlStr.getBytes(StandardCharsets.UTF_8));
+        zos.closeEntry();
+
+        // 3. templates/
         if (ev.getTemplatesConfig() != null && !ev.getTemplatesConfig().isBlank()) {
             try {
                 Map<String, String> tpls = objectMapper.readValue(ev.getTemplatesConfig(), new TypeReference<>() {});
@@ -168,7 +179,7 @@ public class ContentExportService {
             } catch (Exception ignored) {}
         }
 
-        // 3. Tests (public-tests/ y private-tests/)
+        // 4. Tests (public-tests/ y private-tests/)
         if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
             try {
                 JsonNode root = objectMapper.readTree(ev.getTestsConfig());
@@ -177,7 +188,7 @@ public class ContentExportService {
             } catch (Exception ignored) {}
         }
 
-        // 4. Assets de imagen desde la BD
+        // 5. Assets de imagen desde la BD
         List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
         for (ExerciseAsset asset : assets) {
             zos.putNextEntry(new ZipEntry(prefix + asset.getFilename()));
@@ -216,5 +227,196 @@ public class ContentExportService {
                 zos.closeEntry();
             }
         }
+    }
+
+    // ==================== EXPORTACIÓN A DISCO / DIRECTORIO ====================
+
+    @Transactional(readOnly = true)
+    public void exportAllToDirectory(File baseDir) throws Exception {
+        File exercisesDir = new File(baseDir, "exercises");
+        File collectionsDir = new File(baseDir, "collections");
+
+        exercisesDir.mkdirs();
+        collectionsDir.mkdirs();
+
+        List<Exercise> exercises = exerciseRepository.findAll();
+        for (Exercise ex : exercises) {
+            Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (evOpt.isPresent()) {
+                File exDir = new File(exercisesDir, ex.getSlug());
+                exportExerciseToDirectory(ex, evOpt.get(), exDir);
+            }
+        }
+
+        List<Collection> collections = collectionRepository.findAll();
+        for (Collection col : collections) {
+            Optional<CollectionVersion> cvOpt = collectionVersionRepository.findLatestByCollectionId(col.getId());
+            if (cvOpt.isPresent()) {
+                File colDir = new File(collectionsDir, col.getSlug());
+                exportCollectionToDirectory(col, cvOpt.get(), colDir);
+            }
+        }
+    }
+
+    public void exportExerciseToDirectory(Exercise ex, ExerciseVersion ev, File targetDir) throws Exception {
+        if (!targetDir.exists()) {
+            targetDir.mkdirs();
+        }
+
+        // 1. statement.md
+        File stmtFile = new File(targetDir, "statement.md");
+        String stmt = ev.getStatement() != null ? ev.getStatement() : "# " + ev.getTitle() + "\n";
+        Files.writeString(stmtFile.toPath(), stmt, StandardCharsets.UTF_8);
+
+        // 2. exercise.yaml
+        File yamlFile = new File(targetDir, "exercise.yaml");
+        Map<String, Object> yamlMap = buildExerciseYamlMap(ex, ev);
+        yamlMapper.writeValue(yamlFile, yamlMap);
+
+        // 3. templates/
+        if (ev.getTemplatesConfig() != null && !ev.getTemplatesConfig().isBlank()) {
+            try {
+                Map<String, String> tpls = objectMapper.readValue(ev.getTemplatesConfig(), new TypeReference<>() {});
+                File tplDir = new File(targetDir, "templates");
+                tplDir.mkdirs();
+                for (Map.Entry<String, String> entry : tpls.entrySet()) {
+                    String rt = entry.getKey();
+                    if (!rt.contains(".")) {
+                        File tf = new File(tplDir, rt + ".java");
+                        Files.writeString(tf.toPath(), entry.getValue(), StandardCharsets.UTF_8);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 4. Tests (public-tests/ y private-tests/)
+        if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
+            try {
+                JsonNode root = objectMapper.readTree(ev.getTestsConfig());
+                writeTestsScopeToDirectory(new File(targetDir, "public-tests"), root.path("public"));
+                writeTestsScopeToDirectory(new File(targetDir, "private-tests"), root.path("private"));
+            } catch (Exception ignored) {}
+        }
+
+        // 5. Assets de imagen
+        List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
+        for (ExerciseAsset asset : assets) {
+            File af = new File(targetDir, asset.getFilename());
+            Files.write(af.toPath(), asset.getData());
+        }
+    }
+
+    public void exportCollectionToDirectory(Collection col, CollectionVersion colVer, File targetDir) throws Exception {
+        if (!targetDir.exists()) {
+            targetDir.mkdirs();
+        }
+
+        File yamlFile = new File(targetDir, "collection.yaml");
+        Map<String, Object> colMap = new LinkedHashMap<>();
+        colMap.put("id", col.getSlug());
+        colMap.put("title", colVer.getTitle());
+        colMap.put("slug", col.getSlug());
+        colMap.put("description", colVer.getDescription() != null ? colVer.getDescription() : "");
+        colMap.put("visibility", col.getVisibility());
+
+        // Defaults
+        colMap.put("language", "java");
+        colMap.put("runtime", "java-21");
+        colMap.put("compile", Map.of("command", "javac Main.java", "timeout_seconds", 15));
+        colMap.put("execution", Map.of("command", "java Main", "timeout_seconds", 3, "memory_limit_mb", 256));
+        colMap.put("scoring", Map.of("mode", "weighted", "total_score", 100));
+        colMap.put("comparator", Map.of("type", "exact_line_by_line", "ignore_trailing_whitespace", true));
+
+        // Items
+        if (colVer.getItems() != null && !colVer.getItems().isBlank()) {
+            try {
+                JsonNode itemsNode = objectMapper.readTree(colVer.getItems());
+                if (itemsNode.isArray()) {
+                    List<Map<String, Object>> itemsList = new ArrayList<>();
+                    for (JsonNode it : itemsNode) {
+                        Map<String, Object> itemMap = new LinkedHashMap<>();
+                        itemMap.put("type", "EXERCISE");
+                        itemMap.put("id", it.path("id").asText());
+                        itemMap.put("position", it.path("position").asInt(1));
+                        itemMap.put("required", it.path("required").asBoolean(true));
+                        itemMap.put("weight", it.path("weight").asDouble(1.0));
+                        itemsList.add(itemMap);
+                    }
+                    colMap.put("items", itemsList);
+                }
+            } catch (Exception ignored) {}
+        }
+        yamlMapper.writeValue(yamlFile, colMap);
+
+        // Templates
+        if (colVer.getTemplatesConfig() != null && !colVer.getTemplatesConfig().isBlank()) {
+            try {
+                Map<String, String> tpls = objectMapper.readValue(colVer.getTemplatesConfig(), new TypeReference<>() {});
+                File tplDir = new File(targetDir, "templates");
+                tplDir.mkdirs();
+                for (Map.Entry<String, String> entry : tpls.entrySet()) {
+                    String rt = entry.getKey();
+                    if (!rt.contains(".")) {
+                        File tf = new File(tplDir, rt + ".java");
+                        Files.writeString(tf.toPath(), entry.getValue(), StandardCharsets.UTF_8);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void writeTestsScopeToDirectory(File scopeDir, JsonNode testsNode) throws Exception {
+        if (!testsNode.isArray()) return;
+        scopeDir.mkdirs();
+        int idx = 0;
+        for (JsonNode t : testsNode) {
+            String dirName = String.format("%02d", idx++);
+            File testFolder = new File(scopeDir, dirName);
+            testFolder.mkdirs();
+
+            Files.writeString(new File(testFolder, "input.txt").toPath(), t.path("input").asText(""), StandardCharsets.UTF_8);
+            Files.writeString(new File(testFolder, "output.txt").toPath(), t.path("expected").asText(""), StandardCharsets.UTF_8);
+
+            double w = t.path("weight").asDouble(10.0);
+            String wStr = (w == (long) w) ? String.format("%d", (long) w) : String.valueOf(w);
+            File weightFile = new File(testFolder, "weight-" + wStr);
+            if (!weightFile.exists()) {
+                weightFile.createNewFile();
+            }
+
+            if (t.has("explanation") && !t.get("explanation").isNull() && !t.get("explanation").asText().isBlank()) {
+                Files.writeString(new File(testFolder, "explanation.md").toPath(), t.get("explanation").asText(), StandardCharsets.UTF_8);
+            }
+        }
+    }
+
+    private Map<String, Object> buildExerciseYamlMap(Exercise ex, ExerciseVersion ev) {
+        Map<String, Object> yamlMap = new LinkedHashMap<>();
+        yamlMap.put("id", ex.getSlug());
+        yamlMap.put("title", ev.getTitle());
+        yamlMap.put("language", ev.getLanguage() != null ? ev.getLanguage() : "java");
+        yamlMap.put("runtime", ev.getRuntimeId() != null ? ev.getRuntimeId() : "java-21");
+
+        if (ev.getCompileConfig() != null && !ev.getCompileConfig().isBlank()) {
+            try {
+                yamlMap.put("compile", objectMapper.readTree(ev.getCompileConfig()));
+            } catch (Exception ignored) {}
+        }
+        if (ev.getRunConfig() != null && !ev.getRunConfig().isBlank()) {
+            try {
+                yamlMap.put("execution", objectMapper.readTree(ev.getRunConfig()));
+            } catch (Exception ignored) {}
+        }
+        if (ev.getScoringConfig() != null && !ev.getScoringConfig().isBlank()) {
+            try {
+                yamlMap.put("scoring", objectMapper.readTree(ev.getScoringConfig()));
+            } catch (Exception ignored) {}
+        }
+        if (ev.getComparatorConfig() != null && !ev.getComparatorConfig().isBlank()) {
+            try {
+                yamlMap.put("comparator", objectMapper.readTree(ev.getComparatorConfig()));
+            } catch (Exception ignored) {}
+        }
+        return yamlMap;
     }
 }

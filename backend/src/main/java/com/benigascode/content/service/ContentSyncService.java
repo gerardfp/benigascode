@@ -25,6 +25,7 @@ public class ContentSyncService {
 
     private final ExerciseRepository exerciseRepository;
     private final ExerciseVersionRepository exerciseVersionRepository;
+    private final ExerciseAssetRepository exerciseAssetRepository;
     private final CollectionRepository collectionRepository;
     private final CollectionVersionRepository collectionVersionRepository;
     private final ContentSyncRepository contentSyncRepository;
@@ -45,17 +46,27 @@ public class ContentSyncService {
 
     public ContentSyncService(ExerciseRepository exerciseRepository,
                               ExerciseVersionRepository exerciseVersionRepository,
+                              ExerciseAssetRepository exerciseAssetRepository,
                               CollectionRepository collectionRepository,
                               CollectionVersionRepository collectionVersionRepository,
                               ContentSyncRepository contentSyncRepository,
                               ObjectMapper jsonMapper) {
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
+        this.exerciseAssetRepository = exerciseAssetRepository;
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
         this.contentSyncRepository = contentSyncRepository;
         this.jsonMapper = jsonMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
+    }
+
+    public ObjectMapper getJsonMapper() {
+        return jsonMapper;
+    }
+
+    public ObjectMapper getYamlMapper() {
+        return yamlMapper;
     }
 
     @Transactional
@@ -225,6 +236,8 @@ public class ContentSyncService {
         Exercise exercise = exerciseRepository.findBySlug(slug)
                 .orElseGet(() -> exerciseRepository.save(new Exercise(slug)));
 
+        syncAssets(exercise, exerciseDir);
+
         Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
         if (latest.isPresent() && latest.get().getContentHash().equals(contentHash)) {
             // El contenido no ha cambiado, no duplicar versión
@@ -254,7 +267,46 @@ public class ContentSyncService {
         return "Exercise: " + slug + " (v" + nextVersion + ")";
     }
 
-    private String extractTitle(File statementFile, String defaultTitle) {
+    public void syncAssets(Exercise exercise, File exerciseDir) {
+        File[] files = exerciseDir.listFiles(File::isFile);
+        if (files != null) {
+            for (File f : files) {
+                String name = f.getName().toLowerCase();
+                if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+                    name.endsWith(".gif") || name.endsWith(".svg") || name.endsWith(".webp")) {
+                    try {
+                        byte[] data = Files.readAllBytes(f.toPath());
+                        String contentType = determineContentType(name);
+                        Optional<ExerciseAsset> existing = exerciseAssetRepository.findByExerciseIdAndFilename(exercise.getId(), f.getName());
+                        if (existing.isPresent()) {
+                            ExerciseAsset asset = existing.get();
+                            asset.setData(data);
+                            asset.setContentType(contentType);
+                            asset.setSizeBytes(data.length);
+                            exerciseAssetRepository.save(asset);
+                        } else {
+                            ExerciseAsset asset = new ExerciseAsset(exercise, f.getName(), contentType, data);
+                            exerciseAssetRepository.save(asset);
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Error importando asset " + f.getName() + " para ejercicio " + exercise.getSlug(), ex);
+                    }
+                }
+            }
+        }
+    }
+
+    private String determineContentType(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".webp")) return "image/webp";
+        return "application/octet-stream";
+    }
+
+    public String extractTitle(File statementFile, String defaultTitle) {
         if (!statementFile.exists()) {
             return defaultTitle;
         }
@@ -275,7 +327,7 @@ public class ContentSyncService {
         return defaultTitle;
     }
 
-    private Map<String, Object> loadTestSuite(File exerciseDir, JsonNode yamlNode) throws Exception {
+    public Map<String, Object> loadTestSuite(File exerciseDir, JsonNode yamlNode) throws Exception {
         Map<String, Object> suite = new HashMap<>();
         List<Map<String, Object>> publicTests = loadTestsFromDir(new File(exerciseDir, "public-tests"), true);
         List<Map<String, Object>> privateTests = loadTestsFromDir(new File(exerciseDir, "private-tests"), false);
@@ -394,7 +446,7 @@ public class ContentSyncService {
         return test;
     }
 
-    private String syncCollection(File colDir) throws Exception {
+    public String syncCollection(File colDir) throws Exception {
         File yamlFile = new File(colDir, "collection.yaml");
         if (!yamlFile.exists()) return null;
 
@@ -424,7 +476,7 @@ public class ContentSyncService {
         return "Collection: " + slug + " (v" + nextVersion + ")";
     }
 
-    private Map<String, String> loadTemplates(File baseDir, JsonNode yamlNode) throws Exception {
+    public Map<String, String> loadTemplates(File baseDir, JsonNode yamlNode) throws Exception {
         Map<String, String> templates = new LinkedHashMap<>();
 
         // 1. Escaneo de carpeta templates/
@@ -435,7 +487,6 @@ public class ContentSyncService {
                 Arrays.sort(files, Comparator.comparing(File::getName));
                 for (File f : files) {
                     String fname = f.getName();
-                    // Extraer runtime quitando la extensión: "java-21.java" -> "java-21", "java-21" -> "java-21"
                     String runtime = fname.contains(".") ? fname.substring(0, fname.lastIndexOf('.')) : fname;
                     String code = Files.readString(f.toPath());
                     templates.put(runtime, code);
@@ -492,7 +543,7 @@ public class ContentSyncService {
         return templates;
     }
 
-    private String computeHash(String data) throws Exception {
+    public String computeHash(String data) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(data.getBytes());
         StringBuilder hexString = new StringBuilder();

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -33,6 +34,17 @@ public class GitOperationsService {
         this.gitRepositoryRepository = gitRepositoryRepository;
         this.contentSyncService = contentSyncService;
     }
+
+    @PostConstruct
+    public void init() {
+        try {
+            runProcess(List.of("git", "config", "--global", "--add", "safe.directory", "*"), new File("/tmp"), Map.of());
+            log.info("Configurado git safe.directory=* correctamente");
+        } catch (Exception ex) {
+            log.warn("No se pudo configurar safe.directory en git", ex);
+        }
+    }
+
 
     public ContentSync cloneOrPullAndSync(GitRepository repo) {
         repo.setLastSyncStatus("IN_PROGRESS");
@@ -126,7 +138,125 @@ public class GitOperationsService {
         }
     }
 
-    private String formatOAuthCloneUrl(String originalUrl, String token) {
+    public File cloneToTemp(String repoUrl, String branch, String authType, String authToken, String privateKey) throws Exception {
+        Path tempDir = Files.createTempDirectory("benigas_git_");
+        File destDir = tempDir.toFile();
+
+        Map<String, String> env = new HashMap<>();
+        String effectiveUrl = repoUrl;
+        Path tempKeyFile = null;
+
+        try {
+            if ("OAUTH_TOKEN".equalsIgnoreCase(authType) || (authToken != null && !authToken.isBlank())) {
+                effectiveUrl = formatOAuthCloneUrl(repoUrl, authToken);
+            } else if ("DEPLOY_KEY".equalsIgnoreCase(authType) && privateKey != null && !privateKey.isBlank()) {
+                tempKeyFile = Files.createTempFile("git_key_", ".pem");
+                Files.writeString(tempKeyFile, privateKey);
+                tempKeyFile.toFile().setReadable(false, false);
+                tempKeyFile.toFile().setReadable(true, true);
+                env.put("GIT_SSH_COMMAND", "ssh -i " + tempKeyFile.toAbsolutePath() + " -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null");
+            }
+
+            String targetBranch = (branch != null && !branch.isBlank()) ? branch : "main";
+
+            try {
+                List<String> cloneCmd = List.of(
+                    "git", "clone",
+                    "--branch", targetBranch,
+                    effectiveUrl,
+                    destDir.getAbsolutePath()
+                );
+                runProcess(cloneCmd, destDir.getParentFile(), env);
+            } catch (Exception ex) {
+                log.info("No se pudo clonar la rama {} directamente, intentando clon general o inicialización: {}", targetBranch, ex.getMessage());
+                if (destDir.exists()) {
+                    deleteRecursively(destDir);
+                }
+                destDir.mkdirs();
+
+                try {
+                    List<String> genericClone = List.of("git", "clone", effectiveUrl, destDir.getAbsolutePath());
+                    runProcess(genericClone, destDir.getParentFile(), env);
+                    runProcess(List.of("git", "checkout", "-B", targetBranch), destDir, env);
+                } catch (Exception ex2) {
+                    log.info("Repositorio remoto parece estar vacío o inaccesible, inicializando repo local: {}", ex2.getMessage());
+                    if (destDir.exists()) {
+                        deleteRecursively(destDir);
+                    }
+                    destDir.mkdirs();
+                    runProcess(List.of("git", "init"), destDir, env);
+                    runProcess(List.of("git", "remote", "add", "origin", effectiveUrl), destDir, env);
+                    runProcess(List.of("git", "checkout", "-b", targetBranch), destDir, env);
+                }
+            }
+
+            return destDir;
+        } finally {
+            if (tempKeyFile != null) {
+                try {
+                    Files.deleteIfExists(tempKeyFile);
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    public String pushToRemote(File repoDir, String repoUrl, String branch, String authToken, String commitMessage, String authorName, String authorEmail) throws Exception {
+        Map<String, String> env = new HashMap<>();
+        String effectiveUrl = repoUrl;
+        if (authToken != null && !authToken.isBlank()) {
+            effectiveUrl = formatOAuthCloneUrl(repoUrl, authToken);
+        }
+
+        // Configurar autor
+        if (authorName != null && !authorName.isBlank()) {
+            runProcess(List.of("git", "config", "user.name", authorName), repoDir, env);
+        } else {
+            runProcess(List.of("git", "config", "user.name", "Benigascode"), repoDir, env);
+        }
+
+        if (authorEmail != null && !authorEmail.isBlank()) {
+            runProcess(List.of("git", "config", "user.email", authorEmail), repoDir, env);
+        } else {
+            runProcess(List.of("git", "config", "user.email", "teacher@benigascode.local"), repoDir, env);
+        }
+
+        // Configurar remoto con credenciales
+        runProcess(List.of("git", "remote", "set-url", "origin", effectiveUrl), repoDir, env);
+
+        // Stage all changes
+        runProcess(List.of("git", "add", "-A"), repoDir, env);
+
+        // Check status
+        String status = runProcess(List.of("git", "status", "--porcelain"), repoDir, env).trim();
+        if (!status.isEmpty()) {
+            String msg = (commitMessage != null && !commitMessage.isBlank())
+                    ? commitMessage
+                    : "Export catalog from Benigascode - " + Instant.now();
+            runProcess(List.of("git", "commit", "-m", msg), repoDir, env);
+        }
+
+        // Push
+        String targetBranch = (branch != null && !branch.isBlank()) ? branch : "main";
+        runProcess(List.of("git", "push", "-u", "origin", targetBranch), repoDir, env);
+
+        return runProcess(List.of("git", "rev-parse", "HEAD"), repoDir, env).trim();
+    }
+
+    public void deleteRecursively(File file) {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File c : children) {
+                    deleteRecursively(c);
+                }
+            }
+        }
+        file.delete();
+    }
+
+    public String formatOAuthCloneUrl(String originalUrl, String token) {
+        if (token == null || token.isBlank()) return originalUrl;
         String cleanUrl = originalUrl.trim();
         if (cleanUrl.startsWith("https://")) {
             return "https://x-access-token:" + token + "@" + cleanUrl.substring("https://".length());
@@ -137,7 +267,7 @@ public class GitOperationsService {
         return cleanUrl;
     }
 
-    private String runProcess(List<String> command, File workingDir, Map<String, String> env) throws Exception {
+    public String runProcess(List<String> command, File workingDir, Map<String, String> env) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(workingDir);
         pb.environment().putAll(env);

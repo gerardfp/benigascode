@@ -484,5 +484,69 @@ export interface TeacherStudent {
   tags: string[];
 }
 
+export type CatalogConflictStrategy = 'OVERWRITE' | 'SKIP' | 'NEW_SLUG';
+
+export interface CatalogImportRequest {
+  repositoryUrl: string;
+  branch?: string;
+  rootPath?: string;
+  authType?: 'OAUTH_TOKEN' | 'PUBLIC';
+  authToken?: string;
+  conflictStrategy: CatalogConflictStrategy;
+}
+
+export interface CatalogImportItemDTO {
+  slug: string;
+  title: string;
+  type: 'EXERCISE' | 'COLLECTION';
+  existsInDb: boolean;
+  action: 'CREATE' | 'OVERWRITE' | 'SKIP' | 'CREATE_NEW_SLUG';
+  targetSlug: string;
+}
+
+export interface CatalogImportPreviewDTO {
+  repositoryUrl: string;
+  branch: string;
+  commitHash: string;
+  totalExercises: number;
+  totalCollections: number;
+  existingExercisesCount: number;
+  newExercisesCount: number;
+  existingCollectionsCount: number;
+  newCollectionsCount: number;
+  strategy: CatalogConflictStrategy;
+  items: CatalogImportItemDTO[];
+}
+
+export interface CatalogImportResultDTO {
+  status: 'SUCCESS' | 'WARNING' | 'FAILED';
+  totalProcessed: number;
+  importedNew: number;
+  overwritten: number;
+  skipped: number;
+  renamed: number;
+  collectionsProcessed: number;
+  commitHash?: string;
+  errors: string[];
+}
+
+export interface CatalogExportPushRequest {
+  repositoryUrl: string;
+  branch?: string;
+  rootPath?: string;
+  authToken?: string;
+  commitMessage?: string;
+}
+
+export interface CatalogExportPushResultDTO {
+  success: boolean;
+  commitSha: string;
+  exercisesCount: number;
+  collectionsCount: number;
+  message: string;
+  repositoryUrl: string;
+}
+
+
 
 

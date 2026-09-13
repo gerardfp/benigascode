@@ -1,4 +1,6 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO } from '../types';
+
+
 
 const API_BASE = '/api/v1';
 
@@ -414,5 +416,25 @@ export const api = {
     request<void>(`/teacher/courses/${courseId}/collections/${collectionId}`, {
       method: 'DELETE',
     }),
+
+  // ==================== CATÁLOGO IMPORT / EXPORT ====================
+  previewCatalogImport: (data: CatalogImportRequest): Promise<CatalogImportPreviewDTO> =>
+    request<CatalogImportPreviewDTO>('/teacher/catalog/import/preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  executeCatalogImport: (data: CatalogImportRequest): Promise<CatalogImportResultDTO> =>
+    request<CatalogImportResultDTO>('/teacher/catalog/import/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  pushCatalogExport: (data: CatalogExportPushRequest): Promise<CatalogExportPushResultDTO> =>
+    request<CatalogExportPushResultDTO>('/teacher/catalog/export/push', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
+
 
