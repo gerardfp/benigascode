@@ -62,6 +62,7 @@ jobs:
 
             # 3. Cambiar a la versión solicitada (tag o rama)
             echo "🏷️ Cambiando a referencia: ${{ steps.vars.outputs.target_ref }}"
+            git checkout ${{ steps.vars.outputs.target_ref }}
             git checkout -f ${{ steps.vars.outputs.target_ref }}
             git reset --hard ${{ steps.vars.outputs.target_ref }}
 
