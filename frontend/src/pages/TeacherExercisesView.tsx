@@ -7,7 +7,7 @@ import DOMPurify from 'dompurify';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
-  GripVertical, ChevronLeft, ChevronRight, Tag, X
+  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info
 } from 'lucide-react';
 
 export const TeacherExercisesView: React.FC = () => {
@@ -47,7 +47,7 @@ export const TeacherExercisesView: React.FC = () => {
   // Editor UI State
   const [statementView, setStatementView] = useState<'split' | 'edit' | 'preview'>('split');
   const [saving, setSaving] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [uploadingAsset, setUploadingAsset] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +59,10 @@ export const TeacherExercisesView: React.FC = () => {
   // Drag & drop state for test cases
   const [draggedTestCaseIndex, setDraggedTestCaseIndex] = useState<number | null>(null);
   const [dragOverTestCaseIndex, setDragOverTestCaseIndex] = useState<number | null>(null);
+
+  // Drag & drop image state for textareas
+  const [statementDragOver, setStatementDragOver] = useState(false);
+  const [explanationDragOverIndex, setExplanationDragOverIndex] = useState<number | null>(null);
 
   // ResizeObserver for Markdown textarea to synchronize preview height in split mode
   useEffect(() => {
@@ -436,17 +440,13 @@ export const TeacherExercisesView: React.FC = () => {
     }, 10);
   };
 
-  // Handle image upload and insert markdown
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // If exercise not saved yet, save first or notify
+  // Helper to ensure exercise is saved before attaching assets
+  const ensureExerciseSaved = async (): Promise<string | null> => {
     let currentExId = selectedId;
     if (!currentExId) {
       if (!title.trim()) {
-        alert('Por favor, indica primero un título para el ejercicio antes de subir imágenes.');
-        return;
+        alert('Por favor, indica primero un título para el ejercicio antes de subir o pegar imágenes.');
+        return null;
       }
       try {
         setSaving(true);
@@ -467,41 +467,316 @@ export const TeacherExercisesView: React.FC = () => {
         currentExId = saved.id;
         setSelectedId(saved.id);
         setSlug(saved.slug);
+        return saved.id;
       } catch (err: any) {
-        alert('Error al guardar el ejercicio inicial: ' + err.message);
-        setSaving(false);
-        return;
+        alert('Error al guardar el ejercicio inicial: ' + (err.message || 'Error desconocido'));
+        return null;
       } finally {
         setSaving(false);
       }
     }
+    return currentExId;
+  };
+
+  // Upload and insert an asset image into any target textarea
+  const handleUploadAndInsertImage = async (
+    file: File,
+    textarea: HTMLTextAreaElement | null,
+    currentText: string,
+    onUpdateText: (newText: string) => void
+  ) => {
+    const currentExId = await ensureExerciseSaved();
+    if (!currentExId) return;
 
     try {
       setUploadingAsset(true);
-      const newAsset = await api.teacherUploadAsset(currentExId, file);
+      let fileToUpload = file;
+      if (!file.name || file.name === 'image.png' || file.name.startsWith('blob')) {
+        const ext = file.type.split('/')[1] || 'png';
+        const cleanExt = ext === 'jpeg' ? 'jpg' : ext;
+        const uniqueName = `img_${Date.now()}.${cleanExt}`;
+        fileToUpload = new File([file], uniqueName, { type: file.type });
+      }
+
+      const newAsset = await api.teacherUploadAsset(currentExId, fileToUpload);
       setAssets((prev) => [...prev.filter((a) => a.filename !== newAsset.filename), newAsset]);
 
       // Insert markdown at cursor
       const imgMarkdown = `\n![${newAsset.filename}](${newAsset.filename})\n`;
-      const textarea = textareaRef.current;
       if (textarea) {
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const text = textarea.value;
+        const start = textarea.selectionStart ?? currentText.length;
+        const end = textarea.selectionEnd ?? currentText.length;
+        const text = textarea.value ?? currentText;
         const newText = text.substring(0, start) + imgMarkdown + text.substring(end);
-        setStatement(newText);
+        onUpdateText(newText);
+        setTimeout(() => {
+          textarea.focus();
+          const nextPos = start + imgMarkdown.length;
+          textarea.setSelectionRange(nextPos, nextPos);
+        }, 0);
       } else {
-        setStatement((prev) => prev + imgMarkdown);
+        onUpdateText(currentText + imgMarkdown);
       }
 
       setStatusMsg({ type: 'success', text: `Imagen "${newAsset.filename}" subida e insertada.` });
     } catch (err: any) {
-      alert('Error subiendo imagen: ' + err.message);
+      alert('Error subiendo imagen: ' + (err.message || 'Error desconocido'));
     } finally {
       setUploadingAsset(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  // Handle image upload from file picker button
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await handleUploadAndInsertImage(file, textareaRef.current, statement, setStatement);
+  };
+
+  // Statement Paste Image Handler
+  const handleStatementPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            e.stopPropagation();
+            await handleUploadAndInsertImage(file, e.currentTarget, statement, setStatement);
+            return;
+          }
+        }
+      }
+    }
+  };
+
+  // Statement Drag & Drop Image Handlers
+  const handleStatementDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      setStatementDragOver(true);
+    }
+  };
+
+  const handleStatementDragLeave = () => {
+    setStatementDragOver(false);
+  };
+
+  const handleStatementDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
+    setStatementDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
+          e.preventDefault();
+          e.stopPropagation();
+          await handleUploadAndInsertImage(file, e.currentTarget, statement, setStatement);
+          return;
+        }
+      }
+    }
+  };
+
+  // Explanation Paste Image Handler
+  const handleExplanationPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>, index: number) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            e.stopPropagation();
+            await handleUploadAndInsertImage(
+              file,
+              e.currentTarget,
+              testCases[index].explanation || '',
+              (newText) => handleUpdateTestCase(index, { explanation: newText })
+            );
+            return;
+          }
+        }
+      }
+    }
+  };
+
+  // Explanation Drag & Drop Image Handlers
+  const handleExplanationDragOver = (e: React.DragEvent<HTMLTextAreaElement>, index: number) => {
+    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      setExplanationDragOverIndex(index);
+    }
+  };
+
+  const handleExplanationDragLeave = (index: number) => {
+    if (explanationDragOverIndex === index) {
+      setExplanationDragOverIndex(null);
+    }
+  };
+
+  const handleExplanationDrop = async (e: React.DragEvent<HTMLTextAreaElement>, index: number) => {
+    setExplanationDragOverIndex(null);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
+          e.preventDefault();
+          e.stopPropagation();
+          await handleUploadAndInsertImage(
+            file,
+            e.currentTarget,
+            testCases[index].explanation || '',
+            (newText) => handleUpdateTestCase(index, { explanation: newText })
+          );
+          return;
+        }
+      }
+    }
+  };
+
+  // ==================== CLIPBOARD TOOLBAR ACTIONS ====================
+
+  const handleCopyAll = async (text: string) => {
+    if (!text) {
+      setStatusMsg({ type: 'info', text: 'El cuadro está vacío, nada que copiar.' });
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setStatusMsg({ type: 'success', text: 'Contenido copiado al portapapeles.' });
+    } catch (err: any) {
+      console.error('Error copying text:', err);
+      setStatusMsg({ type: 'error', text: 'No se pudo copiar al portapapeles.' });
+    }
+  };
+
+  const handleCutAll = async (text: string, onClear: () => void) => {
+    if (!text) {
+      setStatusMsg({ type: 'info', text: 'El cuadro está vacío, nada que cortar.' });
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      onClear();
+      setStatusMsg({ type: 'success', text: 'Contenido cortado al portapapeles.' });
+    } catch (err: any) {
+      console.error('Error cutting text:', err);
+      setStatusMsg({ type: 'error', text: 'No se pudo cortar al portapapeles.' });
+    }
+  };
+
+  const handlePasteAll = async (onPaste: (text: string) => void) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText) {
+          onPaste(clipText);
+          setStatusMsg({ type: 'success', text: 'Contenido pegado desde el portapapeles.' });
+        } else {
+          setStatusMsg({ type: 'info', text: 'El portapapeles está vacío.' });
+        }
+      } else {
+        alert('Tu navegador no permite la lectura directa del portapapeles. Usa Ctrl+V / Cmd+V dentro del cuadro.');
+      }
+    } catch (err: any) {
+      console.error('Error reading clipboard:', err);
+      alert('Permiso de portapapeles no concedido por el navegador. Usa Ctrl+V / Cmd+V dentro del cuadro.');
+    }
+  };
+
+  const renderClipboardButtons = (getValue: () => string, onSetValue: (v: string) => void) => (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+      <button
+        type="button"
+        onClick={() => handleCopyAll(getValue())}
+        className="btn-secondary"
+        style={{
+          padding: '0.125rem 0.375rem',
+          fontSize: '0.7rem',
+          height: '1.4rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.2rem',
+          borderRadius: '4px',
+          backgroundColor: '#ffffff',
+          borderColor: '#cbd5e1',
+          color: '#475569',
+          cursor: 'pointer'
+        }}
+        title="Copiar todo el contenido al portapapeles"
+      >
+        <Copy size={11} /> Copiar todo
+      </button>
+      <button
+        type="button"
+        onClick={() => handleCutAll(getValue(), () => onSetValue(''))}
+        className="btn-secondary"
+        style={{
+          padding: '0.125rem 0.375rem',
+          fontSize: '0.7rem',
+          height: '1.4rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.2rem',
+          borderRadius: '4px',
+          backgroundColor: '#ffffff',
+          borderColor: '#cbd5e1',
+          color: '#475569',
+          cursor: 'pointer'
+        }}
+        title="Cortar todo el contenido al portapapeles"
+      >
+        <Scissors size={11} /> Cortar todo
+      </button>
+      <button
+        type="button"
+        onClick={() => handlePasteAll((val) => onSetValue(val))}
+        className="btn-secondary"
+        style={{
+          padding: '0.125rem 0.375rem',
+          fontSize: '0.7rem',
+          height: '1.4rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.2rem',
+          borderRadius: '4px',
+          backgroundColor: '#ffffff',
+          borderColor: '#cbd5e1',
+          color: '#475569',
+          cursor: 'pointer'
+        }}
+        title="Reemplazar todo con el contenido del portapapeles"
+      >
+        <ClipboardPaste size={11} /> Pegar todo
+      </button>
+    </div>
+  );
 
   // Delete an asset
   const handleDeleteAsset = async (filename: string) => {
@@ -901,12 +1176,12 @@ export const TeacherExercisesView: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            backgroundColor: statusMsg.type === 'success' ? '#f0fdf4' : '#fef2f2',
-            color: statusMsg.type === 'success' ? '#166534' : '#991b1b',
-            border: `1px solid ${statusMsg.type === 'success' ? '#bbf7d0' : '#fecaca'}`
+            backgroundColor: statusMsg.type === 'success' ? '#f0fdf4' : (statusMsg.type === 'info' ? '#eff6ff' : '#fef2f2'),
+            color: statusMsg.type === 'success' ? '#166534' : (statusMsg.type === 'info' ? '#1e40af' : '#991b1b'),
+            border: `1px solid ${statusMsg.type === 'success' ? '#bbf7d0' : (statusMsg.type === 'info' ? '#bfdbfe' : '#fecaca')}`
           }}
         >
-          {statusMsg.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          {statusMsg.type === 'success' ? <CheckCircle size={18} /> : (statusMsg.type === 'info' ? <Info size={18} /> : <AlertCircle size={18} />)}
           <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{statusMsg.text}</span>
         </div>
       )}
@@ -1040,6 +1315,11 @@ export const TeacherExercisesView: React.FC = () => {
 
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem 0.375rem 0 0', borderBottom: 'none' }}>
+          {/* Clipboard actions (upper-left of textarea) */}
+          {renderClipboardButtons(() => statement, setStatement)}
+
+          <div style={{ height: 18, width: 1, backgroundColor: '#cbd5e1', margin: '0 0.25rem' }} />
+
           <button type="button" onClick={() => insertFormatting('**', '**')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>
             B
           </button>
@@ -1101,6 +1381,10 @@ export const TeacherExercisesView: React.FC = () => {
                 className="input-field"
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
+                onPaste={handleStatementPaste}
+                onDragOver={handleStatementDragOver}
+                onDragLeave={handleStatementDragLeave}
+                onDrop={handleStatementDrop}
                 rows={23}
                 style={{
                   fontFamily: 'Consolas, Monaco, "Courier New", monospace',
@@ -1108,13 +1392,19 @@ export const TeacherExercisesView: React.FC = () => {
                   lineHeight: 1.5,
                   borderRadius: statementView === 'split' ? '0 0 0 0.375rem' : '0 0 0.375rem 0.375rem',
                   borderTop: 'none',
+                  border: statementDragOver ? '2px dashed #2563eb' : undefined,
+                  backgroundColor: statementDragOver ? '#eff6ff' : undefined,
                   resize: 'vertical',
                   minHeight: '475px',
                   width: '100%',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  transition: 'background-color 0.2s, border-color 0.2s'
                 }}
-                placeholder="Escribe el enunciado en Markdown aquí..."
+                placeholder="Escribe el enunciado en Markdown aquí... (Puedes pegar o arrastrar imágenes directamente)"
               />
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <ImageIcon size={12} color="#2563eb" /> Puedes pegar imágenes desde el portapapeles (<kbd style={{ padding: '0.1rem 0.25rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Ctrl+V</kbd>) o arrastrarlas desde el explorador de archivos.
+              </div>
             </div>
           )}
 
@@ -1539,9 +1829,12 @@ export const TeacherExercisesView: React.FC = () => {
                 {/* Body: Input, Expected Output, Explanation (vertical stack, 100% width each) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                   <div style={{ width: '100%' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
-                      Entrada (Input / stdin)
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                        Entrada (Input / stdin)
+                      </label>
+                      {renderClipboardButtons(() => tc.input || '', (val) => handleUpdateTestCase(index, { input: val }))}
+                    </div>
                     <textarea
                       className="input-field"
                       rows={getAdaptiveRows(tc.input, 3, 12)}
@@ -1560,9 +1853,12 @@ export const TeacherExercisesView: React.FC = () => {
                   </div>
 
                   <div style={{ width: '100%' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
-                      Salida Esperada (Expected stdout)
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                        Salida Esperada (Expected stdout)
+                      </label>
+                      {renderClipboardButtons(() => tc.expectedOutput || '', (val) => handleUpdateTestCase(index, { expectedOutput: val }))}
+                    </div>
                     <textarea
                       className="input-field"
                       rows={getAdaptiveRows(tc.expectedOutput, 3, 12)}
@@ -1581,27 +1877,68 @@ export const TeacherExercisesView: React.FC = () => {
                   </div>
 
                   <div style={{ width: '100%' }}>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
-                      Explicación (Opcional)
-                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                        Explicación (Opcional)
+                      </label>
+                      {renderClipboardButtons(() => tc.explanation || '', (val) => handleUpdateTestCase(index, { explanation: val }))}
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 'auto' }}>
+                        📸 Soporta imágenes (Ctrl+V o arrastrar)
+                      </span>
+                    </div>
                     <textarea
                       className="input-field"
                       rows={getAdaptiveRows(tc.explanation, 2, 8)}
                       value={tc.explanation || ''}
                       onChange={(e) => handleUpdateTestCase(index, { explanation: e.target.value })}
-                      placeholder="Explicación mostrada al estudiante sobre este caso..."
+                      onPaste={(e) => handleExplanationPaste(e, index)}
+                      onDragOver={(e) => handleExplanationDragOver(e, index)}
+                      onDragLeave={() => handleExplanationDragLeave(index)}
+                      onDrop={(e) => handleExplanationDrop(e, index)}
+                      placeholder="Explicación mostrada al estudiante sobre este caso... (Puedes pegar o arrastrar imágenes aquí)"
                       style={{
                         width: '100%',
                         boxSizing: 'border-box',
                         fontSize: '0.8125rem',
                         resize: 'vertical',
-                        lineHeight: 1.4
+                        lineHeight: 1.4,
+                        border: explanationDragOverIndex === index ? '2px dashed #2563eb' : undefined,
+                        backgroundColor: explanationDragOverIndex === index ? '#eff6ff' : undefined,
+                        transition: 'background-color 0.2s, border-color 0.2s'
                       }}
                     />
                   </div>
                 </div>
               </div>
             ))}
+
+            {/* Bottom Add Test Case Button */}
+            {testCases.length > 0 && (
+              <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleAddTestCase}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.625rem 1.25rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    width: '100%',
+                    justifyContent: 'center',
+                    border: '1px dashed #2563eb',
+                    backgroundColor: '#eff6ff',
+                    color: '#2563eb',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={16} /> Añadir Caso de Prueba
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1611,9 +1948,12 @@ export const TeacherExercisesView: React.FC = () => {
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
         </h2>
-        <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0 0 0.75rem 0' }}>
+        <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0 0 0.5rem 0' }}>
           Código base con el que arrancará el editor del estudiante.
         </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+          {renderClipboardButtons(() => starterCode, setStarterCode)}
+        </div>
         <textarea
           className="input-field"
           value={starterCode}

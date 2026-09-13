@@ -145,6 +145,34 @@ export const ExerciseView: React.FC = () => {
     });
   }, [exercise?.statement, exercise?.id, exercise?.title]);
 
+  const renderExplanationHtml = useCallback((explanationText: string) => {
+    if (!exercise?.id) return DOMPurify.sanitize(explanationText);
+    try {
+      const markedInstance = new Marked({ gfm: true, breaks: true });
+      markedInstance.use({
+        walkTokens(token) {
+          if (token.type === 'image' && token.href) {
+            const href = token.href;
+            if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('data:') && !href.startsWith('/api/')) {
+              token.href = `/api/v1/exercises/${exercise.id}/assets/${href.replace(/^\/+/, '')}`;
+            }
+          }
+        }
+      });
+      let html = markedInstance.parse(explanationText, { async: false }) as string;
+      html = html.replace(/<img\s+([^>]*?)src=["'](?!https?:\/\/|data:|\/api\/)([^"']+)["']([^>]*?)>/gi, (_match, before, src, after) => {
+        const cleanHref = src.replace(/^\/+/, '');
+        return `<img ${before}src="/api/v1/exercises/${exercise.id}/assets/${cleanHref}"${after} style="max-width: 100%; border-radius: 4px; margin-top: 0.25rem;" loading="lazy">`;
+      });
+      return DOMPurify.sanitize(html, {
+        ADD_TAGS: ['img'],
+        ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading', 'style']
+      });
+    } catch {
+      return DOMPurify.sanitize(explanationText);
+    }
+  }, [exercise?.id]);
+
   // Ejecución real de pruebas preliminares públicas (Java 26 sandbox)
   const handlePreviewRun = async () => {
     if (!exerciseId) return;
@@ -348,7 +376,10 @@ export const ExerciseView: React.FC = () => {
                   {t.explanation && (
                     <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.375rem' }}>
                       <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                      {t.explanation}
+                      <div
+                        style={{ marginTop: '0.25rem', color: '#334155' }}
+                        dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
+                      />
                     </div>
                   )}
                 </div>
