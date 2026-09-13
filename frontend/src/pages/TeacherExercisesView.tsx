@@ -1,14 +1,23 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { Exercise, TestCaseDTO, AssetDTO } from '../types';
+import { Exercise, TestCaseDTO, AssetDTO, TeacherCollectionDetail } from '../types';
 import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers
+  ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
+  GripVertical, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 export const TeacherExercisesView: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const exerciseIdParam = searchParams.get('exerciseId');
+  const collectionIdParam = searchParams.get('collectionId');
+
   // Navigation & List State
   const [mode, setMode] = useState<'list' | 'editor'>('list');
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -16,6 +25,9 @@ export const TeacherExercisesView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 20;
+
+  // Collection context for navigation
+  const [activeCollection, setActiveCollection] = useState<TeacherCollectionDetail | null>(null);
 
   // Selected / Editing Exercise State
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,6 +53,32 @@ export const TeacherExercisesView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Split mode height tracking
+  const [textareaHeight, setTextareaHeight] = useState<number | null>(null);
+
+  // Drag & drop state for test cases
+  const [draggedTestCaseIndex, setDraggedTestCaseIndex] = useState<number | null>(null);
+  const [dragOverTestCaseIndex, setDragOverTestCaseIndex] = useState<number | null>(null);
+
+  // ResizeObserver for Markdown textarea to synchronize preview height in split mode
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    setTextareaHeight(textarea.offsetHeight);
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === textarea) {
+          setTextareaHeight(textarea.offsetHeight);
+        }
+      }
+    });
+
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [statementView, mode]);
+
   // Load exercises list
   const loadExercises = async () => {
     try {
@@ -59,6 +97,29 @@ export const TeacherExercisesView: React.FC = () => {
     loadExercises();
   }, []);
 
+  // Load collection details if collectionIdParam is present
+  useEffect(() => {
+    if (collectionIdParam) {
+      api.teacherGetCollection(collectionIdParam)
+        .then((col) => {
+          setActiveCollection(col);
+        })
+        .catch((err) => {
+          console.error('Error cargando colección para navegación:', err);
+          setActiveCollection(null);
+        });
+    } else {
+      setActiveCollection(null);
+    }
+  }, [collectionIdParam]);
+
+  // Open exercise if exerciseIdParam is present
+  useEffect(() => {
+    if (exerciseIdParam && exerciseIdParam !== selectedId) {
+      handleOpenEdit(exerciseIdParam);
+    }
+  }, [exerciseIdParam]);
+
   // Filtered exercises
   const filteredExercises = useMemo(() => {
     if (!searchTerm.trim()) return exercises;
@@ -70,6 +131,48 @@ export const TeacherExercisesView: React.FC = () => {
     );
   }, [exercises, searchTerm]);
 
+  // Exercises sequence for navigation (either collection's exercises or catalog exercises)
+  const navigationExercises = useMemo(() => {
+    if (activeCollection && activeCollection.exercises && activeCollection.exercises.length > 0) {
+      return activeCollection.exercises.map((e) => ({
+        id: e.exerciseId,
+        title: e.exerciseTitle,
+        slug: e.exerciseSlug
+      }));
+    }
+    return exercises.map((e) => ({
+      id: e.id,
+      title: e.title,
+      slug: e.slug
+    }));
+  }, [activeCollection, exercises]);
+
+  const currentExerciseIndex = useMemo(() => {
+    if (!selectedId) return -1;
+    return navigationExercises.findIndex((e) => e.id === selectedId);
+  }, [navigationExercises, selectedId]);
+
+  const hasPrevExercise = currentExerciseIndex > 0;
+  const hasNextExercise = currentExerciseIndex >= 0 && currentExerciseIndex < navigationExercises.length - 1;
+
+  const handleNavigateExercise = (direction: 'prev' | 'next') => {
+    const targetIndex = direction === 'prev' ? currentExerciseIndex - 1 : currentExerciseIndex + 1;
+    if (targetIndex < 0 || targetIndex >= navigationExercises.length) return;
+    const target = navigationExercises[targetIndex];
+    handleOpenEdit(target.id);
+  };
+
+  const handleBack = () => {
+    if (collectionIdParam) {
+      navigate(`/teacher/collections?collectionId=${collectionIdParam}`);
+    } else {
+      setMode('list');
+      setSelectedId(null);
+      setSearchParams({});
+    }
+    setStatusMsg(null);
+  };
+
   const totalPages = Math.max(1, Math.ceil(filteredExercises.length / pageSize));
   const currentExercises = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -78,9 +181,16 @@ export const TeacherExercisesView: React.FC = () => {
 
   // Open Editor for an existing exercise
   const handleOpenEdit = async (id: string) => {
+  const handleOpenEdit = async (id: string, colId?: string) => {
     try {
       setDetailLoading(true);
       setStatusMsg(null);
+      const effectiveCol = colId !== undefined ? colId : collectionIdParam;
+      if (effectiveCol) {
+        setSearchParams({ exerciseId: id, collectionId: effectiveCol });
+      } else {
+        setSearchParams({ exerciseId: id });
+      }
       const detail = await api.teacherGetExercise(id);
       setSelectedId(detail.id);
       setTitle(detail.title || '');
@@ -103,6 +213,7 @@ export const TeacherExercisesView: React.FC = () => {
   // Open Editor for a new exercise
   const handleOpenCreate = () => {
     setSelectedId(null);
+    setSearchParams({});
     setTitle('');
     setSlug('');
     setLanguage('java');
@@ -171,6 +282,50 @@ export const TeacherExercisesView: React.FC = () => {
     // Re-index
     const reindexed = updated.map((tc, idx) => ({ ...tc, orderIndex: idx }));
     setTestCases(reindexed);
+  };
+
+  const handleMoveTestCaseToPosition = (fromIndex: number, targetPosition: number) => {
+    if (isNaN(targetPosition) || targetPosition < 1) return;
+    const clampedTarget = Math.min(Math.max(1, targetPosition), testCases.length);
+    const toIndex = clampedTarget - 1;
+    if (fromIndex === toIndex) return;
+
+    const updated = [...testCases];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
+    setTestCases(updated.map((tc, idx) => ({ ...tc, orderIndex: idx })));
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+    setDraggedTestCaseIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverTestCaseIndex !== index) {
+      setDragOverTestCaseIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    const sourceIndex = draggedTestCaseIndex ?? Number(e.dataTransfer.getData('text/plain'));
+    if (sourceIndex !== null && !isNaN(sourceIndex) && sourceIndex !== dropIndex) {
+      const updated = [...testCases];
+      const [movedItem] = updated.splice(sourceIndex, 1);
+      updated.splice(dropIndex, 0, movedItem);
+      setTestCases(updated.map((tc, idx) => ({ ...tc, orderIndex: idx })));
+    }
+    setDraggedTestCaseIndex(null);
+    setDragOverTestCaseIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTestCaseIndex(null);
+    setDragOverTestCaseIndex(null);
   };
 
   // Markdown formatting helpers
@@ -500,6 +655,65 @@ export const TeacherExercisesView: React.FC = () => {
     );
   }
 
+  // Render navigation buttons helper
+  const renderNavigationButtons = (isTop: boolean) => {
+    if (mode !== 'editor' || navigationExercises.length <= 1) return null;
+
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+        <button
+          type="button"
+          onClick={() => handleNavigateExercise('prev')}
+          disabled={!hasPrevExercise}
+          className="btn-secondary"
+          style={{
+            padding: isTop ? '0.375rem 0.625rem' : '0.5rem 0.875rem',
+            fontSize: '0.8125rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            opacity: !hasPrevExercise ? 0.35 : 1,
+            cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
+          }}
+          title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
+        >
+          <ChevronLeft size={16} /> Anterior
+        </button>
+
+        <span
+          style={{
+            fontSize: '0.8125rem',
+            color: '#475569',
+            fontWeight: 600,
+            padding: '0 0.375rem',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {currentExerciseIndex >= 0 ? `${currentExerciseIndex + 1} de ${navigationExercises.length}` : ''}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => handleNavigateExercise('next')}
+          disabled={!hasNextExercise}
+          className="btn-secondary"
+          style={{
+            padding: isTop ? '0.375rem 0.625rem' : '0.5rem 0.875rem',
+            fontSize: '0.8125rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            opacity: !hasNextExercise ? 0.35 : 1,
+            cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
+          }}
+          title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
+        >
+          Siguiente <ChevronRight size={16} />
+        </button>
+      </div>
+    );
+  };
+
   // RENDER: SINGLE-SHEET EDITOR VIEW
   return (
     <div className="app-container" style={{ maxWidth: 1300 }}>
@@ -508,11 +722,23 @@ export const TeacherExercisesView: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
             <ArrowLeft size={16} /> Volver a la lista
+          <button onClick={handleBack} className="btn-secondary">
+            <ArrowLeft size={16} /> {collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
           </button>
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
               {selectedId ? `Editar: ${title || 'Sin título'}` : 'Nuevo Ejercicio'}
             </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
+                {selectedId ? `Editar: ${title || 'Sin título'}` : 'Nuevo Ejercicio'}
+              </h1>
+              {activeCollection && (
+                <span className="badge badge-info" style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                  📚 Colección: {activeCollection.title}
+                </span>
+              )}
+            </div>
             {selectedId && (
               <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
                 Versión actual: v{versionNumber} • ID: {selectedId}
@@ -522,6 +748,9 @@ export const TeacherExercisesView: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {renderNavigationButtons(true)}
+
           {selectedId && (
             <a
               href={api.teacherExportExerciseZipUrl(selectedId)}
@@ -740,6 +969,12 @@ export const TeacherExercisesView: React.FC = () => {
 
         {/* Editor Area (Edit, Split, or Preview) */}
         <div style={{ display: 'grid', gridTemplateColumns: statementView === 'split' ? '1fr 1fr' : '1fr', gap: statementView === 'split' ? '1rem' : 0 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: statementView === 'split' ? '1fr 1fr' : '1fr',
+          gap: statementView === 'split' ? '1rem' : 0,
+          alignItems: 'start'
+        }}>
           {/* Edit Area */}
           {(statementView === 'edit' || statementView === 'split') && (
             <div>
@@ -756,6 +991,10 @@ export const TeacherExercisesView: React.FC = () => {
                   borderRadius: statementView === 'split' ? '0 0 0 0.375rem' : '0 0 0.375rem 0.375rem',
                   borderTop: 'none',
                   resize: 'vertical'
+                  resize: 'vertical',
+                  minHeight: '380px',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}
                 placeholder="Escribe el enunciado en Markdown aquí..."
               />
@@ -774,6 +1013,11 @@ export const TeacherExercisesView: React.FC = () => {
                 overflowY: 'auto',
                 maxHeight: '480px',
                 borderTop: statementView === 'split' ? '1px solid #e2e8f0' : 'none'
+                height: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : undefined,
+                minHeight: '380px',
+                maxHeight: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : (statementView === 'preview' ? '700px' : undefined),
+                borderTop: statementView === 'split' ? '1px solid #e2e8f0' : 'none',
+                boxSizing: 'border-box'
               }}
               dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
             />
@@ -883,17 +1127,55 @@ export const TeacherExercisesView: React.FC = () => {
             {testCases.map((tc, index) => (
               <div
                 key={tc.id || index}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
                 style={{
                   border: `1px solid ${tc.isPublic ? '#bae6fd' : '#e2e8f0'}`,
                   backgroundColor: tc.isPublic ? '#f0f9ff' : '#ffffff',
+                  border: dragOverTestCaseIndex === index
+                    ? '2px dashed #2563eb'
+                    : `1px solid ${tc.isPublic ? '#bae6fd' : '#e2e8f0'}`,
+                  backgroundColor: dragOverTestCaseIndex === index
+                    ? '#eff6ff'
+                    : (tc.isPublic ? '#f0f9ff' : '#ffffff'),
                   borderRadius: '0.5rem',
                   padding: '1rem',
                   boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)'
+                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
+                  opacity: draggedTestCaseIndex === index ? 0.4 : 1,
+                  transition: 'background-color 0.15s ease, border-color 0.15s ease'
                 }}
               >
                 {/* Header of Test Case */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {/* Move Drag Handle */}
+                    <div
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragEnd={handleDragEnd}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '0.375rem',
+                        cursor: 'grab',
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: '#475569',
+                        userSelect: 'none'
+                      }}
+                      title="Arrastrar para mover este caso de prueba"
+                    >
+                      <GripVertical size={15} />
+                      <span>Mover</span>
+                    </div>
+
                     <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#1e293b' }}>
                       Test #{index + 1}
                     </span>
@@ -921,6 +1203,27 @@ export const TeacherExercisesView: React.FC = () => {
                         className="input-field"
                         style={{ width: '60px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem' }}
                       />
+                    </div>
+
+                    {/* Target Position Input */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8125rem' }}>
+                      <span style={{ color: '#64748b', fontWeight: 500 }}>Posición:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={testCases.length}
+                        value={index + 1}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val)) {
+                            handleMoveTestCaseToPosition(index, val);
+                          }
+                        }}
+                        className="input-field"
+                        style={{ width: '55px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem', textAlign: 'center' }}
+                        title={`Cambiar de posición (1 a ${testCases.length})`}
+                      />
+                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>/ {testCases.length}</span>
                     </div>
                   </div>
 
@@ -961,44 +1264,55 @@ export const TeacherExercisesView: React.FC = () => {
                 {/* Body: Input, Expected Output, Explanation */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
                   <div>
+                {/* Body: Input, Expected Output, Explanation (vertical stack, 100% width each) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  <div style={{ width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
                       Entrada (Input / stdin)
                     </label>
                     <textarea
                       className="input-field"
                       rows={4}
+                      rows={3}
                       value={tc.input || ''}
                       onChange={(e) => handleUpdateTestCase(index, { input: e.target.value })}
                       placeholder="Ej: 5 10"
                       style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
+                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                     />
                   </div>
 
                   <div>
+                  <div style={{ width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
                       Salida Esperada (Expected stdout)
                     </label>
                     <textarea
                       className="input-field"
                       rows={4}
+                      rows={3}
                       value={tc.expectedOutput || ''}
                       onChange={(e) => handleUpdateTestCase(index, { expectedOutput: e.target.value })}
                       placeholder="Ej: 15"
                       style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
+                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
                     />
                   </div>
 
                   <div>
+                  <div style={{ width: '100%' }}>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.25rem' }}>
                       Explicación (Opcional)
                     </label>
                     <textarea
                       className="input-field"
                       rows={4}
+                      rows={2}
                       value={tc.explanation || ''}
                       onChange={(e) => handleUpdateTestCase(index, { explanation: e.target.value })}
                       placeholder="Explicación mostrada al estudiante sobre este caso..."
                       style={{ fontSize: '0.8125rem' }}
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.8125rem' }}
                     />
                   </div>
                 </div>
@@ -1021,6 +1335,33 @@ export const TeacherExercisesView: React.FC = () => {
         >
           <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Ejercicio'}
         </button>
+      {/* Bottom Action Bar */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: '0.75rem',
+        padding: '1.25rem 0 2rem 0',
+        borderTop: '1px solid #e2e8f0',
+        marginTop: '1.5rem',
+        flexWrap: 'wrap'
+      }}>
+        <div>
+          {renderNavigationButtons(false)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button onClick={handleBack} className="btn-secondary">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary"
+            style={{ padding: '0.625rem 1.5rem', fontSize: '0.9375rem' }}
+          >
+            <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Ejercicio'}
+          </button>
+        </div>
       </div>
     </div>
   );

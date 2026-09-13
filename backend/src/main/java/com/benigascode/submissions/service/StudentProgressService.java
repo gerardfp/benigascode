@@ -100,11 +100,21 @@ public class StudentProgressService {
         Exercise exercise = submission.getExerciseVersion().getExercise();
         Activity activity = submission.getActivityVersion() != null ? submission.getActivityVersion().getActivity() : null;
 
-        Optional<StudentProgress> existingOpt = activity != null ?
-                studentProgressRepository.findByStudentIdAndExerciseIdAndActivityId(student.getId(), exercise.getId(), activity.getId()) :
-                studentProgressRepository.findByStudentIdAndExerciseIdAndActivityIsNull(student.getId(), exercise.getId());
-
+        Optional<StudentProgress> existingOpt = studentProgressRepository.findByStudentIdAndExerciseId(student.getId(), exercise.getId());
         StudentProgress progress = existingOpt.orElseGet(() -> new StudentProgress(student, exercise, activity));
+
+        if (progress.getFirstSubmissionAt() == null) {
+            progress.setFirstSubmissionAt(Instant.now());
+        }
+        if (progress.getFirstCourseId() == null && submission.getCourseId() != null) {
+            progress.setFirstCourseId(submission.getCourseId());
+        }
+        if (progress.getFirstCollectionId() == null && submission.getCollectionId() != null) {
+            progress.setFirstCollectionId(submission.getCollectionId());
+        }
+        if (activity != null && progress.getActivity() == null) {
+            progress.setActivity(activity);
+        }
 
         progress.setTotalSubmissions(progress.getTotalSubmissions() + 1);
         progress.setConsumedAttempts(progress.getConsumedAttempts() + 1);
@@ -136,12 +146,18 @@ public class StudentProgressService {
             if (progress.getCompletedAt() == null) {
                 progress.setCompletedAt(Instant.now());
             }
+            if (progress.getFirstSolvedAt() == null) {
+                progress.setFirstSolvedAt(Instant.now());
+            }
         } else if (score.compareTo(BigDecimal.valueOf(50)) >= 0) {
             if (!"MASTERED".equals(progress.getStatus())) {
                 progress.setStatus("PASSED");
             }
             if (progress.getCompletedAt() == null) {
                 progress.setCompletedAt(Instant.now());
+            }
+            if (progress.getFirstSolvedAt() == null) {
+                progress.setFirstSolvedAt(Instant.now());
             }
         } else {
             if (!"MASTERED".equals(progress.getStatus()) && !"PASSED".equals(progress.getStatus())) {

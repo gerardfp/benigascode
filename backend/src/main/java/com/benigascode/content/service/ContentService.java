@@ -161,7 +161,7 @@ public class ContentService {
                             if (evOpt.isPresent()) {
                                 ExerciseVersion ev = evOpt.get();
                                 Optional<StudentProgress> spOpt = studentProgressRepository
-                                        .findByStudentIdAndExerciseIdAndActivityIsNull(user.getId(), ex.getId());
+                                        .findByStudentIdAndExerciseId(user.getId(), ex.getId());
 
                                 int totalTestsInConfig = 0;
                                 try {

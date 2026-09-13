@@ -1,12 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { Collection, Exercise, CollectionItemDTO } from '../types';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, 
   ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers
+  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers, Edit3
 } from 'lucide-react';
 
 export const TeacherCollectionsView: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const collectionIdParam = searchParams.get('collectionId');
+
   // Navigation & List State
   const [mode, setMode] = useState<'list' | 'editor'>('list');
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -62,6 +68,12 @@ export const TeacherCollectionsView: React.FC = () => {
     loadAllExercises();
   }, []);
 
+  useEffect(() => {
+    if (collectionIdParam && collectionIdParam !== selectedId) {
+      handleOpenEdit(collectionIdParam);
+    }
+  }, [collectionIdParam]);
+
   // Filtered collections
   const filteredCollections = useMemo(() => {
     if (!searchTerm.trim()) return collections;
@@ -74,11 +86,20 @@ export const TeacherCollectionsView: React.FC = () => {
     );
   }, [collections, searchTerm]);
 
+  // Back to list helper
+  const handleBackToList = () => {
+    setMode('list');
+    setSelectedId(null);
+    setSearchParams({});
+    setStatusMsg(null);
+  };
+
   // Open Editor for an existing collection
   const handleOpenEdit = async (id: string) => {
     try {
       setLoading(true);
       setStatusMsg(null);
+      setSearchParams({ collectionId: id });
       const detail = await api.teacherGetCollection(id);
       setSelectedId(detail.id);
       setTitle(detail.title || '');
@@ -98,6 +119,7 @@ export const TeacherCollectionsView: React.FC = () => {
   // Open Editor for a new collection
   const handleOpenCreate = () => {
     setSelectedId(null);
+    setSearchParams({});
     setTitle('');
     setSlug('');
     setDescription('');
@@ -338,6 +360,7 @@ export const TeacherCollectionsView: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
+          <button onClick={handleBackToList} className="btn-secondary">
             <ArrowLeft size={16} /> Volver a la lista
           </button>
           <div>
@@ -575,6 +598,22 @@ export const TeacherCollectionsView: React.FC = () => {
 
                 {/* Reorder and Delete Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                {/* Reorder, Edit, and Delete Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = selectedId 
+                        ? `/teacher/exercises?exerciseId=${item.exerciseId}&collectionId=${selectedId}`
+                        : `/teacher/exercises?exerciseId=${item.exerciseId}`;
+                      navigate(url);
+                    }}
+                    className="btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    title="Editar este ejercicio en el editor completo"
+                  >
+                    <Edit3 size={13} /> Editar
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleMoveExercise(index, 'up')}
@@ -614,6 +653,7 @@ export const TeacherCollectionsView: React.FC = () => {
       {/* Bottom Save Bar */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 0' }}>
         <button onClick={() => { setMode('list'); setStatusMsg(null); }} className="btn-secondary">
+        <button onClick={handleBackToList} className="btn-secondary">
           Cancelar
         </button>
         <button

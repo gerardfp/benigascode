@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO } from '../types';
 
 
 
@@ -109,10 +109,15 @@ export const api = {
       body: JSON.stringify({ sourceCode, language }),
     }),
 
-  submitPracticeSolution: (exerciseId: string, sourceCode: string, language: string): Promise<Submission> =>
+  submitPracticeSolution: (
+    exerciseId: string,
+    sourceCode: string,
+    language: string,
+    context?: { courseId?: string; courseCollectionId?: string; collectionId?: string }
+  ): Promise<Submission> =>
     request<Submission>(`/exercises/${exerciseId}/submissions`, {
       method: 'POST',
-      body: JSON.stringify({ sourceCode, language }),
+      body: JSON.stringify({ sourceCode, language, ...context }),
     }),
 
   getExerciseSubmissions: (exerciseId: string): Promise<Submission[]> =>
@@ -406,13 +411,60 @@ export const api = {
   listAllStudentTags: (): Promise<string[]> =>
     request<string[]>('/teacher/students/tags'),
 
-  // Colecciones asociadas a cursos
-  getCourseCollections: (courseId: string): Promise<Collection[]> =>
-    request<Collection[]>(`/teacher/courses/${courseId}/collections`),
+  // Profesores del curso
+  getCourseTeachers: (courseId: string): Promise<User[]> =>
+    request<User[]>(`/teacher/courses/${courseId}/teachers`),
 
-  assignCollectionToCourse: (courseId: string, collectionId: string): Promise<void> =>
+  getAvailableTeachers: (courseId: string): Promise<User[]> =>
+    request<User[]>(`/teacher/courses/${courseId}/available-teachers`),
+
+  addCourseTeacher: (courseId: string, teacherId: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/teachers/${teacherId}`, {
+      method: 'POST',
+    }),
+
+  removeCourseTeacher: (courseId: string, teacherId: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/teachers/${teacherId}`, {
+      method: 'DELETE',
+    }),
+
+  // Alumnos del curso
+  getCourseStudents: (courseId: string): Promise<TeacherStudent[]> =>
+    request<TeacherStudent[]>(`/teacher/courses/${courseId}/students`),
+
+  enrollCourseStudent: (courseId: string, userId: string, groupId?: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/students`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, groupId }),
+    }),
+
+  unenrollCourseStudent: (courseId: string, studentId: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/students/${studentId}`, {
+      method: 'DELETE',
+    }),
+
+  // Colecciones asociadas a cursos y asignaciones selectivas
+  getCourseCollections: (courseId: string): Promise<CourseCollectionDTO[]> =>
+    request<CourseCollectionDTO[]>(`/teacher/courses/${courseId}/collections`),
+
+  assignCollectionToCourse: (
+    courseId: string,
+    collectionId: string,
+    data?: { assignedAllStudents?: boolean; studentIds?: string[] }
+  ): Promise<void> =>
     request<void>(`/teacher/courses/${courseId}/collections/${collectionId}`, {
       method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  updateCollectionAssignments: (
+    courseId: string,
+    collectionId: string,
+    data: { assignedAllStudents: boolean; studentIds: string[] }
+  ): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/collections/${collectionId}/assignments`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   removeCollectionFromCourse: (courseId: string, collectionId: string): Promise<void> =>

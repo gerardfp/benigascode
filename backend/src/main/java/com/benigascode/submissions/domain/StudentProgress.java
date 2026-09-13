@@ -58,6 +58,18 @@ public class StudentProgress {
     @Column(name = "last_status", length = 30)
     private String lastStatus;
 
+    @Column(name = "first_submission_at")
+    private Instant firstSubmissionAt;
+
+    @Column(name = "first_solved_at")
+    private Instant firstSolvedAt;
+
+    @Column(name = "first_course_id")
+    private UUID firstCourseId;
+
+    @Column(name = "first_collection_id")
+    private UUID firstCollectionId;
+
     @Column(name = "completed_at")
     private Instant completedAt;
 
@@ -67,31 +79,60 @@ public class StudentProgress {
     public StudentProgress() {
     }
 
-    public StudentProgress(User student, Exercise exercise, Activity activity) {
+    public StudentProgress(User student, Exercise exercise) {
         this.student = student;
         this.exercise = exercise;
-        this.activity = activity;
+        this.activity = null;
         this.status = "NOT_STARTED";
         this.bestScore = BigDecimal.ZERO;
         this.totalSubmissions = 0;
         this.consumedAttempts = 0;
+        this.testsPassed = 0;
+        this.totalTests = 0;
         this.updatedAt = Instant.now();
+    }
+
+    public StudentProgress(User student, Exercise exercise, Activity activity) {
+        this(student, exercise);
+        this.activity = activity;
+    }
+
+    public boolean isSolved() {
+        return "MASTERED".equalsIgnoreCase(status)
+                || "PASSED".equalsIgnoreCase(status)
+                || (bestScore != null && bestScore.compareTo(new BigDecimal("100")) >= 0);
     }
 
     public UUID getId() {
         return id;
     }
 
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public User getStudent() {
         return student;
+    }
+
+    public void setStudent(User student) {
+        this.student = student;
     }
 
     public Exercise getExercise() {
         return exercise;
     }
 
+    public void setExercise(Exercise exercise) {
+        this.exercise = exercise;
+    }
+
     public Activity getActivity() {
         return activity;
+    }
+
+    public void setActivity(Activity activity) {
+        this.activity = activity;
     }
 
     public String getStatus() {
@@ -166,6 +207,38 @@ public class StudentProgress {
         this.lastStatus = lastStatus;
     }
 
+    public Instant getFirstSubmissionAt() {
+        return firstSubmissionAt;
+    }
+
+    public void setFirstSubmissionAt(Instant firstSubmissionAt) {
+        this.firstSubmissionAt = firstSubmissionAt;
+    }
+
+    public Instant getFirstSolvedAt() {
+        return firstSolvedAt;
+    }
+
+    public void setFirstSolvedAt(Instant firstSolvedAt) {
+        this.firstSolvedAt = firstSolvedAt;
+    }
+
+    public UUID getFirstCourseId() {
+        return firstCourseId;
+    }
+
+    public void setFirstCourseId(UUID firstCourseId) {
+        this.firstCourseId = firstCourseId;
+    }
+
+    public UUID getFirstCollectionId() {
+        return firstCollectionId;
+    }
+
+    public void setFirstCollectionId(UUID firstCollectionId) {
+        this.firstCollectionId = firstCollectionId;
+    }
+
     public Instant getCompletedAt() {
         return completedAt;
     }
@@ -182,4 +255,3 @@ public class StudentProgress {
         this.updatedAt = updatedAt;
     }
 }
-

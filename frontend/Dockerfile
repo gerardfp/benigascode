@@ -10,53 +10,9 @@ RUN npm run build
 
 # Production serve stage using Caddy lightweight
 FROM caddy:2.8-alpine
+WORKDIR /var/www/html
 COPY --from=builder /app/dist /var/www/html
-COPY <<EOF /etc/caddy/Caddyfile
-:80 {
-    log {
-        output stdout
-        format console
-    }
-
-    # Assets estáticos con hash inmutables
-    @assets {
-        path /assets/*
-    }
-    header @assets Cache-Control "public, max-age=31536000, immutable"
-
-    # Rutas SPA y HTML nunca deben cachearse en el navegador
-    @notAssets {
-        not path /assets/*
-    }
-    header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
-    header @notAssets Pragma "no-cache"
-    header @notAssets Expires "0"
-
-    # API Backend Reverse Proxy
-    handle /api/* {
-        reverse_proxy backend:8080 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # Health check
-    handle /actuator/health {
-        reverse_proxy backend:8080
-    }
-
-    # Frontend SPA
-    handle {
-        root * /var/www/html
-        try_files {path} /index.html
-        file_server
-    }
-
-    encode gzip
-}
-EOF
+COPY Caddyfile /etc/caddy/Caddyfile
 
 EXPOSE 80
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
-

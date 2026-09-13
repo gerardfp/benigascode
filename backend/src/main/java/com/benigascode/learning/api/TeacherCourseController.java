@@ -1,6 +1,8 @@
 package com.benigascode.learning.api;
 
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.dto.TeacherStudentDTO;
+import com.benigascode.identity.dto.UserDTO;
 import com.benigascode.identity.service.UserService;
 import com.benigascode.learning.dto.*;
 import com.benigascode.learning.service.LearningService;
@@ -26,6 +28,8 @@ public class TeacherCourseController {
         this.userService = userService;
     }
 
+    // --- CURSOS ---
+
     @GetMapping
     public ResponseEntity<List<CourseDTO>> listCourses() {
         User user = userService.getCurrentUser();
@@ -45,6 +49,62 @@ public class TeacherCourseController {
         return ResponseEntity.ok(learningService.getCourseById(id, user));
     }
 
+    // --- PROFESORES DEL CURSO ---
+
+    @GetMapping("/{id}/teachers")
+    public ResponseEntity<List<UserDTO>> getCourseTeachers(@PathVariable UUID id) {
+        return ResponseEntity.ok(learningService.getTeachersForCourse(id));
+    }
+
+    @GetMapping("/{id}/available-teachers")
+    public ResponseEntity<List<UserDTO>> getAvailableTeachers(@PathVariable UUID id) {
+        return ResponseEntity.ok(learningService.getAvailableTeachersForCourse(id));
+    }
+
+    @PostMapping("/{id}/teachers/{teacherId}")
+    public ResponseEntity<Void> addTeacherToCourse(@PathVariable UUID id, @PathVariable UUID teacherId) {
+        User currentUser = userService.getCurrentUser();
+        learningService.addTeacherToCourse(id, teacherId, currentUser);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/teachers/{teacherId}")
+    public ResponseEntity<Void> removeTeacherFromCourse(@PathVariable UUID id, @PathVariable UUID teacherId) {
+        User currentUser = userService.getCurrentUser();
+        learningService.removeTeacherFromCourse(id, teacherId, currentUser);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --- ALUMNOS DEL CURSO ---
+
+    @GetMapping("/{id}/students")
+    public ResponseEntity<List<TeacherStudentDTO>> getCourseStudents(@PathVariable UUID id) {
+        return ResponseEntity.ok(learningService.getStudentsForCourse(id));
+    }
+
+    @PostMapping("/{id}/students")
+    public ResponseEntity<Void> enrollStudentToCourse(@PathVariable UUID id, @Valid @RequestBody EnrollStudentRequest request) {
+        User user = userService.getCurrentUser();
+        learningService.enrollStudent(id, request.userId(), request.groupId(), user);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/enroll")
+    public ResponseEntity<Void> enrollStudentLegacy(@PathVariable UUID id, @Valid @RequestBody EnrollStudentRequest request) {
+        User user = userService.getCurrentUser();
+        learningService.enrollStudent(id, request.userId(), request.groupId(), user);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/students/{studentId}")
+    public ResponseEntity<Void> unenrollStudentFromCourse(@PathVariable UUID id, @PathVariable UUID studentId) {
+        User user = userService.getCurrentUser();
+        learningService.unenrollStudent(id, studentId, user);
+        return ResponseEntity.noContent().build();
+    }
+
+    // --- GRUPOS ---
+
     @GetMapping("/{id}/groups")
     public ResponseEntity<List<GroupDTO>> listGroups(@PathVariable UUID id) {
         User user = userService.getCurrentUser();
@@ -58,21 +118,28 @@ public class TeacherCourseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(group);
     }
 
-    @PostMapping("/{id}/enroll")
-    public ResponseEntity<Void> enrollStudent(@PathVariable UUID id, @Valid @RequestBody EnrollStudentRequest request) {
-        User user = userService.getCurrentUser();
-        learningService.enrollStudent(id, request.userId(), request.groupId(), user);
-        return ResponseEntity.ok().build();
-    }
+    // --- COLECCIONES Y ASIGNACIONES ---
 
     @GetMapping("/{id}/collections")
-    public ResponseEntity<List<com.benigascode.content.dto.CollectionDTO>> getCourseCollections(@PathVariable UUID id) {
-        return ResponseEntity.ok(learningService.getCollectionsForCourse(id));
+    public ResponseEntity<List<CourseCollectionDTO>> getCourseCollections(@PathVariable UUID id) {
+        return ResponseEntity.ok(learningService.getCourseCollectionsWithDetails(id));
     }
 
     @PostMapping("/{id}/collections/{collectionId}")
-    public ResponseEntity<Void> assignCollectionToCourse(@PathVariable UUID id, @PathVariable UUID collectionId) {
-        learningService.assignCollectionToCourse(id, collectionId);
+    public ResponseEntity<Void> assignCollectionToCourse(
+            @PathVariable UUID id,
+            @PathVariable UUID collectionId,
+            @RequestBody(required = false) AssignCourseCollectionRequest request) {
+        learningService.assignCollectionToCourse(id, collectionId, request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{id}/collections/{collectionId}/assignments")
+    public ResponseEntity<Void> updateCollectionAssignments(
+            @PathVariable UUID id,
+            @PathVariable UUID collectionId,
+            @RequestBody AssignCourseCollectionRequest request) {
+        learningService.updateCollectionAssignment(id, collectionId, request);
         return ResponseEntity.ok().build();
     }
 
@@ -82,4 +149,3 @@ public class TeacherCourseController {
         return ResponseEntity.noContent().build();
     }
 }
-

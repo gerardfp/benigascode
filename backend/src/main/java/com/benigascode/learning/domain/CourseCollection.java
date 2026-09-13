@@ -21,6 +21,9 @@ public class CourseCollection {
     @JoinColumn(name = "collection_id", nullable = false)
     private Collection collection;
 
+    @Column(name = "assigned_all_students", nullable = false)
+    private boolean assignedAllStudents = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -28,8 +31,13 @@ public class CourseCollection {
     }
 
     public CourseCollection(Course course, Collection collection) {
+        this(course, collection, true);
+    }
+
+    public CourseCollection(Course course, Collection collection, boolean assignedAllStudents) {
         this.course = course;
         this.collection = collection;
+        this.assignedAllStudents = assignedAllStudents;
         this.createdAt = Instant.now();
     }
 
@@ -57,8 +65,15 @@ public class CourseCollection {
         this.collection = collection;
     }
 
+    public boolean isAssignedAllStudents() {
+        return assignedAllStudents;
+    }
+
+    public void setAssignedAllStudents(boolean assignedAllStudents) {
+        this.assignedAllStudents = assignedAllStudents;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
 }
-

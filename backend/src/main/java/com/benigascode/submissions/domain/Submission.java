@@ -30,6 +30,15 @@ public class Submission {
     @JoinColumn(name = "exercise_version_id", nullable = false)
     private ExerciseVersion exerciseVersion;
 
+    @Column(name = "course_id")
+    private UUID courseId;
+
+    @Column(name = "course_collection_id")
+    private UUID courseCollectionId;
+
+    @Column(name = "collection_id")
+    private UUID collectionId;
+
     @Column(name = "source_code", nullable = false, columnDefinition = "TEXT")
     private String sourceCode;
 
@@ -101,6 +110,10 @@ public class Submission {
         return student;
     }
 
+    public void setStudent(User student) {
+        this.student = student;
+    }
+
     public ActivityVersion getActivityVersion() {
         return activityVersion;
     }
@@ -113,8 +126,41 @@ public class Submission {
         return exerciseVersion;
     }
 
+    public void setExerciseVersion(ExerciseVersion exerciseVersion) {
+        this.exerciseVersion = exerciseVersion;
+    }
+
+    public UUID getCourseId() {
+        return courseId;
+    }
+
+    public void setCourseId(UUID courseId) {
+        this.courseId = courseId;
+    }
+
+    public UUID getCourseCollectionId() {
+        return courseCollectionId;
+    }
+
+    public void setCourseCollectionId(UUID courseCollectionId) {
+        this.courseCollectionId = courseCollectionId;
+    }
+
+    public UUID getCollectionId() {
+        return collectionId;
+    }
+
+    public void setCollectionId(UUID collectionId) {
+        this.collectionId = collectionId;
+    }
+
     public String getSourceCode() {
         return sourceCode;
+    }
+
+    public void setSourceCode(String sourceCode) {
+        this.sourceCode = sourceCode;
+        this.sourceHash = computeSha256(sourceCode);
     }
 
     public String getSourceHash() {
@@ -129,8 +175,16 @@ public class Submission {
         return language;
     }
 
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
     public String getDeliveryChannel() {
         return deliveryChannel;
+    }
+
+    public void setDeliveryChannel(String deliveryChannel) {
+        this.deliveryChannel = deliveryChannel;
     }
 
     public int getAttemptNumber() {

@@ -207,7 +207,7 @@ export const ExerciseView: React.FC = () => {
     try {
       const sub = isActivity
         ? await api.submitSolution(activityId!, exerciseId, code, 'java')
-        : await api.submitPracticeSolution(exerciseId, code, 'java');
+        : await api.submitPracticeSolution(exerciseId, code, 'java', { collectionId });
 
       setSubmission(sub);
       pollEvaluation(sub.id);

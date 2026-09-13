@@ -151,6 +151,17 @@ public class SubmissionService {
         // 1. Guardar entrega inmutable snapshot
         Submission submission = new Submission(student, activityVersion, exerciseVersion, request.sourceCode(), lang);
         submission.setAttemptNumber(attemptNum);
+        if (activityVersion != null && activityVersion.getActivity() != null && activityVersion.getActivity().getCourse() != null) {
+            submission.setCourseId(activityVersion.getActivity().getCourse().getId());
+        } else if (request.courseId() != null) {
+            submission.setCourseId(request.courseId());
+        }
+        if (request.courseCollectionId() != null) {
+            submission.setCourseCollectionId(request.courseCollectionId());
+        }
+        if (request.collectionId() != null) {
+            submission.setCollectionId(request.collectionId());
+        }
         submission = submissionRepository.save(submission);
 
         // 2. Registrar intento en el ledger

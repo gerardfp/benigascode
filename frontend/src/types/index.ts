@@ -555,6 +555,16 @@ export interface CatalogExportPushResultDTO {
   repositoryUrl: string;
 }
 
-
-
-
+export interface CourseCollectionDTO {
+  id: string;
+  courseId: string;
+  collectionId: string;
+  slug: string;
+  title: string;
+  description: string;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  assignedAllStudents: boolean;
+  assignedStudentIds: string[];
+  assignedStudentsCount: number;
+  totalCourseStudents: number;
+}

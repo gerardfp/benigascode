@@ -19,10 +19,21 @@ public interface CourseCollectionRepository extends JpaRepository<CourseCollecti
     boolean existsByCourseIdAndCollectionId(UUID courseId, UUID collectionId);
     void deleteByCourseIdAndCollectionId(UUID courseId, UUID collectionId);
 
-    @Query("SELECT DISTINCT cc.collection FROM CourseCollection cc JOIN CourseMembership cm ON cc.course.id = cm.course.id WHERE cm.user.id = :studentId AND cm.role = 'STUDENT'")
+    @Query("SELECT DISTINCT cc.collection FROM CourseCollection cc " +
+           "JOIN CourseMembership cm ON cc.course.id = cm.course.id " +
+           "WHERE cm.user.id = :studentId AND cm.role = 'STUDENT' " +
+           "AND (cc.assignedAllStudents = true OR EXISTS (" +
+           "    SELECT 1 FROM CourseCollectionStudent ccs " +
+           "    WHERE ccs.courseCollection.id = cc.id AND ccs.student.id = :studentId" +
+           "))")
     List<Collection> findCollectionsByStudentId(@Param("studentId") UUID studentId);
 
-    @Query("SELECT CASE WHEN COUNT(cc) > 0 THEN true ELSE false END FROM CourseCollection cc JOIN CourseMembership cm ON cc.course.id = cm.course.id WHERE cm.user.id = :studentId AND cm.role = 'STUDENT' AND cc.collection.id = :collectionId")
+    @Query("SELECT CASE WHEN COUNT(cc) > 0 THEN true ELSE false END FROM CourseCollection cc " +
+           "JOIN CourseMembership cm ON cc.course.id = cm.course.id " +
+           "WHERE cm.user.id = :studentId AND cm.role = 'STUDENT' AND cc.collection.id = :collectionId " +
+           "AND (cc.assignedAllStudents = true OR EXISTS (" +
+           "    SELECT 1 FROM CourseCollectionStudent ccs " +
+           "    WHERE ccs.courseCollection.id = cc.id AND ccs.student.id = :studentId" +
+           "))")
     boolean isCollectionAssignedToStudent(@Param("studentId") UUID studentId, @Param("collectionId") UUID collectionId);
 }
-
