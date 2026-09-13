@@ -68,7 +68,7 @@ export const GitSyncView: React.FC = () => {
 
   const handleStartOAuth = async () => {
     try {
-      const { url } = await api.getGitHubAuthUrl();
+      const { url } = await api.getGitHubSyncAuthUrl();
       window.location.href = url;
     } catch (err: any) {
       setMessage({ text: 'Error al iniciar conexión con GitHub: ' + err.message, type: 'error' });

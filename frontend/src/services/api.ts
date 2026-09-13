@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent } from '../types';
 
 const API_BASE = '/api/v1';
 
@@ -27,8 +27,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (response.status === 401) {
-    // Si la sesión ha caducado y no estamos en la página de login, redirigir
-    if (!window.location.pathname.includes('/login')) {
+    // Si la sesión ha caducado y no estamos en la página de login o registro, redirigir
+    if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register') && !window.location.pathname.includes('/auth/github')) {
       window.location.href = '/login';
     }
     throw new Error('Sesión no válida o caducada');
@@ -195,7 +195,7 @@ export const api = {
   getGitHubConfig: (): Promise<GitHubConfig> =>
     request<GitHubConfig>('/teacher/github/config'),
 
-  getGitHubAuthUrl: (): Promise<{ url: string }> =>
+  getGitHubSyncAuthUrl: (): Promise<{ url: string }> =>
     request<{ url: string }>('/teacher/github/auth-url'),
 
   exchangeGitHubCode: (code: string): Promise<{ accessToken: string }> =>
@@ -321,5 +321,98 @@ export const api = {
 
   getTeacherSubmissionDetail: (id: string): Promise<TeacherSubmissionDetail> =>
     request<TeacherSubmissionDetail>(`/teacher/submissions/${id}`),
+
+  // ==================== INVITACIONES Y REGISTRO ALUMNO ====================
+  validateInvitation: (code: string): Promise<ValidateInvitationResponse> =>
+    request<ValidateInvitationResponse>('/auth/invitation/validate', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+
+  getGitHubAuthUrl: (state?: string, redirectUri?: string): Promise<{ configured: boolean; url: string }> => {
+    const sp = new URLSearchParams();
+    if (state) sp.set('state', state);
+    if (redirectUri) sp.set('redirectUri', redirectUri);
+    const qs = sp.toString();
+    return request<{ configured: boolean; url: string }>(`/auth/github/url${qs ? `?${qs}` : ''}`);
+  },
+
+  authenticateWithGitHub: (code: string, invitationCode?: string, redirectUri?: string): Promise<User> =>
+    request<User>('/auth/github/authenticate', {
+      method: 'POST',
+      body: JSON.stringify({ code, invitationCode, redirectUri }),
+    }),
+
+  // Claves de invitación (Profesor)
+  listTeacherInvitations: (): Promise<InvitationCode[]> =>
+    request<InvitationCode[]>('/teacher/invitations'),
+
+  createTeacherInvitation: (code: string, description?: string, active?: boolean): Promise<InvitationCode> =>
+    request<InvitationCode>('/teacher/invitations', {
+      method: 'POST',
+      body: JSON.stringify({ code, description, active }),
+    }),
+
+  toggleTeacherInvitation: (id: string): Promise<InvitationCode> =>
+    request<InvitationCode>(`/teacher/invitations/${id}/toggle`, {
+      method: 'PUT',
+    }),
+
+  deleteTeacherInvitation: (id: string): Promise<void> =>
+    request<void>(`/teacher/invitations/${id}`, {
+      method: 'DELETE',
+    }),
+
+  // Gestión de Alumnos y Etiquetas (Profesor)
+  listTeacherStudents: (courseId?: string, tag?: string, search?: string): Promise<TeacherStudent[]> => {
+    const sp = new URLSearchParams();
+    if (courseId) sp.set('courseId', courseId);
+    if (tag) sp.set('tag', tag);
+    if (search) sp.set('search', search);
+    const qs = sp.toString();
+    return request<TeacherStudent[]>(`/teacher/students${qs ? `?${qs}` : ''}`);
+  },
+
+  assignStudentCourse: (studentId: string, courseId: string, groupId?: string): Promise<void> => {
+    const sp = new URLSearchParams();
+    if (groupId) sp.set('groupId', groupId);
+    const qs = sp.toString();
+    return request<void>(`/teacher/students/${studentId}/courses/${courseId}${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+    });
+  },
+
+  unassignStudentCourse: (studentId: string, courseId: string): Promise<void> =>
+    request<void>(`/teacher/students/${studentId}/courses/${courseId}`, {
+      method: 'DELETE',
+    }),
+
+  addStudentTag: (studentId: string, tag: string): Promise<void> =>
+    request<void>(`/teacher/students/${studentId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ tag }),
+    }),
+
+  removeStudentTag: (studentId: string, tag: string): Promise<void> =>
+    request<void>(`/teacher/students/${studentId}/tags/${encodeURIComponent(tag)}`, {
+      method: 'DELETE',
+    }),
+
+  listAllStudentTags: (): Promise<string[]> =>
+    request<string[]>('/teacher/students/tags'),
+
+  // Colecciones asociadas a cursos
+  getCourseCollections: (courseId: string): Promise<Collection[]> =>
+    request<Collection[]>(`/teacher/courses/${courseId}/collections`),
+
+  assignCollectionToCourse: (courseId: string, collectionId: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/collections/${collectionId}`, {
+      method: 'POST',
+    }),
+
+  removeCollectionFromCourse: (courseId: string, collectionId: string): Promise<void> =>
+    request<void>(`/teacher/courses/${courseId}/collections/${collectionId}`, {
+      method: 'DELETE',
+    }),
 };
 

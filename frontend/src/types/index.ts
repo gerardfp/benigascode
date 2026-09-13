@@ -5,6 +5,8 @@ export interface User {
   username: string;
   fullName: string;
   role: Role;
+  githubUsername?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface Collection {
@@ -443,5 +445,44 @@ export interface TeacherSubmissionDetail {
   createdAt: string;
   evaluation?: Evaluation;
 }
+
+export interface InvitationCode {
+  id: string;
+  code: string;
+  description: string | null;
+  active: boolean;
+  createdByUsername: string | null;
+  createdByFullName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ValidateInvitationResponse {
+  valid: boolean;
+  code: string;
+  description: string | null;
+  message: string;
+}
+
+export interface StudentCourseMembership {
+  courseId: string;
+  courseName: string;
+  courseCode: string;
+  academicYear: string;
+  groupId: string | null;
+  groupName: string | null;
+}
+
+export interface TeacherStudent {
+  id: string;
+  username: string;
+  fullName: string;
+  githubUsername: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  courses: StudentCourseMembership[];
+  tags: string[];
+}
+
 
 

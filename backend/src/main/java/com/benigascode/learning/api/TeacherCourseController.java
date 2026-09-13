@@ -64,5 +64,22 @@ public class TeacherCourseController {
         learningService.enrollStudent(id, request.userId(), request.groupId(), user);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/{id}/collections")
+    public ResponseEntity<List<com.benigascode.content.dto.CollectionDTO>> getCourseCollections(@PathVariable UUID id) {
+        return ResponseEntity.ok(learningService.getCollectionsForCourse(id));
+    }
+
+    @PostMapping("/{id}/collections/{collectionId}")
+    public ResponseEntity<Void> assignCollectionToCourse(@PathVariable UUID id, @PathVariable UUID collectionId) {
+        learningService.assignCollectionToCourse(id, collectionId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/collections/{collectionId}")
+    public ResponseEntity<Void> removeCollectionFromCourse(@PathVariable UUID id, @PathVariable UUID collectionId) {
+        learningService.removeCollectionFromCourse(id, collectionId);
+        return ResponseEntity.noContent().build();
+    }
 }
 

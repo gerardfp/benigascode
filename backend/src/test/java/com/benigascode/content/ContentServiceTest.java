@@ -10,6 +10,8 @@ import com.benigascode.content.repository.*;
 import com.benigascode.content.service.ContentService;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.learning.repository.CourseCollectionRepository;
+import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,12 @@ class ContentServiceTest {
     private AccessKeyRepository accessKeyRepository;
     @Mock
     private AccessGrantRepository accessGrantRepository;
+    @Mock
+    private CourseCollectionRepository courseCollectionRepository;
+    @Mock
+    private StudentProgressRepository studentProgressRepository;
+    @Mock
+    private ExerciseAssetRepository exerciseAssetRepository;
     @Mock
     private ObjectMapper objectMapper;
 

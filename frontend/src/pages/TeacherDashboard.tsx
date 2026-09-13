@@ -134,6 +134,34 @@ export const TeacherDashboard: React.FC = () => {
             Consultar Envíos &rarr;
           </Link>
         </div>
+
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#fffbeb', borderColor: '#fde68a' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#92400e' }}>
+              👥 Alumnos
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#b45309' }}>
+              Directorio de alumnos, asignación a cursos y etiquetas privadas
+            </p>
+          </div>
+          <Link to="/teacher/students" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#d97706', textAlign: 'center', fontSize: '0.8125rem' }}>
+            Gestionar Alumnos &rarr;
+          </Link>
+        </div>
+
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#f5f3ff', borderColor: '#ddd6fe' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#5b21b6' }}>
+              🎟️ Invitaciones
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#7c3aed' }}>
+              Códigos de registro con GitHub para nuevos alumnos (activar / desactivar)
+            </p>
+          </div>
+          <Link to="/teacher/invitations" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#7c3aed', textAlign: 'center', fontSize: '0.8125rem' }}>
+            Gestionar Invitaciones &rarr;
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>

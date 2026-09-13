@@ -16,6 +16,13 @@ import com.benigascode.learning.dto.GroupDTO;
 import com.benigascode.learning.repository.CourseMembershipRepository;
 import com.benigascode.learning.repository.CourseRepository;
 import com.benigascode.learning.repository.GroupRepository;
+import com.benigascode.content.domain.Collection;
+import com.benigascode.content.domain.CollectionVersion;
+import com.benigascode.content.dto.CollectionDTO;
+import com.benigascode.content.repository.CollectionRepository;
+import com.benigascode.content.repository.CollectionVersionRepository;
+import com.benigascode.learning.domain.CourseCollection;
+import com.benigascode.learning.repository.CourseCollectionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,15 +36,24 @@ public class LearningService {
     private final GroupRepository groupRepository;
     private final CourseMembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final CourseCollectionRepository courseCollectionRepository;
+    private final CollectionRepository collectionRepository;
+    private final CollectionVersionRepository collectionVersionRepository;
 
     public LearningService(CourseRepository courseRepository,
                            GroupRepository groupRepository,
                            CourseMembershipRepository membershipRepository,
-                           UserRepository userRepository) {
+                           UserRepository userRepository,
+                           CourseCollectionRepository courseCollectionRepository,
+                           CollectionRepository collectionRepository,
+                           CollectionVersionRepository collectionVersionRepository) {
         this.courseRepository = courseRepository;
         this.groupRepository = groupRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
+        this.courseCollectionRepository = courseCollectionRepository;
+        this.collectionRepository = collectionRepository;
+        this.collectionVersionRepository = collectionVersionRepository;
     }
 
     @Transactional
@@ -57,7 +73,7 @@ public class LearningService {
 
     @Transactional(readOnly = true)
     public List<CourseDTO> getCoursesForUser(User user) {
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) {
             return courseRepository.findAll().stream().map(CourseDTO::fromEntity).toList();
         }
         return courseRepository.findCoursesByUserId(user.getId()).stream()
@@ -70,7 +86,7 @@ public class LearningService {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Curso no encontrado"));
 
-        if (user.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
+        if (user.getRole() != Role.ADMIN && user.getRole() != Role.TEACHER && !membershipRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
             throw new AccessDeniedException("No tienes acceso a este curso");
         }
         return CourseDTO.fromEntity(course);
@@ -90,7 +106,7 @@ public class LearningService {
 
     @Transactional(readOnly = true)
     public List<GroupDTO> getGroupsForCourse(UUID courseId, User user) {
-        if (user.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
+        if (user.getRole() != Role.ADMIN && user.getRole() != Role.TEACHER && !membershipRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
             throw new AccessDeniedException("No tienes acceso a los grupos de este curso");
         }
         return groupRepository.findByCourseId(courseId).stream()
@@ -124,14 +140,44 @@ public class LearningService {
         membershipRepository.save(membership);
     }
 
+    @Transactional(readOnly = true)
+    public List<CollectionDTO> getCollectionsForCourse(UUID courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Curso no encontrado"));
+
+        List<CourseCollection> list = courseCollectionRepository.findByCourseId(courseId);
+        return list.stream()
+                .map(cc -> {
+                    Collection c = cc.getCollection();
+                    CollectionVersion v = collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null);
+                    return CollectionDTO.from(c, v);
+                })
+                .toList();
+    }
+
+    @Transactional
+    public void assignCollectionToCourse(UUID courseId, UUID collectionId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Curso no encontrado"));
+        Collection collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+
+        if (!courseCollectionRepository.existsByCourseIdAndCollectionId(courseId, collectionId)) {
+            CourseCollection cc = new CourseCollection(course, collection);
+            courseCollectionRepository.save(cc);
+        }
+    }
+
+    @Transactional
+    public void removeCollectionFromCourse(UUID courseId, UUID collectionId) {
+        courseCollectionRepository.deleteByCourseIdAndCollectionId(courseId, collectionId);
+    }
+
     public void assertTeacherOrAdmin(User user, UUID courseId) {
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) {
             return;
         }
-        boolean isTeacher = membershipRepository.existsByUserIdAndCourseIdAndRole(user.getId(), courseId, "TEACHER");
-        if (!isTeacher) {
-            throw new AccessDeniedException("Operación restringida a profesores asignados al curso");
-        }
+        throw new AccessDeniedException("Operación restringida al profesorado");
     }
 }
 

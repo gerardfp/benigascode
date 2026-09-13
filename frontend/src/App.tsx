@@ -18,6 +18,9 @@ import { TeacherCollectionsView } from './pages/TeacherCollectionsView';
 import { StudentInsightsView } from './pages/StudentInsightsView';
 import { TeacherInsightsView } from './pages/TeacherInsightsView';
 import { TeacherSubmissionsView } from './pages/TeacherSubmissionsView';
+import { RegisterPage } from './pages/RegisterPage';
+import { TeacherInvitationsView } from './pages/TeacherInvitationsView';
+import { TeacherStudentsView } from './pages/TeacherStudentsView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,6 +55,20 @@ export const App: React.FC = () => {
                 <LoginPage onLoginSuccess={setUser} />
               )
             }
+          />
+          <Route
+            path="/register"
+            element={
+              user ? (
+                <Navigate to={user.role === 'TEACHER' || user.role === 'ADMIN' ? "/teacher" : "/"} replace />
+              ) : (
+                <RegisterPage />
+              )
+            }
+          />
+          <Route
+            path="/auth/github/callback"
+            element={<GitHubCallbackView onAuthSuccess={setUser} />}
           />
 
           {/* Rutas de Alumno */}
@@ -132,6 +149,26 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <TeacherCoursesView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/students"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherStudentsView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/invitations"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherInvitationsView />
               ) : (
                 <Navigate to="/" replace />
               )
