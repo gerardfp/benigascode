@@ -491,6 +491,11 @@ public class ContentSyncService {
                     String code = Files.readString(f.toPath());
                     templates.put(runtime, code);
                     templates.put(fname, code);
+                    if (runtime.startsWith("java")) {
+                        templates.putIfAbsent("java", code);
+                    } else if (runtime.startsWith("python")) {
+                        templates.putIfAbsent("python", code);
+                    }
                 }
             }
         }

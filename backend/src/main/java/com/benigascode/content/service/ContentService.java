@@ -260,15 +260,14 @@ public class ContentService {
 
     public String resolveStarterCode(ExerciseVersion version, UUID collectionId) {
         String runtimeId = version.getRuntimeId();
+        String language = version.getLanguage();
         String starterCode = null;
 
         // 1. Plantilla específica a nivel de ejercicio
         try {
             if (version.getTemplatesConfig() != null) {
                 JsonNode exTemplates = objectMapper.readTree(version.getTemplatesConfig());
-                if (exTemplates.has(runtimeId)) {
-                    starterCode = exTemplates.get(runtimeId).asText();
-                }
+                starterCode = extractTemplateForRuntime(exTemplates, runtimeId, language);
             }
         } catch (Exception ignored) {
         }
@@ -300,9 +299,7 @@ public class ContentService {
             if (colVersion != null && colVersion.getTemplatesConfig() != null) {
                 try {
                     JsonNode colTemplates = objectMapper.readTree(colVersion.getTemplatesConfig());
-                    if (colTemplates.has(runtimeId)) {
-                        starterCode = colTemplates.get(runtimeId).asText();
-                    }
+                    starterCode = extractTemplateForRuntime(colTemplates, runtimeId, language);
                 } catch (Exception ignored) {
                 }
             }
@@ -314,6 +311,42 @@ public class ContentService {
         }
 
         return starterCode;
+    }
+
+    private String extractTemplateForRuntime(JsonNode templatesNode, String runtimeId, String language) {
+        if (templatesNode == null || !templatesNode.isObject() || templatesNode.isEmpty()) {
+            return null;
+        }
+        if (runtimeId != null && templatesNode.has(runtimeId)) {
+            return templatesNode.get(runtimeId).asText();
+        }
+        if (runtimeId != null && templatesNode.has(runtimeId + ".java")) {
+            return templatesNode.get(runtimeId + ".java").asText();
+        }
+        if (language != null && templatesNode.has(language)) {
+            return templatesNode.get(language).asText();
+        }
+        if (language != null && templatesNode.has(language + ".java")) {
+            return templatesNode.get(language + ".java").asText();
+        }
+        if (templatesNode.has("java")) {
+            return templatesNode.get("java").asText();
+        }
+        if (templatesNode.has("default")) {
+            return templatesNode.get("default").asText();
+        }
+        var fields = templatesNode.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            if (language != null && field.getKey().toLowerCase().startsWith(language.toLowerCase())) {
+                return field.getValue().asText();
+            }
+        }
+        var elements = templatesNode.elements();
+        if (elements.hasNext()) {
+            return elements.next().asText();
+        }
+        return null;
     }
 
     private String getDefaultStarterCodeForRuntime(String runtimeId) {
@@ -587,7 +620,32 @@ public class ContentService {
         }
 
         List<AssetDTO> assets = listAssets(exercise.getId());
-        String starterCode = templates != null ? templates.get("java") : null;
+        String starterCode = null;
+        if (templates != null && !templates.isEmpty()) {
+            String runtimeId = ev.getRuntimeId();
+            String lang = ev.getLanguage();
+            if (runtimeId != null) {
+                starterCode = templates.get(runtimeId);
+                if (starterCode == null) starterCode = templates.get(runtimeId + ".java");
+            }
+            if (starterCode == null && lang != null) {
+                starterCode = templates.get(lang);
+                if (starterCode == null) starterCode = templates.get(lang + ".java");
+            }
+            if (starterCode == null) starterCode = templates.get("java");
+            if (starterCode == null) starterCode = templates.get("default");
+            if (starterCode == null) {
+                for (Map.Entry<String, String> entry : templates.entrySet()) {
+                    if (lang != null && entry.getKey().toLowerCase().startsWith(lang.toLowerCase())) {
+                        starterCode = entry.getValue();
+                        break;
+                    }
+                }
+            }
+            if (starterCode == null && !templates.isEmpty()) {
+                starterCode = templates.values().iterator().next();
+            }
+        }
         List<String> tagsList = List.of();
         try {
             if (ev.getTags() != null && !ev.getTags().isBlank()) {
@@ -696,12 +754,33 @@ public class ContentService {
         testSuite.put("public", pubTests);
         testSuite.put("private", privTests);
 
+        String runtimeId = req.runtimeId() != null && !req.runtimeId().isBlank() ? req.runtimeId() : "java-26";
+        String lang = req.language() != null && !req.language().isBlank() ? req.language() : "java";
+
         Map<String, String> templatesMap = new HashMap<>();
         if (req.templates() != null) {
             templatesMap.putAll(req.templates());
+        } else if (exercise != null && exercise.getId() != null) {
+            exerciseVersionRepository.findLatestByExerciseId(exercise.getId()).ifPresent(prev -> {
+                Map<String, String> prevTpls = parseTemplatesMap(prev.getTemplatesConfig());
+                if (prevTpls != null) {
+                    templatesMap.putAll(prevTpls);
+                }
+            });
         }
-        if (req.starterCode() != null && !req.starterCode().isBlank() && !templatesMap.containsKey("java")) {
-            templatesMap.put("java", req.starterCode());
+
+        if (req.starterCode() != null) {
+            if (!req.starterCode().isBlank()) {
+                templatesMap.put(runtimeId, req.starterCode());
+                templatesMap.put(runtimeId + ".java", req.starterCode());
+                templatesMap.put(lang, req.starterCode());
+                templatesMap.put("java", req.starterCode());
+            } else {
+                templatesMap.remove(runtimeId);
+                templatesMap.remove(runtimeId + ".java");
+                templatesMap.remove(lang);
+                templatesMap.remove("java");
+            }
         }
 
         try {

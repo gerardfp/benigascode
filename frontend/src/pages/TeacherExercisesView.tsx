@@ -7,7 +7,7 @@ import DOMPurify from 'dompurify';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
-  GripVertical, ChevronLeft, ChevronRight
+  GripVertical, ChevronLeft, ChevronRight, Tag, X
 } from 'lucide-react';
 
 export const TeacherExercisesView: React.FC = () => {
@@ -38,6 +38,8 @@ export const TeacherExercisesView: React.FC = () => {
   const [runtimeId, setRuntimeId] = useState('java-26');
   const [statement, setStatement] = useState('');
   const [starterCode, setStarterCode] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
   const [testCases, setTestCases] = useState<TestCaseDTO[]>([]);
   const [assets, setAssets] = useState<AssetDTO[]>([]);
   const [versionNumber, setVersionNumber] = useState<number>(1);
@@ -125,7 +127,8 @@ export const TeacherExercisesView: React.FC = () => {
     return exercises.filter(
       (ex) =>
         ex.title.toLowerCase().includes(term) ||
-        ex.slug.toLowerCase().includes(term)
+        ex.slug.toLowerCase().includes(term) ||
+        (ex.tags && ex.tags.some((t) => t.toLowerCase().includes(term)))
     );
   }, [exercises, searchTerm]);
 
@@ -196,6 +199,24 @@ export const TeacherExercisesView: React.FC = () => {
       setRuntimeId(detail.runtimeId || 'java-26');
       setStatement(detail.statement || '');
       setStarterCode(detail.starterCode || (detail.templates && detail.templates['java']) || '');
+
+      // Flexible starter code resolution from starterCode or templates map
+      const effectiveRuntime = detail.runtimeId || 'java-26';
+      const effectiveLang = detail.language || 'java';
+      let resolvedStarter = detail.starterCode || '';
+      if (!resolvedStarter && detail.templates) {
+        resolvedStarter =
+          detail.templates[effectiveRuntime] ||
+          detail.templates[`${effectiveRuntime}.java`] ||
+          detail.templates[effectiveLang] ||
+          detail.templates['java'] ||
+          detail.templates['default'] ||
+          Object.values(detail.templates)[0] ||
+          '';
+      }
+      setStarterCode(resolvedStarter);
+      setTags(detail.tags || []);
+      setTagInput('');
       setTestCases(detail.testCases || []);
       setAssets(detail.assets || []);
       setVersionNumber(detail.versionNumber || 1);
@@ -217,6 +238,8 @@ export const TeacherExercisesView: React.FC = () => {
     setRuntimeId('java-26');
     setStatement('# Nuevo Ejercicio\n\nDescripción del problema...');
     setStarterCode('public class Solution {\n    public static void main(String[] args) {\n        // Tu código aquí\n    }\n}\n');
+    setTags([]);
+    setTagInput('');
     setTestCases([
       { isPublic: true, orderIndex: 0, weight: 1, input: '', expectedOutput: '', explanation: '' },
       { isPublic: false, orderIndex: 1, weight: 1, input: '', expectedOutput: '', explanation: '' }
@@ -240,6 +263,77 @@ export const TeacherExercisesView: React.FC = () => {
         .replace(/^-+|-+$/g, '');
       setSlug(generated);
     }
+  };
+
+  // Tags helpers & system suggestions
+  const systemTags = useMemo(() => {
+    const set = new Set<string>();
+    exercises.forEach((ex) => {
+      if (ex.tags && Array.isArray(ex.tags)) {
+        ex.tags.forEach((t) => {
+          const trimmed = t.trim();
+          if (trimmed) set.add(trimmed);
+        });
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [exercises]);
+
+  const unassignedSystemTags = useMemo(() => {
+    const currentLower = new Set(tags.map((t) => t.toLowerCase()));
+    return systemTags.filter((t) => !currentLower.has(t.toLowerCase()));
+  }, [systemTags, tags]);
+
+  const commonTagPresets = useMemo(() => ['bucles', 'condicionales', 'arrays', 'strings', 'funciones', 'poo', 'recursión', 'matemáticas'], []);
+  const unassignedPresets = useMemo(() => {
+    const currentLower = new Set(tags.map((t) => t.toLowerCase()));
+    const systemLower = new Set(systemTags.map((t) => t.toLowerCase()));
+    return commonTagPresets.filter((p) => !currentLower.has(p.toLowerCase()) && !systemLower.has(p.toLowerCase()));
+  }, [tags, systemTags, commonTagPresets]);
+
+  const addTag = (rawTag: string) => {
+    const clean = rawTag.trim();
+    if (!clean) return;
+    if (!tags.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+      setTags((prev) => [...prev, clean]);
+    }
+  };
+
+  const addTagsFromText = (text: string) => {
+    const parts = text.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    setTags((prev) => {
+      const existingLower = new Set(prev.map((t) => t.toLowerCase()));
+      const toAdd = parts.filter((p) => !existingLower.has(p.toLowerCase()));
+      return [...prev, ...toAdd];
+    });
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
+  const handleClearAllTags = () => {
+    setTags([]);
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTagsFromText(tagInput);
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      e.preventDefault();
+      setTags((prev) => prev.slice(0, -1));
+    }
+  };
+
+  // Adaptive rows helper for test case textareas:
+  // Dynamically adjusts to the number of lines up to a maximum initial of 12 lines
+  const getAdaptiveRows = (text: string | undefined, defaultMin: number = 3, maxInitial: number = 12) => {
+    if (!text) return defaultMin;
+    const lineCount = text.split('\n').length;
+    return Math.min(maxInitial, Math.max(defaultMin, lineCount));
   };
 
   // Test Cases operations
@@ -363,6 +457,11 @@ export const TeacherExercisesView: React.FC = () => {
           runtimeId,
           statement,
           starterCode,
+          tags,
+          templates: {
+            [runtimeId || 'java-26']: starterCode,
+            [language || 'java']: starterCode
+          },
           testCases
         });
         currentExId = saved.id;
@@ -463,6 +562,17 @@ export const TeacherExercisesView: React.FC = () => {
     setSaving(true);
     setStatusMsg(null);
 
+    // If there's uncommitted text in tagInput, include it
+    let effectiveTags = [...tags];
+    if (tagInput.trim()) {
+      const pending = tagInput.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+      const existingLower = new Set(effectiveTags.map((t) => t.toLowerCase()));
+      const toAdd = pending.filter((p) => !existingLower.has(p.toLowerCase()));
+      effectiveTags = [...effectiveTags, ...toAdd];
+      setTags(effectiveTags);
+      setTagInput('');
+    }
+
     try {
       const payload = {
         title: title.trim(),
@@ -471,6 +581,11 @@ export const TeacherExercisesView: React.FC = () => {
         runtimeId: runtimeId.trim() || 'java-26',
         statement: statement.trim(),
         starterCode: starterCode,
+        tags: effectiveTags,
+        templates: {
+          [runtimeId.trim() || 'java-26']: starterCode,
+          [language.trim() || 'java']: starterCode
+        },
         testCases: testCases.map((tc, idx) => ({
           ...tc,
           orderIndex: idx,
@@ -565,7 +680,20 @@ export const TeacherExercisesView: React.FC = () => {
                   {currentExercises.map((ex) => (
                     <tr key={ex.id} style={{ borderBottom: '1px solid #f1f5f9' }} className="hover:bg-slate-50">
                       <td style={{ padding: '0.875rem 1.25rem', fontWeight: 500, color: '#1e293b' }}>
-                        {ex.title}
+                        <div>{ex.title}</div>
+                        {ex.tags && ex.tags.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                            {ex.tags.map((t, idx) => (
+                              <span
+                                key={idx}
+                                className="badge badge-neutral"
+                                style={{ fontSize: '0.6875rem', padding: '0.1rem 0.35rem', backgroundColor: '#f1f5f9', color: '#475569' }}
+                              >
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
                         {ex.slug}
@@ -973,7 +1101,7 @@ export const TeacherExercisesView: React.FC = () => {
                 className="input-field"
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
-                rows={18}
+                rows={23}
                 style={{
                   fontFamily: 'Consolas, Monaco, "Courier New", monospace',
                   fontSize: '0.875rem',
@@ -981,7 +1109,7 @@ export const TeacherExercisesView: React.FC = () => {
                   borderRadius: statementView === 'split' ? '0 0 0 0.375rem' : '0 0 0.375rem 0.375rem',
                   borderTop: 'none',
                   resize: 'vertical',
-                  minHeight: '380px',
+                  minHeight: '475px',
                   width: '100%',
                   boxSizing: 'border-box'
                 }}
@@ -1001,8 +1129,8 @@ export const TeacherExercisesView: React.FC = () => {
                 backgroundColor: '#ffffff',
                 overflowY: 'auto',
                 height: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : undefined,
-                minHeight: '380px',
-                maxHeight: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : (statementView === 'preview' ? '700px' : undefined),
+                minHeight: '475px',
+                maxHeight: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : (statementView === 'preview' ? '875px' : undefined),
                 borderTop: statementView === 'split' ? '1px solid #e2e8f0' : 'none',
                 boxSizing: 'border-box'
               }}
@@ -1058,32 +1186,197 @@ export const TeacherExercisesView: React.FC = () => {
         )}
       </div>
 
-      {/* SECTION 3: CÓDIGO INICIAL / TEMPLATES */}
+      {/* SECTION 3: ETIQUETAS (TAGS) */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
-        </h2>
-        <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0 0 0.75rem 0' }}>
-          Código base con el que arrancará el editor del estudiante.
-        </p>
-        <textarea
-          className="input-field"
-          value={starterCode}
-          onChange={(e) => setStarterCode(e.target.value)}
-          rows={10}
-          style={{
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '0.875rem',
-            lineHeight: 1.5,
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            borderRadius: '0.375rem'
-          }}
-          placeholder="public class Solution { ... }"
-        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Tag size={18} color="#2563eb" /> Etiquetas del Ejercicio {tags.length > 0 && `(${tags.length})`}
+            </h2>
+            <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0.25rem 0 0 0' }}>
+              Organiza y clasifica este ejercicio para facilitar su búsqueda, filtrado y organización.
+            </p>
+          </div>
+
+          {tags.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAllTags}
+              className="btn-secondary"
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: '#dc2626' }}
+              title="Quitar todas las etiquetas asignadas"
+            >
+              <Trash2 size={13} /> Limpiar todas
+            </button>
+          )}
+        </div>
+
+        {/* Active Tags Chips Area */}
+        <div style={{
+          minHeight: '44px',
+          padding: '0.5rem 0.75rem',
+          backgroundColor: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '0.375rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '0.5rem',
+          marginBottom: '0.75rem'
+        }}>
+          {tags.length === 0 ? (
+            <span style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
+              Sin etiquetas asignadas. Escribe etiquetas abajo o selecciona de las sugerencias.
+            </span>
+          ) : (
+            tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.25rem 0.6rem',
+                  backgroundColor: '#dbeafe',
+                  color: '#1e40af',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '9999px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
+              >
+                <span>#{tag}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '0 0.1rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#1e40af',
+                    opacity: 0.75,
+                    borderRadius: '50%'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.75')}
+                  title={`Eliminar etiqueta "${tag}"`}
+                >
+                  <X size={14} />
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+
+        {/* Tag Input Field with Datalist & Quick Add Button */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <input
+              type="text"
+              list="system-tags-datalist"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagInputKeyDown}
+              onBlur={() => {
+                if (tagInput.trim()) {
+                  addTagsFromText(tagInput);
+                }
+              }}
+              placeholder="Escribe una o varias etiquetas (separadas por coma) y pulsa Enter..."
+              className="input-field"
+              style={{ fontSize: '0.875rem' }}
+            />
+            <datalist id="system-tags-datalist">
+              {systemTags.map((st) => (
+                <option key={st} value={st} />
+              ))}
+            </datalist>
+          </div>
+          <button
+            type="button"
+            onClick={() => addTagsFromText(tagInput)}
+            disabled={!tagInput.trim()}
+            className="btn-secondary"
+            style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem', fontWeight: 600 }}
+          >
+            <Plus size={15} /> Añadir
+          </button>
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
+          💡 Puedes escribir varias etiquetas separadas por comas (ej: <code>bucles, matrices, strings</code>). Pulsa <kbd style={{ padding: '0.1rem 0.3rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Enter</kbd> para añadir o <kbd style={{ padding: '0.1rem 0.3rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Retroceso</kbd> con el campo vacío para borrar la última.
+        </div>
+
+        {/* Existing System Tags Quick Selection */}
+        {unassignedSystemTags.length > 0 && (
+          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #e2e8f0' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem' }}>
+              Etiquetas existentes en el sistema (haz clic para añadir):
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+              {unassignedSystemTags.map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => addTag(st)}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.75rem',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#cbd5e1',
+                    borderRadius: '9999px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
+                  title={`Añadir etiqueta "${st}"`}
+                >
+                  <Plus size={12} color="#2563eb" /> {st}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Common Presets (if unassigned) */}
+        {unassignedPresets.length > 0 && (
+          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: unassignedSystemTags.length > 0 ? 'none' : '1px dashed #e2e8f0' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.35rem' }}>
+              Sugerencias temáticas:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+              {unassignedPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => addTag(preset)}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.15rem 0.45rem',
+                    fontSize: '0.75rem',
+                    backgroundColor: '#f8fafc',
+                    borderColor: '#e2e8f0',
+                    color: '#64748b',
+                    borderRadius: '9999px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
+                  title={`Añadir sugerencia "${preset}"`}
+                >
+                  + {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* SECTION 4: CASOS DE PRUEBA (TEST CASES) EN LA MISMA PANTALLA */}
+      {/* SECTION 4: CASOS DE PRUEBA (TEST CASES) */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div>
@@ -1251,11 +1544,18 @@ export const TeacherExercisesView: React.FC = () => {
                     </label>
                     <textarea
                       className="input-field"
-                      rows={3}
+                      rows={getAdaptiveRows(tc.input, 3, 12)}
                       value={tc.input || ''}
                       onChange={(e) => handleUpdateTestCase(index, { input: e.target.value })}
                       placeholder="Ej: 5 10"
-                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                        fontSize: '0.8125rem',
+                        resize: 'vertical',
+                        lineHeight: 1.4
+                      }}
                     />
                   </div>
 
@@ -1265,11 +1565,18 @@ export const TeacherExercisesView: React.FC = () => {
                     </label>
                     <textarea
                       className="input-field"
-                      rows={3}
+                      rows={getAdaptiveRows(tc.expectedOutput, 3, 12)}
                       value={tc.expectedOutput || ''}
                       onChange={(e) => handleUpdateTestCase(index, { expectedOutput: e.target.value })}
                       placeholder="Ej: 15"
-                      style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '0.8125rem' }}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                        fontSize: '0.8125rem',
+                        resize: 'vertical',
+                        lineHeight: 1.4
+                      }}
                     />
                   </div>
 
@@ -1279,11 +1586,17 @@ export const TeacherExercisesView: React.FC = () => {
                     </label>
                     <textarea
                       className="input-field"
-                      rows={2}
+                      rows={getAdaptiveRows(tc.explanation, 2, 8)}
                       value={tc.explanation || ''}
                       onChange={(e) => handleUpdateTestCase(index, { explanation: e.target.value })}
                       placeholder="Explicación mostrada al estudiante sobre este caso..."
-                      style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.8125rem' }}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        fontSize: '0.8125rem',
+                        resize: 'vertical',
+                        lineHeight: 1.4
+                      }}
                     />
                   </div>
                 </div>
@@ -1291,6 +1604,31 @@ export const TeacherExercisesView: React.FC = () => {
             ))}
           </div>
         )}
+      </div>
+
+      {/* SECTION 5: CÓDIGO INICIAL PARA EL ALUMNO (STARTER CODE) */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
+        </h2>
+        <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0 0 0.75rem 0' }}>
+          Código base con el que arrancará el editor del estudiante.
+        </p>
+        <textarea
+          className="input-field"
+          value={starterCode}
+          onChange={(e) => setStarterCode(e.target.value)}
+          rows={10}
+          style={{
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '0.875rem',
+            lineHeight: 1.5,
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            borderRadius: '0.375rem'
+          }}
+          placeholder="public class Solution { ... }"
+        />
       </div>
 
       {/* Bottom Action Bar */}
