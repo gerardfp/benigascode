@@ -258,11 +258,12 @@ public class GitOperationsService {
     public String formatOAuthCloneUrl(String originalUrl, String token) {
         if (token == null || token.isBlank()) return originalUrl;
         String cleanUrl = originalUrl.trim();
+        String user = token.startsWith("ghs_") ? "x-access-token" : "oauth2";
         if (cleanUrl.startsWith("https://")) {
-            return "https://x-access-token:" + token + "@" + cleanUrl.substring("https://".length());
+            return "https://" + user + ":" + token + "@" + cleanUrl.substring("https://".length());
         }
         if (cleanUrl.startsWith("http://")) {
-            return "http://x-access-token:" + token + "@" + cleanUrl.substring("http://".length());
+            return "http://" + user + ":" + token + "@" + cleanUrl.substring("http://".length());
         }
         return cleanUrl;
     }

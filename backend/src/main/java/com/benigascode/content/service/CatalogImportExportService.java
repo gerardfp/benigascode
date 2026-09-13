@@ -423,7 +423,11 @@ public class CatalogImportExportService {
 
         } catch (Exception e) {
             log.error("Error al exportar catálogo y hacer push a Git", e);
-            throw new ValidationException("Error en exportación Git: " + e.getMessage());
+            String rawMsg = e.getMessage() != null ? e.getMessage() : "";
+            if (rawMsg.contains("Permission to") || rawMsg.contains("403") || rawMsg.contains("denied")) {
+                throw new ValidationException("Permiso denegado por GitHub (403): La aplicación conectada no tiene permisos de escritura ('Contents: Read and write') en este repositorio o la GitHub App no está instalada en tu cuenta de GitHub. Asegúrate de configurar 'Contents: Read and write' en tu GitHub App e instalarla, o bien exporta seleccionando 'Otro repositorio' con un Personal Access Token (PAT) con permisos de repositorio.");
+            }
+            throw new ValidationException("Error en exportación Git: " + rawMsg);
         } finally {
             if (repoDir != null) {
                 gitOperationsService.deleteRecursively(repoDir);
