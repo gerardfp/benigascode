@@ -1,5 +1,6 @@
 package com.benigascode.content;
 
+import com.benigascode.common.exception.AccessDeniedException;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.common.exception.ValidationException;
 import com.benigascode.content.domain.AccessKey;
@@ -110,10 +111,11 @@ class ContentServiceTest {
     }
 
     @Test
-    void assertCanAccessCollection_PrivateWithoutGrant_ThrowsNotFound() {
+    void assertCanAccessCollection_PrivateWithoutGrant_ThrowsAccessDenied() {
+        when(courseCollectionRepository.isCollectionAssignedToStudent(student.getId(), collection.getId())).thenReturn(false);
         when(accessGrantRepository.existsByUserIdAndCollectionId(student.getId(), collection.getId())).thenReturn(false);
 
-        assertThrows(ResourceNotFoundException.class, () ->
+        assertThrows(AccessDeniedException.class, () ->
             contentService.assertCanAccessCollection(student, collection)
         );
     }

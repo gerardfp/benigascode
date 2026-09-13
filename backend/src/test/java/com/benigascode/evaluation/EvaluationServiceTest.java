@@ -18,6 +18,7 @@ import com.benigascode.learning.repository.CourseMembershipRepository;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.submissions.service.StudentProgressService;
 import com.benigascode.evaluation.service.EvaluationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,8 @@ class EvaluationServiceTest {
     private AttemptLedgerRepository attemptLedgerRepository;
     @Mock
     private CourseMembershipRepository membershipRepository;
+    @Mock
+    private StudentProgressService studentProgressService;
     @Mock
     private ObjectMapper objectMapper;
 
@@ -146,6 +149,7 @@ class EvaluationServiceTest {
         assertEquals("FINISHED", submission.getStatus());
         verify(evaluationRepository).save(any(Evaluation.class));
         verify(testResultRepository).save(any());
+        verify(studentProgressService).updateProgress(eq(submission), any(Evaluation.class));
     }
 
     @Test
