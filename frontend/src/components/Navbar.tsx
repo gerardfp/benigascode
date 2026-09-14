@@ -41,12 +41,11 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               )}
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
                 <>
-                  <Link to="/teacher" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Panel</Link>
                   <Link to="/teacher/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
                   <Link to="/teacher/exercises" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Ejercicios</Link>
                   <Link to="/teacher/courses" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Cursos</Link>
                   <Link to="/teacher/students" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Alumnos</Link>
-                  <Link to="/teacher/invitations" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Invitaciones</Link>
+                  <Link to="/teacher/teachers" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Profesores</Link>
                   <Link to="/teacher/activities" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Actividades</Link>
                   <Link to="/teacher/insights" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Insights</Link>
                   <Link to="/teacher/submissions" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Envíos</Link>

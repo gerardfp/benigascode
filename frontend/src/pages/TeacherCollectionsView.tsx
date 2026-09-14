@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { Collection, Exercise, CollectionItemDTO } from '../types';
+import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, 
   ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers, Edit3
@@ -17,6 +18,20 @@ export const TeacherCollectionsView: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Sorting state
+  type CollectionSortKey = 'title' | 'slug' | 'visibility' | 'version';
+  const [sortKey, setSortKey] = useState<CollectionSortKey>('title');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: CollectionSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   // Editor State
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,17 +88,33 @@ export const TeacherCollectionsView: React.FC = () => {
     }
   }, [collectionIdParam]);
 
-  // Filtered collections
+  // Filtered and sorted collections
   const filteredCollections = useMemo(() => {
-    if (!searchTerm.trim()) return collections;
-    const term = searchTerm.toLowerCase();
-    return collections.filter(
-      (c) =>
-        c.title.toLowerCase().includes(term) ||
-        c.slug.toLowerCase().includes(term) ||
-        (c.description && c.description.toLowerCase().includes(term))
-    );
-  }, [collections, searchTerm]);
+    let result = collections;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = collections.filter(
+        (c) =>
+          c.title.toLowerCase().includes(term) ||
+          c.slug.toLowerCase().includes(term) ||
+          (c.description && c.description.toLowerCase().includes(term))
+      );
+    }
+
+    return [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'title') {
+        cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'slug') {
+        cmp = a.slug.localeCompare(b.slug, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'visibility') {
+        cmp = a.visibility.localeCompare(b.visibility);
+      } else if (sortKey === 'version') {
+        cmp = (a.versionNumber || 1) - (b.versionNumber || 1);
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [collections, searchTerm, sortKey, sortDir]);
 
   // Back to list helper
   const handleBackToList = () => {
@@ -282,10 +313,38 @@ export const TeacherCollectionsView: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
-                  <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Título</th>
-                  <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Slug</th>
-                  <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Visibilidad</th>
-                  <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Versión</th>
+                  <SortableHeader
+                    label="Título"
+                    sortKey="title"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                  />
+                  <SortableHeader
+                    label="Slug"
+                    sortKey="slug"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                  />
+                  <SortableHeader
+                    label="Visibilidad"
+                    sortKey="visibility"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                  />
+                  <SortableHeader
+                    label="Versión"
+                    sortKey="version"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                  />
                   <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600, textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
@@ -577,7 +636,6 @@ export const TeacherCollectionsView: React.FC = () => {
                   backgroundColor: '#ffffff',
                   border: '1px solid #e2e8f0',
                   borderRadius: '0.375rem',
-                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.02)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

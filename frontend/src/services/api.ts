@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO } from '../types';
 
 
 
@@ -29,8 +29,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (response.status === 401) {
-    // Si la sesión ha caducado y no estamos en la página de login o registro, redirigir
-    if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register') && !window.location.pathname.includes('/auth/github')) {
+    // Si la llamada es a /me (comprobación inicial de estado de sesión), nunca redirigir
+    if (endpoint === '/me') {
+      throw new Error('No autenticado');
+    }
+
+    // Si la sesión ha caducado y no estamos en la página de login, registro o callbacks OAuth, redirigir
+    const pathname = window.location.pathname;
+    const isAuthRoute =
+      pathname.includes('/login') ||
+      pathname.includes('/register') ||
+      pathname.includes('/callback') ||
+      pathname.includes('/github');
+
+    if (!isAuthRoute) {
       window.location.href = '/login';
     }
     throw new Error('Sesión no válida o caducada');
@@ -339,18 +351,33 @@ export const api = {
       body: JSON.stringify({ code }),
     }),
 
-  getGitHubAuthUrl: (state?: string, redirectUri?: string): Promise<{ configured: boolean; url: string }> => {
+  getGitHubAuthUrl: (state?: string, redirectUri?: string): Promise<{ configured: boolean; url: string; redirectUri?: string }> => {
     const sp = new URLSearchParams();
     if (state) sp.set('state', state);
     if (redirectUri) sp.set('redirectUri', redirectUri);
     const qs = sp.toString();
-    return request<{ configured: boolean; url: string }>(`/auth/github/url${qs ? `?${qs}` : ''}`);
+    return request<{ configured: boolean; url: string; redirectUri?: string }>(`/auth/github/url${qs ? `?${qs}` : ''}`);
   },
 
   authenticateWithGitHub: (code: string, invitationCode?: string, redirectUri?: string): Promise<User> =>
     request<User>('/auth/github/authenticate', {
       method: 'POST',
       body: JSON.stringify({ code, invitationCode, redirectUri }),
+    }),
+
+  // Profesores autorizados mediante GitHub
+  listAuthorizedTeachers: (): Promise<AuthorizedTeacherDTO[]> =>
+    request<AuthorizedTeacherDTO[]>('/teacher/teachers'),
+
+  addAuthorizedTeacher: (githubUsername: string, notes?: string): Promise<AuthorizedTeacherDTO> =>
+    request<AuthorizedTeacherDTO>('/teacher/teachers', {
+      method: 'POST',
+      body: JSON.stringify({ githubUsername, notes }),
+    }),
+
+  removeAuthorizedTeacher: (id: string): Promise<void> =>
+    request<void>(`/teacher/teachers/${id}`, {
+      method: 'DELETE',
     }),
 
   // Claves de invitación (Profesor)
@@ -484,6 +511,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  previewCatalogZipImport: (file: File, conflictStrategy: CatalogConflictStrategy): Promise<CatalogImportPreviewDTO> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('conflictStrategy', conflictStrategy);
+    return request<CatalogImportPreviewDTO>('/teacher/catalog/import/zip/preview', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  executeCatalogZipImport: (file: File, conflictStrategy: CatalogConflictStrategy): Promise<CatalogImportResultDTO> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('conflictStrategy', conflictStrategy);
+    return request<CatalogImportResultDTO>('/teacher/catalog/import/zip/execute', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 
   pushCatalogExport: (data: CatalogExportPushRequest): Promise<CatalogExportPushResultDTO> =>
     request<CatalogExportPushResultDTO>('/teacher/catalog/export/push', {

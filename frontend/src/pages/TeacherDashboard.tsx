@@ -162,6 +162,20 @@ export const TeacherDashboard: React.FC = () => {
             Gestionar Invitaciones &rarr;
           </Link>
         </div>
+
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: '0 0 0.25rem 0', color: '#166534' }}>
+              🧑‍🏫 Profesores
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8125rem', color: '#15803d' }}>
+              Autorización de cuentas de GitHub con rol docente
+            </p>
+          </div>
+          <Link to="/teacher/teachers" className="btn-primary" style={{ textDecoration: 'none', backgroundColor: '#15803d', textAlign: 'center', fontSize: '0.8125rem' }}>
+            Gestionar Profesores &rarr;
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
 import { TeacherSubmissionItem, TeacherSubmissionDetail, Course, Group } from '../types';
+import { SortableHeader } from '../components/SortableHeader';
 
 type GroupingMode = 'flat' | 'student' | 'exercise' | 'status';
 
@@ -10,6 +11,46 @@ export const TeacherSubmissionsView: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Sorting
+  type SubmissionSortKey = 'createdAt' | 'studentName' | 'groupName' | 'exerciseTitle' | 'attemptNumber' | 'status' | 'tests';
+  const [sortKey, setSortKey] = useState<SubmissionSortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: SubmissionSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'createdAt' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedSubmissions = useMemo(() => {
+    return [...submissions].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'createdAt') {
+        const tA = new Date(a.createdAt).getTime();
+        const tB = new Date(b.createdAt).getTime();
+        cmp = tA - tB;
+      } else if (sortKey === 'studentName') {
+        cmp = (a.studentName || '').localeCompare(b.studentName || '', undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'groupName') {
+        cmp = (a.groupName || '').localeCompare(b.groupName || '', undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'exerciseTitle') {
+        cmp = (a.exerciseTitle || '').localeCompare(b.exerciseTitle || '', undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'attemptNumber') {
+        cmp = (a.attemptNumber || 0) - (b.attemptNumber || 0);
+      } else if (sortKey === 'status') {
+        cmp = (a.status || '').localeCompare(b.status || '');
+      } else if (sortKey === 'tests') {
+        const ratioA = a.totalTests > 0 ? (a.testsPassed || 0) / a.totalTests : 0;
+        const ratioB = b.totalTests > 0 ? (b.testsPassed || 0) / b.totalTests : 0;
+        cmp = ratioA - ratioB;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [submissions, sortKey, sortDir]);
 
   // Filtros
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -360,12 +401,11 @@ export const TeacherSubmissionsView: React.FC = () => {
                   padding: '0.35rem 0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: groupingMode === 'flat' ? 700 : 500,
-                  border: 'none',
                   borderRadius: '0.25rem',
                   cursor: 'pointer',
                   backgroundColor: groupingMode === 'flat' ? '#ffffff' : 'transparent',
                   color: groupingMode === 'flat' ? '#0f172a' : '#64748b',
-                  boxShadow: groupingMode === 'flat' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                  border: groupingMode === 'flat' ? '1px solid #e2e8f0' : '1px solid transparent',
                 }}
               >
                 Cronológico
@@ -377,12 +417,11 @@ export const TeacherSubmissionsView: React.FC = () => {
                   padding: '0.35rem 0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: groupingMode === 'student' ? 700 : 500,
-                  border: 'none',
                   borderRadius: '0.25rem',
                   cursor: 'pointer',
                   backgroundColor: groupingMode === 'student' ? '#ffffff' : 'transparent',
                   color: groupingMode === 'student' ? '#0f172a' : '#64748b',
-                  boxShadow: groupingMode === 'student' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                  border: groupingMode === 'student' ? '1px solid #e2e8f0' : '1px solid transparent',
                 }}
               >
                 Por Alumno
@@ -394,12 +433,11 @@ export const TeacherSubmissionsView: React.FC = () => {
                   padding: '0.35rem 0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: groupingMode === 'exercise' ? 700 : 500,
-                  border: 'none',
                   borderRadius: '0.25rem',
                   cursor: 'pointer',
                   backgroundColor: groupingMode === 'exercise' ? '#ffffff' : 'transparent',
                   color: groupingMode === 'exercise' ? '#0f172a' : '#64748b',
-                  boxShadow: groupingMode === 'exercise' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                  border: groupingMode === 'exercise' ? '1px solid #e2e8f0' : '1px solid transparent',
                 }}
               >
                 Por Ejercicio
@@ -411,12 +449,11 @@ export const TeacherSubmissionsView: React.FC = () => {
                   padding: '0.35rem 0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: groupingMode === 'status' ? 700 : 500,
-                  border: 'none',
                   borderRadius: '0.25rem',
                   cursor: 'pointer',
                   backgroundColor: groupingMode === 'status' ? '#ffffff' : 'transparent',
                   color: groupingMode === 'status' ? '#0f172a' : '#64748b',
-                  boxShadow: groupingMode === 'status' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                  border: groupingMode === 'status' ? '1px solid #e2e8f0' : '1px solid transparent',
                 }}
               >
                 Por Estado
@@ -452,18 +489,69 @@ export const TeacherSubmissionsView: React.FC = () => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#475569' }}>
-                      <th style={{ padding: '0.75rem 1rem' }}>Fecha</th>
-                      <th style={{ padding: '0.75rem 1rem' }}>Alumno</th>
-                      <th style={{ padding: '0.75rem 1rem' }}>Grupo</th>
-                      <th style={{ padding: '0.75rem 1rem' }}>Ejercicio</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Intento</th>
-                      <th style={{ padding: '0.75rem 1rem' }}>Resultado</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Tests</th>
+                      <SortableHeader
+                        label="Fecha"
+                        sortKey="createdAt"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Alumno"
+                        sortKey="studentName"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Grupo"
+                        sortKey="groupName"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Ejercicio"
+                        sortKey="exerciseTitle"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Intento"
+                        sortKey="attemptNumber"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        align="center"
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Resultado"
+                        sortKey="status"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
+                      <SortableHeader
+                        label="Tests"
+                        sortKey="tests"
+                        currentSortKey={sortKey}
+                        currentSortDir={sortDir}
+                        onSort={handleSort}
+                        align="center"
+                        style={{ padding: '0.75rem 1rem' }}
+                      />
                       <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {submissions.map(sub => (
+                    {sortedSubmissions.map(sub => (
                       <tr
                         key={sub.id}
                         style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background-color 0.15s' }}
@@ -709,7 +797,7 @@ export const TeacherSubmissionsView: React.FC = () => {
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: '0.75rem',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #cbd5e1',
             width: '100%',
             maxWidth: '900px',
             maxHeight: '90vh',

@@ -20,12 +20,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setGithubLoading(true);
     setError(null);
     try {
-      const redirectUri = `${window.location.origin}/auth/github/callback`;
-      const res = await api.getGitHubAuthUrl('login', redirectUri);
+      const res = await api.getGitHubAuthUrl('login');
       if (!res.configured || !res.url) {
         setError('El acceso con GitHub no está configurado en el servidor.');
         setGithubLoading(false);
         return;
+      }
+      if (res.redirectUri) {
+        sessionStorage.setItem('github_oauth_redirect_uri', res.redirectUri);
       }
       window.location.href = res.url;
     } catch (err: any) {

@@ -540,6 +540,29 @@ public class ContentService {
         List<Exercise> all = exerciseRepository.findAll();
         List<ExerciseDTO> result = new ArrayList<>();
 
+        Map<String, List<String>> exerciseSlugToCollections = new HashMap<>();
+        List<Collection> allCollections = collectionRepository.findAll();
+        for (Collection c : allCollections) {
+            Optional<CollectionVersion> latestCv = collectionVersionRepository.findLatestByCollectionId(c.getId());
+            if (latestCv.isPresent()) {
+                CollectionVersion cv = latestCv.get();
+                String colTitle = (cv.getTitle() != null && !cv.getTitle().isBlank()) ? cv.getTitle() : c.getSlug();
+                if (cv.getItems() != null && !cv.getItems().isBlank()) {
+                    try {
+                        JsonNode arr = objectMapper.readTree(cv.getItems());
+                        if (arr.isArray()) {
+                            for (JsonNode it : arr) {
+                                String exSlug = it.path("id").asText();
+                                if (exSlug != null && !exSlug.isBlank()) {
+                                    exerciseSlugToCollections.computeIfAbsent(exSlug.toLowerCase(), k -> new ArrayList<>()).add(colTitle);
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
         for (Exercise ex : all) {
             Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
             if (latest.isPresent()) {
@@ -553,6 +576,9 @@ public class ContentService {
                             tagsList = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
                         } catch (Exception ignored) {}
                     }
+                    List<String> collections = exerciseSlugToCollections.getOrDefault(ex.getSlug().toLowerCase(), new ArrayList<>());
+                    collections.sort(String.CASE_INSENSITIVE_ORDER);
+
                     result.add(new ExerciseDTO(
                             ex.getId(),
                             ex.getId(),
@@ -563,7 +589,9 @@ public class ContentService {
                             ev.getRuntimeId(),
                             ev.getVersionNumber(),
                             null,
-                            tagsList
+                            tagsList,
+                            collections,
+                            ex.getCreatedAt()
                     ));
                 }
             }

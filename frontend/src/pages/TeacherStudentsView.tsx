@@ -1,13 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { TeacherStudent, Course, Group } from '../types';
+import { SortableHeader } from '../components/SortableHeader';
 
 export const TeacherStudentsView: React.FC = () => {
   const [students, setStudents] = useState<TeacherStudent[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [allTags, setAllTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Sorting
+  type StudentSortKey = 'name' | 'courses' | 'tags' | 'createdAt';
+  const [sortKey, setSortKey] = useState<StudentSortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: StudentSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   // Filtros
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -129,6 +144,28 @@ export const TeacherStudentsView: React.FC = () => {
 
   const enrolledCount = students.filter((s) => s.courses.length > 0).length;
   const unenrolledCount = students.length - enrolledCount;
+
+  const sortedStudents = useMemo(() => {
+    return [...students].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'name') {
+        cmp = a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'courses') {
+        const cA = a.courses.map((c) => c.courseName).join(', ');
+        const cB = b.courses.map((c) => c.courseName).join(', ');
+        cmp = cA.localeCompare(cB, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'tags') {
+        const tA = (a.tags || []).join(', ');
+        const tB = (b.tags || []).join(', ');
+        cmp = tA.localeCompare(tB, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'createdAt') {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        cmp = timeA - timeB;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [students, sortKey, sortDir]);
 
   return (
     <div className="app-container">
@@ -370,20 +407,43 @@ export const TeacherStudentsView: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '0.875rem 1rem' }}>Alumno</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Cursos Asignados</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <span>Etiquetas Privadas</span>
-                      <span title="Solo visibles por los profesores" style={{ cursor: 'help', fontSize: '0.85rem' }}>🔒</span>
-                    </div>
-                  </th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Fecha Alta</th>
+                  <SortableHeader
+                    label="Alumno"
+                    sortKey="name"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Cursos Asignados"
+                    sortKey="courses"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Etiquetas Privadas"
+                    sortKey="tags"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Fecha Alta"
+                    sortKey="createdAt"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
                   <th style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) => (
+                {sortedStudents.map((student) => (
                   <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     {/* Alumno Info */}
                     <td style={{ padding: '0.875rem 1rem' }}>

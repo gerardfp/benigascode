@@ -48,9 +48,8 @@ export const RegisterPage: React.FC = () => {
     setError(null);
 
     try {
-      const redirectUri = `${window.location.origin}/auth/github/callback`;
       const state = `signup:${code.trim()}`;
-      const res = await api.getGitHubAuthUrl(state, redirectUri);
+      const res = await api.getGitHubAuthUrl(state);
 
       if (!res.configured || !res.url) {
         setError('El inicio con GitHub no está configurado en el servidor todavía. Contacta con tu profesor.');
@@ -58,6 +57,9 @@ export const RegisterPage: React.FC = () => {
         return;
       }
 
+      if (res.redirectUri) {
+        sessionStorage.setItem('github_oauth_redirect_uri', res.redirectUri);
+      }
       // Guardar clave en sessionStorage como respaldo
       sessionStorage.setItem('pending_invitation_code', code.trim());
       // Redirigir a GitHub OAuth

@@ -38,9 +38,10 @@ export const GitSyncView: React.FC = () => {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // ==================== ESTADO IMPORTACIÓN ====================
-  const [importSourceType, setImportSourceType] = useState<'github' | 'public_url'>('github');
+  const [importSourceType, setImportSourceType] = useState<'github' | 'public_url' | 'zip'>('github');
   const [importSelectedRepoUrl, setImportSelectedRepoUrl] = useState('');
   const [importPublicUrl, setImportPublicUrl] = useState('');
+  const [importZipFile, setImportZipFile] = useState<File | null>(null);
   const [importBranch, setImportBranch] = useState('main');
   const [importRootPath, setImportRootPath] = useState('');
   const [conflictStrategy, setConflictStrategy] = useState<CatalogConflictStrategy>('OVERWRITE');
@@ -161,6 +162,32 @@ export const GitSyncView: React.FC = () => {
   };
 
   const handleCheckImportPreview = async () => {
+    if (importSourceType === 'zip') {
+      if (!importZipFile) {
+        setMessage({ text: 'Por favor, selecciona o arrastra un archivo ZIP a importar.', type: 'error' });
+        return;
+      }
+
+      setCheckingPreview(true);
+      setMessage(null);
+      setImportResult(null);
+
+      try {
+        const preview = await api.previewCatalogZipImport(importZipFile, conflictStrategy);
+        setPreviewData(preview);
+        setMessage({
+          text: `Comprobación finalizada: ${preview.totalExercises} ejercicios y ${preview.totalCollections} colecciones detectados en el archivo ZIP. Revisa el desglose antes de confirmar.`,
+          type: 'info',
+        });
+      } catch (err: any) {
+        setMessage({ text: 'Error en la comprobación del ZIP: ' + err.message, type: 'error' });
+        setPreviewData(null);
+      } finally {
+        setCheckingPreview(false);
+      }
+      return;
+    }
+
     const url = getEffectiveImportUrl();
     if (!url) {
       setMessage({ text: 'Por favor, introduce o selecciona la URL del repositorio a importar.', type: 'error' });
@@ -194,6 +221,31 @@ export const GitSyncView: React.FC = () => {
   };
 
   const handleExecuteImport = async () => {
+    if (importSourceType === 'zip') {
+      if (!importZipFile) {
+        setMessage({ text: 'Por favor, selecciona o arrastra un archivo ZIP a importar.', type: 'error' });
+        return;
+      }
+
+      setExecutingImport(true);
+      setMessage(null);
+
+      try {
+        const result = await api.executeCatalogZipImport(importZipFile, conflictStrategy);
+        setImportResult(result);
+        setPreviewData(null); // Limpiar preview tras ejecutar
+        setMessage({
+          text: `¡Importación ZIP completada con éxito! Nuevos: ${result.importedNew}, Sobrescritos: ${result.overwritten}, Renombrados: ${result.renamed}, Omitidos: ${result.skipped}.`,
+          type: 'success',
+        });
+      } catch (err: any) {
+        setMessage({ text: 'Error durante la importación del ZIP: ' + err.message, type: 'error' });
+      } finally {
+        setExecutingImport(false);
+      }
+      return;
+    }
+
     const url = getEffectiveImportUrl();
     if (!url) {
       setMessage({ text: 'Por favor, introduce o selecciona la URL del repositorio.', type: 'error' });
@@ -527,11 +579,11 @@ export const GitSyncView: React.FC = () => {
               Configuración de la Importación
             </h2>
             <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '0 0 1.25rem' }}>
-              Descarga e incorpora ejercicios y colecciones al sistema desde un repositorio GitHub. Puedes simular primero para revisar qué pasará ante posibles colisiones de ID/slug.
+              Descarga e incorpora ejercicios y colecciones al sistema desde un repositorio Git o desde un archivo ZIP. Puedes simular primero para revisar qué pasará ante posibles colisiones de ID/slug.
             </p>
 
             {/* Selector de origen */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', gap: '1.25rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}>
                 <input
                   type="radio"
@@ -553,10 +605,89 @@ export const GitSyncView: React.FC = () => {
                 />
                 Repositorio Git público (URL directa)
               </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500 }}>
+                <input
+                  type="radio"
+                  name="importSourceType"
+                  value="zip"
+                  checked={importSourceType === 'zip'}
+                  onChange={() => setImportSourceType('zip')}
+                />
+                📦 Archivo ZIP del catálogo (.zip)
+              </label>
             </div>
 
-            {/* Campo URL según origen */}
-            {importSourceType === 'github' ? (
+            {/* Campo según origen */}
+            {importSourceType === 'zip' ? (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
+                  Archivo ZIP del Catálogo
+                </label>
+                <div
+                  style={{
+                    border: '2px dashed #cbd5e1',
+                    borderRadius: '0.5rem',
+                    padding: '1.5rem',
+                    textAlign: 'center',
+                    backgroundColor: importZipFile ? '#f0fdf4' : '#f8fafc',
+                    borderColor: importZipFile ? '#86efac' : '#cbd5e1',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s, background-color 0.2s',
+                  }}
+                  onClick={() => document.getElementById('zip-file-input')?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      const f = e.dataTransfer.files[0];
+                      if (f.name.toLowerCase().endsWith('.zip')) {
+                        setImportZipFile(f);
+                        setPreviewData(null);
+                        setImportResult(null);
+                      } else {
+                        setMessage({ text: 'Por favor, selecciona un archivo en formato .zip', type: 'error' });
+                      }
+                    }
+                  }}
+                >
+                  <input
+                    id="zip-file-input"
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setImportZipFile(e.target.files[0]);
+                        setPreviewData(null);
+                        setImportResult(null);
+                      }
+                    }}
+                  />
+                  {importZipFile ? (
+                    <div>
+                      <div style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>📦</div>
+                      <div style={{ fontWeight: 600, color: '#166534', fontSize: '0.9375rem' }}>
+                        {importZipFile.name}
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: '#15803d', marginTop: '0.25rem' }}>
+                        {(importZipFile.size / (1024 * 1024)).toFixed(2)} MB • Haz clic o arrastra otro archivo para cambiar
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>📁</div>
+                      <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.9375rem' }}>
+                        Arrastra aquí tu archivo .zip o haz clic para seleccionarlo
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '0.25rem' }}>
+                        El ZIP puede contener carpetas <code>exercises/</code> y/o <code>collections/</code> (a nivel raíz o en un subdirectorio).
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : importSourceType === 'github' ? (
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
                   Selecciona Repositorio de GitHub
@@ -600,33 +731,35 @@ export const GitSyncView: React.FC = () => {
               </div>
             )}
 
-            {/* Parámetros: Rama y Carpeta raíz */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
-                  Rama (Branch)
-                </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={importBranch}
-                  onChange={(e) => setImportBranch(e.target.value)}
-                  placeholder="main"
-                />
+            {/* Parámetros de repositorio Git (Rama y Carpeta raíz) */}
+            {importSourceType !== 'zip' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
+                    Rama (Branch)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={importBranch}
+                    onChange={(e) => setImportBranch(e.target.value)}
+                    placeholder="main"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
+                    Carpeta raíz dentro del repositorio (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={importRootPath}
+                    onChange={(e) => setImportRootPath(e.target.value)}
+                    placeholder="ej: catalogo o dejar vacío para raíz /"
+                  />
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem' }}>
-                  Carpeta raíz dentro del repositorio (opcional)
-                </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={importRootPath}
-                  onChange={(e) => setImportRootPath(e.target.value)}
-                  placeholder="ej: catalogo o dejar vacío para raíz /"
-                />
-              </div>
-            </div>
+            )}
 
             {/* Selector de Estrategia ante Conflictos */}
             <div style={{
@@ -706,7 +839,9 @@ export const GitSyncView: React.FC = () => {
                 className="btn-secondary"
                 style={{ fontSize: '0.9375rem', padding: '0.625rem 1.25rem' }}
               >
-                {checkingPreview ? '🔍 Comprobando repositorio...' : '🔍 Comprobar / Simular Importación'}
+                {checkingPreview
+                  ? (importSourceType === 'zip' ? '🔍 Comprobando archivo ZIP...' : '🔍 Comprobando repositorio...')
+                  : '🔍 Comprobar / Simular Importación'}
               </button>
 
               <button
@@ -716,7 +851,9 @@ export const GitSyncView: React.FC = () => {
                 className="btn-primary"
                 style={{ fontSize: '0.9375rem', padding: '0.625rem 1.25rem' }}
               >
-                {executingImport ? '🚀 Importando contenidos...' : '🚀 Ejecutar Importación Ahora'}
+                {executingImport
+                  ? (importSourceType === 'zip' ? '🚀 Importando archivo ZIP...' : '🚀 Importando contenidos...')
+                  : '🚀 Ejecutar Importación Ahora'}
               </button>
             </div>
           </div>

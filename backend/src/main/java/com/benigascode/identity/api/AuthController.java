@@ -7,6 +7,7 @@ import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.dto.*;
 import com.benigascode.identity.repository.UserRepository;
+import com.benigascode.identity.service.AuthorizedTeacherService;
 import com.benigascode.identity.service.TeacherInvitationService;
 import com.benigascode.identity.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,17 +36,20 @@ public class AuthController {
     private final UserRepository userRepository;
     private final TeacherInvitationService invitationService;
     private final GitHubOAuthService gitHubOAuthService;
+    private final AuthorizedTeacherService authorizedTeacherService;
 
     public AuthController(AuthenticationManager authenticationManager,
                           UserService userService,
                           UserRepository userRepository,
                           TeacherInvitationService invitationService,
-                          GitHubOAuthService gitHubOAuthService) {
+                          GitHubOAuthService gitHubOAuthService,
+                          AuthorizedTeacherService authorizedTeacherService) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
         this.userRepository = userRepository;
         this.invitationService = invitationService;
         this.gitHubOAuthService = gitHubOAuthService;
+        this.authorizedTeacherService = authorizedTeacherService;
     }
 
     @PostMapping("/auth/login")
@@ -102,10 +106,15 @@ public class AuthController {
             ));
         }
 
-        String url = gitHubOAuthService.buildStudentAuthorizeUrl(state, redirectUri);
+        String effectiveRedirect = (redirectUri != null && !redirectUri.isBlank())
+            ? redirectUri
+            : gitHubOAuthService.getRedirectUri();
+
+        String url = gitHubOAuthService.buildStudentAuthorizeUrl(state, effectiveRedirect);
         return ResponseEntity.ok(Map.of(
             "configured", true,
-            "url", url
+            "url", url,
+            "redirectUri", effectiveRedirect
         ));
     }
 
@@ -118,8 +127,12 @@ public class AuthController {
             throw new ValidationException("GitHub OAuth no está configurado en el servidor");
         }
 
-        // 1. Intercambiar código por access token
-        Map<String, Object> tokenResult = gitHubOAuthService.exchangeCodeForToken(request.code(), request.redirectUri());
+        // 1. Intercambiar código por access token (usando el redirectUri oficial si no se envió explícito)
+        String effectiveRedirect = (request.redirectUri() != null && !request.redirectUri().isBlank())
+            ? request.redirectUri()
+            : gitHubOAuthService.getRedirectUri();
+
+        Map<String, Object> tokenResult = gitHubOAuthService.exchangeCodeForToken(request.code(), effectiveRedirect);
         String accessToken = (String) tokenResult.get("accessToken");
         if (accessToken == null || accessToken.isBlank()) {
             throw new ValidationException("No se pudo obtener el token de acceso de GitHub");
@@ -150,33 +163,56 @@ public class AuthController {
             if (user.getAvatarUrl() == null && profile.avatarUrl() != null) {
                 user.setAvatarUrl(profile.avatarUrl());
             }
+            // Si además este usuario existente ha sido autorizado como profesor recientemente, elevar su rol a TEACHER
+            if (authorizedTeacherService.isAuthorized(profile.login()) && user.getRole() != Role.TEACHER && user.getRole() != Role.ADMIN) {
+                user.setRole(Role.TEACHER);
+            }
             user = userRepository.save(user);
         } else {
-            // Usuario NUEVO -> Debe proporcionar una clave de invitación válida
-            if (request.invitationCode() == null || request.invitationCode().trim().isBlank()) {
-                throw new ValidationException("Se requiere una clave de invitación válida para registrarse en la plataforma.");
-            }
+            // Usuario NUEVO
+            // A) ¿Es un profesor autorizado (ej. gerardfp o añadido por un profesor)?
+            if (authorizedTeacherService.isAuthorized(profile.login())) {
+                String username = profile.login();
+                if (userRepository.existsByUsername(username)) {
+                    username = profile.login() + "_" + profile.id().substring(0, Math.min(5, profile.id().length()));
+                }
 
-            ValidateInvitationResponse validation = invitationService.validateInvitation(request.invitationCode());
-            if (!validation.valid()) {
-                throw new ValidationException(validation.message() != null ? validation.message() : "Clave de invitación no válida o inactiva.");
-            }
+                user = new User(
+                    username,
+                    profile.name(),
+                    Role.TEACHER,
+                    profile.id(),
+                    profile.login(),
+                    profile.avatarUrl()
+                );
+                user = userRepository.save(user);
+            } else {
+                // B) Si no es profesor autorizado, DEBE ser un alumno con clave de invitación válida
+                if (request.invitationCode() == null || request.invitationCode().trim().isBlank()) {
+                    throw new ValidationException("Tu cuenta de GitHub (@" + profile.login() + ") no está registrada como profesor. Si eres alumno, por favor introduce tu clave de invitación en la página de registro.");
+                }
 
-            // Generar username único
-            String username = profile.login();
-            if (userRepository.existsByUsername(username)) {
-                username = profile.login() + "_" + profile.id().substring(0, Math.min(5, profile.id().length()));
-            }
+                ValidateInvitationResponse validation = invitationService.validateInvitation(request.invitationCode());
+                if (!validation.valid()) {
+                    throw new ValidationException(validation.message() != null ? validation.message() : "Clave de invitación no válida o inactiva.");
+                }
 
-            user = new User(
-                username,
-                profile.name(),
-                Role.STUDENT,
-                profile.id(),
-                profile.login(),
-                profile.avatarUrl()
-            );
-            user = userRepository.save(user);
+                // Generar username único
+                String username = profile.login();
+                if (userRepository.existsByUsername(username)) {
+                    username = profile.login() + "_" + profile.id().substring(0, Math.min(5, profile.id().length()));
+                }
+
+                user = new User(
+                    username,
+                    profile.name(),
+                    Role.STUDENT,
+                    profile.id(),
+                    profile.login(),
+                    profile.avatarUrl()
+                );
+                user = userRepository.save(user);
+            }
         }
 
         // 4. Crear sesión autenticada en Spring Security

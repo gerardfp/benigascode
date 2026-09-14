@@ -137,7 +137,6 @@ export const CollectionDetailView: React.FC = () => {
             padding: '1.25rem 1.5rem',
             backgroundColor: '#ffffff',
             border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>

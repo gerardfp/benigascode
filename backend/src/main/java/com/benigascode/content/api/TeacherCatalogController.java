@@ -5,9 +5,11 @@ import com.benigascode.content.service.CatalogImportExportService;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/teacher/catalog")
@@ -34,11 +36,33 @@ public class TeacherCatalogController {
     }
 
     /**
+     * Comprueba y simula la importación del catálogo desde un archivo ZIP.
+     */
+    @PostMapping(value = "/import/zip/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CatalogImportPreviewDTO> previewZipImport(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "conflictStrategy", defaultValue = "OVERWRITE") CatalogConflictStrategy conflictStrategy) {
+        CatalogImportPreviewDTO preview = catalogService.previewZipImport(file, conflictStrategy);
+        return ResponseEntity.ok(preview);
+    }
+
+    /**
      * Ejecuta la importación del catálogo con resolución de conflictos (OVERWRITE, SKIP, NEW_SLUG).
      */
     @PostMapping("/import/execute")
     public ResponseEntity<CatalogImportResultDTO> executeImport(@Valid @RequestBody CatalogImportRequest request) {
         CatalogImportResultDTO result = catalogService.executeImport(request);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Ejecuta la importación del catálogo desde un archivo ZIP con resolución de conflictos.
+     */
+    @PostMapping(value = "/import/zip/execute", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CatalogImportResultDTO> executeZipImport(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "conflictStrategy", defaultValue = "OVERWRITE") CatalogConflictStrategy conflictStrategy) {
+        CatalogImportResultDTO result = catalogService.executeZipImport(file, conflictStrategy);
         return ResponseEntity.ok(result);
     }
 

@@ -29,6 +29,8 @@ export interface Exercise {
   versionNumber: number;
   starterCode?: string;
   tags?: string[];
+  collections?: string[];
+  createdAt?: string;
 }
 
 export interface PublicTest {
@@ -137,6 +139,7 @@ export interface StudentProgress {
 export interface TestResult {
   id: string;
   testId: string;
+  testName?: string;
   isPublic: boolean;
   status: 'PASSED' | 'FAILED' | 'TIMEOUT' | 'RUNTIME_ERROR';
   durationMs: number;
@@ -568,3 +571,21 @@ export interface CourseCollectionDTO {
   assignedStudentsCount: number;
   totalCourseStudents: number;
 }
+
+export interface AuthorizedTeacherDTO {
+  id: string | null;
+  githubUsername: string;
+  notes?: string | null;
+  createdAt: string;
+  createdByName?: string | null;
+  registered: boolean;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  isPrimary: boolean;
+}
+
+export interface AddAuthorizedTeacherRequest {
+  githubUsername: string;
+  notes?: string;
+}
+

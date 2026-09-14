@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { Exercise, TestCaseDTO, AssetDTO, TeacherCollectionDetail } from '../types';
-import { Marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from '../utils/markdown';
+import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
@@ -22,7 +22,21 @@ export const TeacherExercisesView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const pageSize = 500;
+
+  // Sorting state
+  type ExerciseSortKey = 'title' | 'slug' | 'collections' | 'createdAt';
+  const [sortKey, setSortKey] = useState<ExerciseSortKey>('title');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: ExerciseSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
 
   // Collection context for navigation
   const [activeCollection, setActiveCollection] = useState<TeacherCollectionDetail | null>(null);
@@ -124,17 +138,38 @@ export const TeacherExercisesView: React.FC = () => {
     }
   }, [exerciseIdParam]);
 
-  // Filtered exercises
+  // Filtered and sorted exercises
   const filteredExercises = useMemo(() => {
-    if (!searchTerm.trim()) return exercises;
-    const term = searchTerm.toLowerCase();
-    return exercises.filter(
-      (ex) =>
-        ex.title.toLowerCase().includes(term) ||
-        ex.slug.toLowerCase().includes(term) ||
-        (ex.tags && ex.tags.some((t) => t.toLowerCase().includes(term)))
-    );
-  }, [exercises, searchTerm]);
+    let result = exercises;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = exercises.filter(
+        (ex) =>
+          ex.title.toLowerCase().includes(term) ||
+          ex.slug.toLowerCase().includes(term) ||
+          (ex.tags && ex.tags.some((t) => t.toLowerCase().includes(term))) ||
+          (ex.collections && ex.collections.some((c) => c.toLowerCase().includes(term)))
+      );
+    }
+
+    return [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'title') {
+        cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'slug') {
+        cmp = a.slug.localeCompare(b.slug, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'collections') {
+        const colA = (a.collections || []).join(', ');
+        const colB = (b.collections || []).join(', ');
+        cmp = colA.localeCompare(colB, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'createdAt') {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        cmp = timeA - timeB;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [exercises, searchTerm, sortKey, sortDir]);
 
   // Exercises sequence for navigation (either collection's exercises or catalog exercises)
   const navigationExercises = useMemo(() => {
@@ -791,36 +826,10 @@ export const TeacherExercisesView: React.FC = () => {
     }
   };
 
-  // Render markdown with images
+  // Render markdown with images and syntax highlighting
   const renderedMarkdown = useMemo(() => {
     if (!statement) return '';
-    const markedInstance = new Marked({ gfm: true, breaks: true });
-    markedInstance.use({
-      walkTokens(token) {
-        if (token.type === 'image' && token.href) {
-          const href = token.href;
-          if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('data:') && !href.startsWith('/api/')) {
-            const clean = href.replace(/^\/+/, '');
-            if (selectedId) {
-              token.href = `/api/v1/exercises/${selectedId}/assets/${clean}`;
-            }
-          }
-        }
-      }
-    });
-
-    let html = markedInstance.parse(statement, { async: false }) as string;
-    if (selectedId) {
-      html = html.replace(/<img\s+([^>]*?)src=["'](?!https?:\/\/|data:|\/api\/)([^"']+)["']([^>]*?)>/gi, (_match, before, src, after) => {
-        const cleanHref = src.replace(/^\/+/, '');
-        return `<img ${before}src="/api/v1/exercises/${selectedId}/assets/${cleanHref}"${after} loading="lazy">`;
-      });
-    }
-
-    return DOMPurify.sanitize(html, {
-      ADD_TAGS: ['img'],
-      ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading']
-    });
+    return renderMarkdown(statement, selectedId);
   }, [statement, selectedId]);
 
   // Save exercise
@@ -944,10 +953,38 @@ export const TeacherExercisesView: React.FC = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
-                    <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Título</th>
-                    <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Slug</th>
-                    <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Runtime</th>
-                    <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>Versión</th>
+                    <SortableHeader
+                      label="Título"
+                      sortKey="title"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
+                    <SortableHeader
+                      label="Slug"
+                      sortKey="slug"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
+                    <SortableHeader
+                      label="Colecciones"
+                      sortKey="collections"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
+                    <SortableHeader
+                      label="Creado"
+                      sortKey="createdAt"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
                     <th style={{ padding: '0.875rem 1.25rem', fontWeight: 600, textAlign: 'right' }}>Acciones</th>
                   </tr>
                 </thead>
@@ -974,10 +1011,24 @@ export const TeacherExercisesView: React.FC = () => {
                         {ex.slug}
                       </td>
                       <td style={{ padding: '0.875rem 1.25rem' }}>
-                        <span className="badge badge-info">{ex.runtimeId || 'java-26'}</span>
+                        {ex.collections && ex.collections.length > 0 ? (
+                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {ex.collections.map((col, idx) => (
+                              <span
+                                key={idx}
+                                className="badge badge-info"
+                                style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem' }}
+                              >
+                                {col}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>Sin colección</span>
+                        )}
                       </td>
-                      <td style={{ padding: '0.875rem 1.25rem' }}>
-                        <span className="badge badge-neutral">v{ex.versionNumber || 1}</span>
+                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
+                        {ex.createdAt ? new Date(ex.createdAt).toLocaleDateString() : '—'}
                       </td>
                       <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
@@ -1533,7 +1584,6 @@ export const TeacherExercisesView: React.FC = () => {
                   borderRadius: '9999px',
                   fontSize: '0.8125rem',
                   fontWeight: 500,
-                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
                 }}
               >
                 <span>#{tag}</span>
@@ -1708,7 +1758,6 @@ export const TeacherExercisesView: React.FC = () => {
                     : (tc.isPublic ? '#f0f9ff' : '#ffffff'),
                   borderRadius: '0.5rem',
                   padding: '1rem',
-                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
                   opacity: draggedTestCaseIndex === index ? 0.4 : 1,
                   transition: 'background-color 0.15s ease, border-color 0.15s ease'
                 }}

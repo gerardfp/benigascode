@@ -41,7 +41,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       style={{
         display: 'flex',
         backgroundColor: '#1e293b',
-        borderRadius: '0.375rem',
+        borderRadius: '0.5rem',
         overflow: 'hidden',
         border: '1px solid #334155',
         fontFamily: 'Consolas, Monaco, "Courier New", monospace',

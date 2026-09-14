@@ -21,6 +21,7 @@ import { TeacherSubmissionsView } from './pages/TeacherSubmissionsView';
 import { RegisterPage } from './pages/RegisterPage';
 import { TeacherInvitationsView } from './pages/TeacherInvitationsView';
 import { TeacherStudentsView } from './pages/TeacherStudentsView';
+import { TeacherManagementView } from './pages/TeacherManagementView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -175,6 +176,16 @@ export const App: React.FC = () => {
             }
           />
           <Route
+            path="/teacher/teachers"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherManagementView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
             path="/teacher/activities"
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
@@ -206,13 +217,7 @@ export const App: React.FC = () => {
           />
           <Route
             path="/teacher/sync/github/callback"
-            element={
-              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
-                <GitHubCallbackView />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
+            element={<GitHubCallbackView onAuthSuccess={setUser} />}
           />
           <Route
             path="/teacher/insights"

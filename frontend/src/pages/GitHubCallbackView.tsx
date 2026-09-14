@@ -14,8 +14,12 @@ export const GitHubCallbackView: React.FC<GitHubCallbackViewProps> = ({ onAuthSu
     label: 'Volver a Iniciar Sesión',
     to: '/login'
   });
+  const processedRef = React.useRef(false);
 
   useEffect(() => {
+    if (processedRef.current) return;
+    processedRef.current = true;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const state = params.get('state') || '';
@@ -31,8 +35,8 @@ export const GitHubCallbackView: React.FC<GitHubCallbackViewProps> = ({ onAuthSu
       return;
     }
 
-    // Caso 1: Sincronización docente de repositorios
-    if (state === 'sync' || window.location.pathname.includes('/teacher/sync')) {
+    // Caso 1: Sincronización docente de repositorios Git (solo cuando state === 'sync')
+    if (state === 'sync') {
       api.exchangeGitHubCode(code)
         .then((res) => {
           if (res.accessToken) {
@@ -62,11 +66,13 @@ export const GitHubCallbackView: React.FC<GitHubCallbackViewProps> = ({ onAuthSu
       }
     }
 
-    const redirectUri = `${window.location.origin}/auth/github/callback`;
+    const storedRedirect = sessionStorage.getItem('github_oauth_redirect_uri');
+    const redirectUri = storedRedirect || `${window.location.origin}${window.location.pathname}`;
 
     api.authenticateWithGitHub(code, invitationCode, redirectUri)
       .then((user) => {
         sessionStorage.removeItem('pending_invitation_code');
+        sessionStorage.removeItem('github_oauth_redirect_uri');
         if (onAuthSuccess) {
           onAuthSuccess(user);
         }

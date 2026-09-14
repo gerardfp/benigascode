@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
@@ -29,6 +28,90 @@ export const ExerciseView: React.FC = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Responsive layout & resizable splitter state
+  const [leftPanelRatio, setLeftPanelRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('benigascode_exercise_split_ratio');
+    if (saved) {
+      const val = parseFloat(saved);
+      if (!isNaN(val) && val >= 25 && val <= 75) return val;
+    }
+    return 44; // Default 44% left, 56% right
+  });
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  // Detectar cambios en tamaño de ventana para modo responsive
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setIsSmallScreen(window.innerWidth < 992);
+    };
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, []);
+
+  // Control del arrastre horizontal de la línea divisoria (Splitter)
+  useEffect(() => {
+    if (!isDraggingSplitter) return;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.clientX - rect.left) / rect.width) * 100;
+      const clampedRatio = Math.min(75, Math.max(25, rawRatio));
+      setLeftPanelRatio(clampedRatio);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false);
+      setLeftPanelRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_exercise_split_ratio', currentRatio.toFixed(1));
+        } catch {
+          // Ignore localStorage errors
+        }
+        return currentRatio;
+      });
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!splitContainerRef.current || e.touches.length === 0) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
+      const clampedRatio = Math.min(75, Math.max(25, rawRatio));
+      setLeftPanelRatio(clampedRatio);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingSplitter(false);
+      setLeftPanelRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_exercise_split_ratio', currentRatio.toFixed(1));
+        } catch {
+          // Ignore localStorage errors
+        }
+        return currentRatio;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingSplitter]);
 
   // Cargar ejercicio, workspace del alumno e historial previo
   useEffect(() => {
@@ -120,58 +203,42 @@ export const ExerciseView: React.FC = () => {
       }
     }
 
-    const markedInstance = new Marked({ gfm: true, breaks: true });
-    markedInstance.use({
-      walkTokens(token) {
-        if (token.type === 'image' && token.href) {
-          const href = token.href;
-          if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('data:') && !href.startsWith('/api/')) {
-            token.href = `/api/v1/exercises/${exercise.id}/assets/${href.replace(/^\/+/, '')}`;
-          }
-        }
-      }
-    });
-
-    let html = markedInstance.parse(statementText, { async: false }) as string;
-
-    html = html.replace(/<img\s+([^>]*?)src=["'](?!https?:\/\/|data:|\/api\/)([^"']+)["']([^>]*?)>/gi, (_match, before, src, after) => {
-      const cleanHref = src.replace(/^\/+/, '');
-      return `<img ${before}src="/api/v1/exercises/${exercise.id}/assets/${cleanHref}"${after} loading="lazy">`;
-    });
-
-    return DOMPurify.sanitize(html, {
-      ADD_TAGS: ['img'],
-      ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading']
-    });
+    return renderMarkdown(statementText, exercise.id);
   }, [exercise?.statement, exercise?.id, exercise?.title]);
 
   const renderExplanationHtml = useCallback((explanationText: string) => {
-    if (!exercise?.id) return DOMPurify.sanitize(explanationText);
-    try {
-      const markedInstance = new Marked({ gfm: true, breaks: true });
-      markedInstance.use({
-        walkTokens(token) {
-          if (token.type === 'image' && token.href) {
-            const href = token.href;
-            if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('data:') && !href.startsWith('/api/')) {
-              token.href = `/api/v1/exercises/${exercise.id}/assets/${href.replace(/^\/+/, '')}`;
-            }
-          }
-        }
-      });
-      let html = markedInstance.parse(explanationText, { async: false }) as string;
-      html = html.replace(/<img\s+([^>]*?)src=["'](?!https?:\/\/|data:|\/api\/)([^"']+)["']([^>]*?)>/gi, (_match, before, src, after) => {
-        const cleanHref = src.replace(/^\/+/, '');
-        return `<img ${before}src="/api/v1/exercises/${exercise.id}/assets/${cleanHref}"${after} style="max-width: 100%; border-radius: 4px; margin-top: 0.25rem;" loading="lazy">`;
-      });
-      return DOMPurify.sanitize(html, {
-        ADD_TAGS: ['img'],
-        ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading', 'style']
-      });
-    } catch {
-      return DOMPurify.sanitize(explanationText);
-    }
+    return renderMarkdown(explanationText, exercise?.id);
   }, [exercise?.id]);
+
+  const getTestDisplayName = useCallback((testId: string, testName?: string, index?: number): string => {
+    // 1. Si viene un nombre legible explícito que no sea un ID técnico
+    if (testName && !testName.startsWith('pub-') && !testName.startsWith('priv-')) {
+      return testName;
+    }
+    // 2. Buscar en los tests públicos cargados por ID exacto
+    const matchById = publicTests.find(p => p.id === testId);
+    if (matchById && matchById.name && !matchById.name.startsWith('pub-')) {
+      return matchById.name;
+    }
+    // 3. Si tiene formato "pub-XX", extraer el número (0-indexado) y formatear a "Test Público #N"
+    if (testId && testId.startsWith('pub-')) {
+      const parsedNum = parseInt(testId.replace('pub-', ''), 10);
+      if (!isNaN(parsedNum)) {
+        if (publicTests[parsedNum] && publicTests[parsedNum].name && !publicTests[parsedNum].name.startsWith('pub-')) {
+          return publicTests[parsedNum].name;
+        }
+        return `Test Público #${parsedNum + 1}`;
+      }
+    }
+    // 4. Si se conoce el índice en la lista
+    if (index !== undefined) {
+      if (publicTests[index] && publicTests[index].name && !publicTests[index].name.startsWith('pub-')) {
+        return publicTests[index].name;
+      }
+      return `Test Público #${index + 1}`;
+    }
+    return testName || testId;
+  }, [publicTests]);
 
   // Ejecución real de pruebas preliminares públicas (Java 26 sandbox)
   const handlePreviewRun = async () => {
@@ -269,9 +336,20 @@ export const ExerciseView: React.FC = () => {
   }
 
   return (
-    <div className="app-container" style={{ maxWidth: 1400 }}>
+    <div
+      className="app-container"
+      style={{
+        maxWidth: 1400,
+        height: isSmallScreen ? 'auto' : 'calc(100vh - 65px)',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        paddingTop: '0.75rem',
+        paddingBottom: isSmallScreen ? '2rem' : '0.5rem',
+      }}
+    >
       {/* Barra superior de navegación */}
-      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         {collectionId ? (
           <Link to={`/collections/${collectionId}`} style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
             &larr; Volver a la Colección
@@ -295,7 +373,7 @@ export const ExerciseView: React.FC = () => {
 
       {/* Historial desplegable de entregas */}
       {showHistory && submissionsHistory.length > 0 && (
-        <div className="card" style={{ marginBottom: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1' }}>
+        <div className="card" style={{ marginBottom: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', flexShrink: 0 }}>
           <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9375rem', fontWeight: 600 }}>Tus entregas anteriores en este ejercicio</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 200, overflowY: 'auto' }}>
             {submissionsHistory.map((s) => (
@@ -328,9 +406,36 @@ export const ExerciseView: React.FC = () => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div
+        ref={splitContainerRef}
+        style={{
+          display: 'flex',
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          gap: isSmallScreen ? '1.5rem' : 0,
+          alignItems: 'stretch',
+          userSelect: isDraggingSplitter ? 'none' : 'auto',
+          flex: isSmallScreen ? 'none' : 1,
+          minHeight: 0,
+          height: isSmallScreen ? 'auto' : '100%',
+          overflow: isSmallScreen ? 'visible' : 'hidden',
+        }}
+      >
         {/* Panel Izquierdo: Enunciado y Casos Públicos */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div
+          style={{
+            width: isSmallScreen ? '100%' : `calc(${leftPanelRatio}% - 6px)`,
+            minWidth: isSmallScreen ? undefined : '260px',
+            maxWidth: isSmallScreen ? undefined : '75%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxSizing: 'border-box',
+            height: isSmallScreen ? 'auto' : '100%',
+            overflowY: isSmallScreen ? 'visible' : 'auto',
+            paddingRight: isSmallScreen ? 0 : '6px',
+            scrollbarWidth: 'thin',
+          }}
+        >
           <div className="card">
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.5rem' }}>{exercise.title}</h1>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -352,48 +457,92 @@ export const ExerciseView: React.FC = () => {
             />
           </div>
 
-          {/* Tests públicos informativos */}
-          <div className="card">
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 0.75rem' }}>Casos de Prueba Públicos</h3>
-            <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: '0 0 1rem' }}>
-              Usa estos casos para verificar tu solución antes de realizar una entrega oficial.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {publicTests.map((t) => (
-                <div key={t.id} style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem' }}>
-                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{t.name}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <div>
-                      <span style={{ color: '#64748b' }}>Entrada (stdin):</span>
-                      <pre style={{ margin: '0.25rem 0 0', padding: '0.375rem', background: '#e2e8f0', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{t.input}</pre>
+          {/* Tests públicos informativos simplificados sin marcos individuales */}
+          {publicTests.length > 0 && (
+            <div className="card">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {publicTests.map((t, idx) => (
+                  <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
+                      {getTestDisplayName(t.id, t.name, idx)}
                     </div>
-                    <div>
-                      <span style={{ color: '#64748b' }}>Salida Esperada (stdout):</span>
-                      <pre style={{ margin: '0.25rem 0 0', padding: '0.375rem', background: '#e2e8f0', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput}</pre>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
+                        <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
+                        <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                      </div>
                     </div>
+                    {t.explanation && (
+                      <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
+                        <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                        <div
+                          className="markdown-statement"
+                          style={{ marginTop: '0.25rem' }}
+                          dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {t.explanation && (
-                    <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.375rem' }}>
-                      <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                      <div
-                        style={{ marginTop: '0.25rem', color: '#334155' }}
-                        dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
+        {/* Espacio entre bloques que actúa como manejador de redimensionado (estilo VS Code, sin línea extra) */}
+        {!isSmallScreen && (
+          <div
+            onMouseDown={() => setIsDraggingSplitter(true)}
+            onTouchStart={() => setIsDraggingSplitter(true)}
+            style={{
+              width: '12px',
+              cursor: 'col-resize',
+              flexShrink: 0,
+              userSelect: 'none',
+              background: 'transparent',
+              zIndex: 10,
+            }}
+            title="Arrastra para redimensionar paneles"
+          />
+        )}
+
         {/* Panel Derecho: Editor y Resultados */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div
+          style={{
+            width: isSmallScreen ? '100%' : `calc(${100 - leftPanelRatio}% - 6px)`,
+            flex: isSmallScreen ? undefined : 1,
+            minWidth: isSmallScreen ? undefined : '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxSizing: 'border-box',
+            height: isSmallScreen ? 'auto' : '100%',
+            overflowY: isSmallScreen ? 'visible' : 'auto',
+            paddingRight: isSmallScreen ? 0 : '6px',
+            scrollbarWidth: 'thin',
+          }}
+        >
           <div className="card" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Solución Java (Main.java)</span>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  backgroundColor: '#f1f5f9',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '0.375rem',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  color: '#1e293b',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  ☕ Main.java
+                </span>
                 {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando borrador...</span>}
                 {saveStatus === 'saved' && <span style={{ fontSize: '0.75rem', color: '#15803d' }}>✓ Guardado</span>}
                 {lastSaved && saveStatus === 'idle' && (
@@ -471,33 +620,32 @@ export const ExerciseView: React.FC = () => {
 
               {previewResult.compileSuccess ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {previewResult.testResults.map((tr) => (
+                  {previewResult.testResults.map((tr, idx) => (
                     <div
-                      key={tr.testId}
+                      key={tr.testId || idx}
                       style={{
-                        padding: '0.5rem 0.75rem',
+                        padding: '0.625rem 0.875rem',
                         background: tr.passed ? '#f0fdf4' : '#fef2f2',
                         border: `1px solid ${tr.passed ? '#bbf7d0' : '#fecaca'}`,
-                        borderRadius: '0.375rem',
+                        borderRadius: '0.5rem',
                         fontSize: '0.8125rem'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                        <span>{tr.testId} — {tr.status} ({tr.durationMs}ms)</span>
-                        <span>{(tr.testName || publicTests.find(p => p.id === tr.testId)?.name || tr.testId)} — {tr.status} ({tr.durationMs}ms)</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
+                        <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
                         <span style={{ color: tr.passed ? '#15803d' : '#b91c1c' }}>
                           {tr.passed ? '✓ Superado' : '✗ Fallido'}
                         </span>
                       </div>
                       {!tr.passed && (
-                        <div style={{ marginTop: '0.35rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                           <div>
-                            <span style={{ color: '#64748b' }}>Esperado:</span>
-                            <pre style={{ margin: '0.15rem 0 0', padding: '0.25rem', background: '#f1f5f9', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput}</pre>
+                            <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
+                            <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
                           </div>
                           <div>
-                            <span style={{ color: '#64748b' }}>Tu salida:</span>
-                            <pre style={{ margin: '0.15rem 0 0', padding: '0.25rem', background: '#fee2e2', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{tr.stdout}</pre>
+                            <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
+                            <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.stdout || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
                           </div>
                         </div>
                       )}
@@ -591,32 +739,32 @@ export const ExerciseView: React.FC = () => {
                     {/* Tests públicos */}
                     {evaluation.testResults
                       .filter((tr) => tr.isPublic)
-                      .map((tr) => (
+                      .map((tr, idx) => (
                         <div
-                          key={tr.id}
+                          key={tr.id || idx}
                           style={{
-                            padding: '0.5rem 0.75rem',
+                            padding: '0.625rem 0.875rem',
                             background: tr.status === 'PASSED' ? '#f0fdf4' : '#fef2f2',
                             border: `1px solid ${tr.status === 'PASSED' ? '#bbf7d0' : '#fecaca'}`,
-                            borderRadius: '0.375rem',
+                            borderRadius: '0.5rem',
                             fontSize: '0.8125rem'
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                            <span>{(publicTests.find(p => p.id === tr.testId)?.name || tr.testId)} — {tr.status} ({tr.durationMs}ms)</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
+                            <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
                             <span style={{ color: tr.status === 'PASSED' ? '#15803d' : '#b91c1c' }}>
                               {tr.score} pts {tr.status === 'PASSED' ? '✓' : '✗'}
                             </span>
                           </div>
                           {tr.status !== 'PASSED' && (
-                            <div style={{ marginTop: '0.35rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                               <div>
-                                <span style={{ color: '#64748b' }}>Esperado:</span>
-                                <pre style={{ margin: '0.15rem 0 0', padding: '0.25rem', background: '#f1f5f9', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput}</pre>
+                                <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
+                                <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
                               </div>
                               <div>
-                                <span style={{ color: '#64748b' }}>Tu salida:</span>
-                                <pre style={{ margin: '0.15rem 0 0', padding: '0.25rem', background: '#fee2e2', borderRadius: '0.25rem', whiteSpace: 'pre-wrap' }}>{tr.actualOutput || tr.stdout}</pre>
+                                <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
+                                <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{(tr.actualOutput || tr.stdout) || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
                               </div>
                             </div>
                           )}

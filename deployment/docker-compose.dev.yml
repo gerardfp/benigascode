@@ -36,6 +36,7 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:3000/teacher/sync/github/callback}
+      INITIAL_TEACHER_GITHUB_USERNAMES: ${INITIAL_TEACHER_GITHUB_USERNAMES:-gerardfp}
     volumes:
       - ../content-example:/var/lib/benigascode/content
       - ../catalog:/var/lib/benigascode/catalog

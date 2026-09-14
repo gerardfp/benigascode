@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { InvitationCode } from '../types';
+import { SortableHeader } from '../components/SortableHeader';
 
 export const TeacherInvitationsView: React.FC = () => {
   const [invitations, setInvitations] = useState<InvitationCode[]>([]);
@@ -12,6 +13,42 @@ export const TeacherInvitationsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Sorting
+  type InvitationSortKey = 'code' | 'description' | 'active' | 'createdBy' | 'createdAt';
+  const [sortKey, setSortKey] = useState<InvitationSortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (key: InvitationSortKey) => {
+    if (sortKey === key) {
+      setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'createdAt' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedInvitations = useMemo(() => {
+    return [...invitations].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'code') {
+        cmp = a.code.localeCompare(b.code);
+      } else if (sortKey === 'description') {
+        cmp = (a.description || '').localeCompare(b.description || '', undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'active') {
+        cmp = (a.active === b.active) ? 0 : a.active ? -1 : 1;
+      } else if (sortKey === 'createdBy') {
+        const nameA = a.createdByFullName || a.createdByUsername || '';
+        const nameB = b.createdByFullName || b.createdByUsername || '';
+        cmp = nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'createdAt') {
+        const tA = new Date(a.createdAt).getTime();
+        const tB = new Date(b.createdAt).getTime();
+        cmp = tA - tB;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [invitations, sortKey, sortDir]);
 
   const loadInvitations = async () => {
     try {
@@ -244,16 +281,51 @@ export const TeacherInvitationsView: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '0.875rem 1rem' }}>Código</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Descripción</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Estado</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Creado por</th>
-                  <th style={{ padding: '0.875rem 1rem' }}>Fecha</th>
+                  <SortableHeader
+                    label="Código"
+                    sortKey="code"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Descripción"
+                    sortKey="description"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Estado"
+                    sortKey="active"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Creado por"
+                    sortKey="createdBy"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
+                  <SortableHeader
+                    label="Fecha"
+                    sortKey="createdAt"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1rem' }}
+                  />
                   <th style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {invitations.map((inv) => (
+                {sortedInvitations.map((inv) => (
                   <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
