@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import { api } from '../services/api';
 
@@ -10,6 +10,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     try {
@@ -68,11 +69,11 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               Cerrar sesión
             </button>
           </div>
-        ) : (
+        ) : location.pathname !== '/login' ? (
           <Link to="/login" className="btn-primary" style={{ textDecoration: 'none' }}>
             Iniciar sesión
           </Link>
-        )}
+        ) : null}
       </div>
     </header>
   );

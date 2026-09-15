@@ -38,11 +38,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+  const doLogin = async (userLogin: string, passLogin: string) => {
     setLoading(true);
     setError(null);
 
     try {
       const user = await api.login(username, password);
+      const user = await api.login(userLogin, passLogin);
       onLoginSuccess(user);
       if (user.role === 'TEACHER' || user.role === 'ADMIN') {
         navigate('/teacher');
@@ -57,8 +59,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   const setDemoCredentials = (u: string, p: string) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doLogin(username, password);
+  };
+
+  const handleDemoLogin = async (u: string, p: string) => {
     setUsername(u);
     setPassword(p);
+    await doLogin(u, p);
   };
 
   return (
@@ -179,23 +188,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
           <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Usuarios de prueba disponibles:</div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => setDemoCredentials('student@benigascode.local', 'StudentPass123!')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-            >
-              Alumno Demo
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoCredentials('teacher@benigascode.local', 'TeacherPass123!')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-            >
-              Profesor García
-            </button>
+          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+            {[1, 2, 3, 4, 5].map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => setDemoCredentials(`alumno${num}@benigascode.local`, 'StudentPass123!')}
+                disabled={loading}
+                onClick={() => handleDemoLogin(`alumno${num}@benigascode.local`, 'StudentPass123!')}
+                className="btn-secondary"
+                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', opacity: loading ? 0.7 : 1 }}
+              >
+                Alumno {num}
+              </button>
+            ))}
           </div>
         </div>
       </div>
