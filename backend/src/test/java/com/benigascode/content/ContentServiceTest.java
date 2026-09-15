@@ -11,7 +11,8 @@ import com.benigascode.content.repository.*;
 import com.benigascode.content.service.ContentService;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.repository.CourseCollectionRepository;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,7 +48,7 @@ class ContentServiceTest {
     @Mock
     private AccessGrantRepository accessGrantRepository;
     @Mock
-    private CourseCollectionRepository courseCollectionRepository;
+    private ContextService contextService;
     @Mock
     private StudentProgressRepository studentProgressRepository;
     @Mock
@@ -112,7 +114,7 @@ class ContentServiceTest {
 
     @Test
     void assertCanAccessCollection_PrivateWithoutGrant_ThrowsAccessDenied() {
-        when(courseCollectionRepository.isCollectionAssignedToStudent(student.getId(), collection.getId())).thenReturn(false);
+        when(contextService.findSpacesForStudent(student)).thenReturn(List.of());
         when(accessGrantRepository.existsByUserIdAndCollectionId(student.getId(), collection.getId())).thenReturn(false);
 
         assertThrows(AccessDeniedException.class, () ->

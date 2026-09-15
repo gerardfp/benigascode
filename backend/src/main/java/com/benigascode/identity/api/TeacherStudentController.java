@@ -29,9 +29,13 @@ public class TeacherStudentController {
     @GetMapping
     public ResponseEntity<List<TeacherStudentDTO>> listStudents(
             @RequestParam(required = false) UUID courseId,
+            @RequestParam(required = false) UUID spaceId,
             @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String value,
             @RequestParam(required = false) String search) {
-        return ResponseEntity.ok(studentService.listStudents(courseId, tag, search));
+        UUID effectiveSpaceId = spaceId != null ? spaceId : courseId;
+        return ResponseEntity.ok(studentService.listStudents(effectiveSpaceId, tag, category, value, search));
     }
 
     @PostMapping("/{studentId}/courses/{courseId}")

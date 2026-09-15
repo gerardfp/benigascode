@@ -22,8 +22,12 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT s FROM Submission s WHERE s.student.id = :studentId AND s.exerciseVersion.exercise.id = :exerciseId AND (:activityId IS NULL OR (s.activityVersion IS NOT NULL AND s.activityVersion.activity.id = :activityId)) ORDER BY s.createdAt DESC")
     List<Submission> findByStudentAndExerciseAndOptionalActivity(UUID studentId, UUID exerciseId, UUID activityId);
 
-    @Query("SELECT s FROM Submission s WHERE s.activityVersion IS NOT NULL AND s.activityVersion.activity.course.id = :courseId ORDER BY s.createdAt DESC")
-    List<Submission> findByCourseId(UUID courseId);
+    @Query("SELECT s FROM Submission s WHERE s.teachingSpaceId = :teachingSpaceId OR (s.activityVersion IS NOT NULL AND s.activityVersion.activity.teachingSpace.id = :teachingSpaceId) ORDER BY s.createdAt DESC")
+    List<Submission> findByTeachingSpaceId(UUID teachingSpaceId);
+
+    default List<Submission> findByCourseId(UUID courseId) {
+        return findByTeachingSpaceId(courseId);
+    }
 
     List<Submission> findAllByOrderByCreatedAtDesc();
 }

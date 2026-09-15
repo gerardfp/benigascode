@@ -8,7 +8,7 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { ExerciseView } from './pages/ExerciseView';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherActivityView } from './pages/TeacherActivityView';
-import { TeacherCoursesView } from './pages/TeacherCoursesView';
+import { TeacherSpacesView } from './pages/TeacherSpacesView';
 import { TeacherActivitiesView } from './pages/TeacherActivitiesView';
 import { CollectionDetailView } from './pages/CollectionDetailView';
 import { GitSyncView } from './pages/GitSyncView';
@@ -146,10 +146,20 @@ export const App: React.FC = () => {
             }
           />
           <Route
+            path="/teacher/spaces"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <TeacherSpacesView />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
             path="/teacher/courses"
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
-                <TeacherCoursesView />
+                <Navigate to="/teacher/spaces" replace />
               ) : (
                 <Navigate to="/" replace />
               )

@@ -1,6 +1,6 @@
 package com.benigascode.activities.domain;
 
-import com.benigascode.learning.domain.Course;
+import com.benigascode.learning.domain.TeachingSpace;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -14,8 +14,8 @@ public class Activity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "course_id", nullable = false)
-    private Course course;
+    @JoinColumn(name = "teaching_space_id", nullable = false)
+    private TeachingSpace teachingSpace;
 
     @Column(nullable = false, length = 200)
     private String name;
@@ -29,8 +29,8 @@ public class Activity {
     public Activity() {
     }
 
-    public Activity(Course course, String name, String type) {
-        this.course = course;
+    public Activity(TeachingSpace teachingSpace, String name, String type) {
+        this.teachingSpace = teachingSpace;
         this.name = name;
         this.type = type;
         this.createdAt = Instant.now();
@@ -44,8 +44,12 @@ public class Activity {
         this.id = id;
     }
 
-    public Course getCourse() {
-        return course;
+    public TeachingSpace getTeachingSpace() {
+        return teachingSpace;
+    }
+
+    public void setTeachingSpace(TeachingSpace teachingSpace) {
+        this.teachingSpace = teachingSpace;
     }
 
     public String getName() {
@@ -68,4 +72,3 @@ public class Activity {
         return createdAt;
     }
 }
-

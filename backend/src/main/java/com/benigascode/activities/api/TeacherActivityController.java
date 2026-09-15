@@ -28,8 +28,11 @@ public class TeacherActivityController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ActivityDTO>> listActivities() {
+    public ResponseEntity<List<ActivityDTO>> listActivities(@RequestParam(required = false) UUID teachingSpaceId) {
         User user = userService.getCurrentUser();
+        if (teachingSpaceId != null) {
+            return ResponseEntity.ok(activityService.getActivitiesForSpace(teachingSpaceId, user));
+        }
         return ResponseEntity.ok(activityService.getActivitiesForUser(user));
     }
 
@@ -47,4 +50,3 @@ public class TeacherActivityController {
         return ResponseEntity.ok(activity);
     }
 }
-

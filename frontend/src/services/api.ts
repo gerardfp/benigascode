@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO } from '../types';
 
 
 
@@ -84,6 +84,9 @@ export const api = {
   getMyCollections: (): Promise<Collection[]> =>
     request<Collection[]>('/me/collections'),
 
+  getMySpaces: (): Promise<TeachingSpace[]> =>
+    request<TeachingSpace[]>('/student/spaces'),
+
   claimCollectionAccess: (accessKey: string): Promise<Collection> =>
     request<Collection>('/collections/access', {
       method: 'POST',
@@ -159,7 +162,84 @@ export const api = {
   getEvaluations: (submissionId: string): Promise<Evaluation[]> =>
     request<Evaluation[]>(`/submissions/${submissionId}/evaluations`),
 
-  // Profesor
+  // Profesor - Espacios Docentes
+  listSpaces: (): Promise<TeachingSpace[]> =>
+    request<TeachingSpace[]>('/teacher/spaces'),
+
+  getSpace: (id: string): Promise<TeachingSpace> =>
+    request<TeachingSpace>(`/teacher/spaces/${id}`),
+
+  createSpace: (space: { name: string; description?: string; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
+    request<TeachingSpace>('/teacher/spaces', {
+      method: 'POST',
+      body: JSON.stringify(space),
+    }),
+
+  updateSpace: (id: string, space: { name: string; description?: string; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
+    request<TeachingSpace>(`/teacher/spaces/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(space),
+    }),
+
+  deleteSpace: (id: string): Promise<void> =>
+    request<void>(`/teacher/spaces/${id}`, { method: 'DELETE' }),
+
+  getSpaceTeachers: (id: string): Promise<User[]> =>
+    request<User[]>(`/teacher/spaces/${id}/teachers`),
+
+  addSpaceTeacher: (id: string, teacherId: string): Promise<void> =>
+    request<void>(`/teacher/spaces/${id}/teachers/${teacherId}`, { method: 'POST' }),
+
+  removeSpaceTeacher: (id: string, teacherId: string): Promise<void> =>
+    request<void>(`/teacher/spaces/${id}/teachers/${teacherId}`, { method: 'DELETE' }),
+
+  getSpaceCollections: (id: string): Promise<Collection[]> =>
+    request<Collection[]>(`/teacher/spaces/${id}/collections`),
+
+  addSpaceCollection: (id: string, collectionId: string): Promise<void> =>
+    request<void>(`/teacher/spaces/${id}/collections/${collectionId}`, { method: 'POST' }),
+
+  removeSpaceCollection: (id: string, collectionId: string): Promise<void> =>
+    request<void>(`/teacher/spaces/${id}/collections/${collectionId}`, { method: 'DELETE' }),
+
+  getSpaceStudents: (id: string): Promise<TeacherStudent[]> =>
+    request<TeacherStudent[]>(`/teacher/spaces/${id}/students`),
+
+  getSubmissionsForSpace: (spaceId: string): Promise<Submission[]> =>
+    request<Submission[]>(`/teacher/spaces/${spaceId}/submissions`),
+
+  // Profesor - Etiquetas y Contextos
+  listTags: (category?: string): Promise<Tag[]> =>
+    request<Tag[]>(`/teacher/tags${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+
+  createTag: (tag: { category: string; value: string; description?: string }): Promise<Tag> =>
+    request<Tag>('/teacher/tags', {
+      method: 'POST',
+      body: JSON.stringify(tag),
+    }),
+
+  deleteTag: (id: string): Promise<void> =>
+    request<void>(`/teacher/tags/${id}`, { method: 'DELETE' }),
+
+  getStudentTags: (studentId: string, activeOnly = true): Promise<StudentTag[]> =>
+    request<StudentTag[]>(`/teacher/tags/students/${studentId}?activeOnly=${activeOnly}`),
+
+  assignStudentTag: (studentId: string, tagId: string, validUntil?: string): Promise<StudentTag> =>
+    request<StudentTag>(`/teacher/tags/students/${studentId}`, {
+      method: 'POST',
+      body: JSON.stringify({ tagId, validUntil }),
+    }),
+
+  revokeStudentTag: (assignmentId: string): Promise<void> =>
+    request<void>(`/teacher/tags/assignments/${assignmentId}`, { method: 'DELETE' }),
+
+  previewContext: (tagIds: string[]): Promise<ContextPreviewDTO> =>
+    request<ContextPreviewDTO>('/teacher/tags/context/preview', {
+      method: 'POST',
+      body: JSON.stringify({ tagIds }),
+    }),
+
+  // Compatibilidad con Cursos
   listCourses: (): Promise<Course[]> =>
     request<Course[]>('/teacher/courses'),
 
@@ -313,30 +393,44 @@ export const api = {
     request<StudentInsightsDTO>('/me/insights'),
 
   // Insights y Envíos (Profesor)
-  getTeacherInsights: (params?: { courseId?: string; groupId?: string; studentId?: string }): Promise<TeacherInsightsDTO> => {
+  getTeacherInsights: (params?: {
+    spaceId?: string;
+    teachingSpaceId?: string;
+    courseId?: string;
+    groupId?: string;
+    studentId?: string;
+    tagId?: string;
+  }): Promise<TeacherInsightsDTO> => {
     const sp = new URLSearchParams();
-    if (params?.courseId) sp.set('courseId', params.courseId);
+    const sId = params?.spaceId || params?.teachingSpaceId || params?.courseId;
+    if (sId) sp.set('spaceId', sId);
     if (params?.groupId) sp.set('groupId', params.groupId);
     if (params?.studentId) sp.set('studentId', params.studentId);
+    if (params?.tagId) sp.set('tagId', params.tagId);
     const qs = sp.toString();
     return request<TeacherInsightsDTO>(`/teacher/insights${qs ? `?${qs}` : ''}`);
   },
 
   getTeacherSubmissions: (params?: {
+    spaceId?: string;
+    teachingSpaceId?: string;
     courseId?: string;
     groupId?: string;
     studentId?: string;
     exerciseId?: string;
     status?: string;
     search?: string;
+    tag?: string;
   }): Promise<TeacherSubmissionItem[]> => {
     const sp = new URLSearchParams();
-    if (params?.courseId) sp.set('courseId', params.courseId);
+    const sId = params?.spaceId || params?.teachingSpaceId || params?.courseId;
+    if (sId) sp.set('spaceId', sId);
     if (params?.groupId) sp.set('groupId', params.groupId);
     if (params?.studentId) sp.set('studentId', params.studentId);
     if (params?.exerciseId) sp.set('exerciseId', params.exerciseId);
     if (params?.status) sp.set('status', params.status);
     if (params?.search) sp.set('search', params.search);
+    if (params?.tag) sp.set('tag', params.tag);
     const qs = sp.toString();
     return request<TeacherSubmissionItem[]>(`/teacher/submissions${qs ? `?${qs}` : ''}`);
   },
@@ -401,11 +495,24 @@ export const api = {
     }),
 
   // Gestión de Alumnos y Etiquetas (Profesor)
-  listTeacherStudents: (courseId?: string, tag?: string, search?: string): Promise<TeacherStudent[]> => {
+  listTeacherStudents: (
+    paramsOrCourseId?: { spaceId?: string; courseId?: string; tag?: string; search?: string; category?: string; value?: string } | string,
+    tag?: string,
+    search?: string
+  ): Promise<TeacherStudent[]> => {
     const sp = new URLSearchParams();
-    if (courseId) sp.set('courseId', courseId);
-    if (tag) sp.set('tag', tag);
-    if (search) sp.set('search', search);
+    if (typeof paramsOrCourseId === 'object' && paramsOrCourseId !== null) {
+      if (paramsOrCourseId.spaceId) sp.set('spaceId', paramsOrCourseId.spaceId);
+      if (paramsOrCourseId.courseId) sp.set('courseId', paramsOrCourseId.courseId);
+      if (paramsOrCourseId.tag) sp.set('tag', paramsOrCourseId.tag);
+      if (paramsOrCourseId.search) sp.set('search', paramsOrCourseId.search);
+      if (paramsOrCourseId.category) sp.set('category', paramsOrCourseId.category);
+      if (paramsOrCourseId.value) sp.set('value', paramsOrCourseId.value);
+    } else {
+      if (paramsOrCourseId) sp.set('courseId', paramsOrCourseId);
+      if (tag) sp.set('tag', tag);
+      if (search) sp.set('search', search);
+    }
     const qs = sp.toString();
     return request<TeacherStudent[]>(`/teacher/students${qs ? `?${qs}` : ''}`);
   },

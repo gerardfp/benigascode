@@ -1376,8 +1376,131 @@ Tabla resumen de los **20 servicios de lógica de negocio** del backend:
 | 14| `TeacherInvitationService` | `com.benigascode.identity.service` | Gestión y validación de códigos de invitación para estudiantes. |
 | 15| `TeacherStudentService` | `com.benigascode.identity.service` | Asignación de alumnos a cursos y gestión de etiquetas (`StudentTag`). |
 | 16| `UserService` | `com.benigascode.identity.service` | Registro de usuarios y recuperación del contexto del usuario autenticado. |
-| 17| `LearningService` | `com.benigascode.learning.service` | Gestión de cursos, grupos, matriculaciones y colecciones asignadas. |
-| 18| `StudentProgressService` | `com.benigascode.submissions.service`| Cálculo analítico de progreso y métricas para paneles de Insights. |
-| 19| `StudentWorkspaceService` | `com.benigascode.submissions.service`| Persistencia continua de borradores de código en los workspaces. |
-| 20| `SubmissionService` | `com.benigascode.submissions.service`| Validación, deduplicación y registro de entregas oficiales de alumnos. |
+| 17| `TeachingSpaceService` | `com.benigascode.learning.service` | Administración de espacios docentes, configuración de contextos y membresías. |
+| 18| `TagService` | `com.benigascode.learning.service` | Gestión CRUD de etiquetas estructuradas y asignaciones temporales a alumnos. |
+| 19| `ContextService` | `com.benigascode.learning.service` | Resolución dinámica de contextos (conjunción AND de etiquetas) e histórico temporal. |
+| 20| `StudentProgressService` | `com.benigascode.submissions.service`| Cálculo analítico de progreso, métricas contextuales (mediana, percentiles). |
+| 21| `StudentWorkspaceService` | `com.benigascode.submissions.service`| Persistencia continua de borradores de código en los workspaces. |
+| 22| `SubmissionService` | `com.benigascode.submissions.service`| Validación, deduplicación y registro de entregas oficiales con trazabilidad de contexto. |
+
+---
+
+## 31. Migración Arquitectónica: Tags, Contexts y Teaching Spaces
+
+### 31.1 Motivación y Principios de Diseño
+La estructura académica tradicional basada en una jerarquía rígida:
+```text
+Course ──> Group ──> Student
+```
+presentaba limitaciones críticas para reflejar la realidad organizativa del aula y el centro educativo:
+1. **Multidimensionalidad real del alumnado**: Un alumno pertenece simultáneamente a un curso académico (`academic_year:2026-2027`), un ciclo formativo (`education:DAM`), un curso/nivel (`level:Primero`), un turno o clase (`group:Grupo A`) y potencialmente a grupos de refuerzo o proyectos especiales (`support:Refuerzo`). Modelar esto mediante jerarquías arborescentes forzaba multiplicaciones artificiales de grupos o duplicación de asignaciones.
+2. **Listas estáticas vs. Pertenencia dinámica**: En el modelo antiguo, cada alumno debía ser matriculado explícitamente en cada curso y asignado a un grupo concreto. Si un alumno cambiaba de grupo o de condición, había que actualizar múltiples tablas relacionales.
+3. **Temporalidad y precisión histórica**: Las etiquetas y pertenencias cambian a lo largo del tiempo. Las entregas realizadas en el pasado deben evaluarse e informarse bajo el contexto en el que se entregaron (histórico `asOf`), no bajo la configuración actual.
+
+El nuevo modelo reemplaza la jerarquía rígida por:
+```text
+Tag (Categoría + Valor)
+  └── StudentTag (Asignación temporal con vigencia)
+Context (Conjunción lógica AND de Tags)
+  └── TeachingSpace (Espacio de trabajo docente resuelto dinámicamente)
+```
+
+### 31.2 Entidades del Nuevo Modelo
+
+#### `Tag` (`tags`)
+Describe un atributo o característica independiente:
+- `id` (`UUID`, PK)
+- `category` (`VARCHAR(50)`, ej: `academic_year`, `education`, `level`, `group`, `support`)
+- `value` (`VARCHAR(100)`, ej: `2026-2027`, `DAM`, `Primero`, `Grupo A`, `Refuerzo`)
+- `description` (`TEXT`, opcional)
+- `created_at` (`TIMESTAMPTZ`)
+- Restricción única: `(category, value)`.
+
+#### `StudentTag` (`student_tags`)
+Representa la asignación temporal de una etiqueta a un alumno:
+- `id` (`UUID`, PK)
+- `student_id` (`UUID`, FK a `users.id`)
+- `tag_id` (`UUID`, FK a `tags.id`)
+- `valid_from` (`TIMESTAMPTZ`, por defecto momento de asignación)
+- `valid_until` (`TIMESTAMPTZ`, nullable; `NULL` indica vigencia activa indefinida)
+- `created_by` (`UUID`, FK a `users.id`, profesor que asignó la etiqueta)
+- `created_at` (`TIMESTAMPTZ`)
+
+#### `Context` (Servicio `ContextService`)
+- No es una tabla física independiente por cada combinación: se implementa mediante un servicio centralizado de resolución.
+- Un contexto se define como la conjunción lógica (AND) de una lista de `tag_id`.
+- Un estudiante satisface un contexto en un instante $t$ si posee asignaciones activas (`valid_from <= t` y `valid_until IS NULL OR valid_until > t`) para **todas** las etiquetas requeridas.
+- Soporta previsualización en tiempo real (`POST /api/v1/teacher/tags/context/preview`).
+
+#### `TeachingSpace` (`teaching_spaces`)
+Espacio docente persistente (sustituto directo de `Course`):
+- `id` (`UUID`, PK)
+- `name` (`VARCHAR(200)`)
+- `description` (`TEXT`, opcional)
+- `context_config` (`JSONB`, almacena `{"tagIds": ["<uuid>", ...]}`)
+- `created_at`, `updated_at` (`TIMESTAMPTZ`)
+- Relaciones N:M persistidas:
+  - `teaching_space_teachers`: Profesores colaboradores asociados al espacio.
+  - `teaching_space_collections`: Colecciones accesibles para los alumnos del espacio.
+- **Sin tabla `TeachingSpaceStudent`**: Los alumnos no se matriculan estáticamente; se resuelven dinámicamente evaluando el contexto de etiquetas del espacio.
+
+### 31.3 Migración de Base de Datos (`V16`)
+La migración `V16__migrate_to_tags_contexts_and_teaching_spaces.sql` aplica los siguientes cambios estructurales con conservación de datos:
+1. **Creación de tablas del nuevo modelo**: `tags`, `teaching_spaces`, `teaching_space_teachers`, `teaching_space_collections`.
+2. **Migración de cursos preexistentes**: Convierte los registros de `courses` en `teaching_spaces`, crea etiquetas de año académico y nombre de curso, y asocia a los profesores creadores.
+3. **Migración de grupos preexistentes**: Convierte los grupos en etiquetas de categoría `group` y migra las pertenencias de alumnos en `course_memberships` hacia asignaciones temporales en `student_tags`.
+4. **Migración de colecciones asignadas**: Transfiere los registros de `course_collections` a `teaching_space_collections`.
+5. **Adaptación de Actividades y Envíos**:
+   - `activities`: Añade `teaching_space_id` como FK a `teaching_spaces(id)`.
+   - `submissions`: Añade `teaching_space_id` como FK a `teaching_spaces(id)`.
+6. **Eliminación limpia de tablas heredadas**:
+   - `DROP TABLE course_collection_students CASCADE;`
+   - `DROP TABLE course_collections CASCADE;`
+   - `DROP TABLE course_memberships CASCADE;`
+   - `DROP TABLE groups CASCADE;`
+   - `DROP TABLE courses CASCADE;`
+
+### 31.4 Nuevos Endpoints de la API REST
+
+| Método | Endpoint | Rol | Descripción |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/teacher/spaces` | `TEACHER`, `ADMIN` | Lista los espacios docentes con conteo dinámico de alumnos y colecciones. |
+| `POST` | `/api/v1/teacher/spaces` | `TEACHER`, `ADMIN` | Crea un espacio docente con configuración de contexto (`requiredTagIds`). |
+| `GET` | `/api/v1/teacher/spaces/{id}` | `TEACHER`, `ADMIN` | Obtiene el detalle completo del espacio, etiquetas, colecciones y docentes. |
+| `PUT` | `/api/v1/teacher/spaces/{id}` | `TEACHER`, `ADMIN` | Actualiza nombre, descripción, contexto y colecciones de un espacio. |
+| `DELETE` | `/api/v1/teacher/spaces/{id}` | `TEACHER`, `ADMIN` | Elimina un espacio docente (preserva histórico de entregas). |
+| `GET` | `/api/v1/teacher/spaces/{id}/students` | `TEACHER`, `ADMIN` | Lista los alumnos que satisfacen dinámicamente el contexto del espacio. |
+| `GET` | `/api/v1/teacher/spaces/{id}/submissions` | `TEACHER`, `ADMIN` | Lista todas las entregas realizadas en el contexto de ese espacio. |
+| `GET` | `/api/v1/teacher/tags` | `TEACHER`, `ADMIN` | Lista todas las etiquetas del sistema (filtro opcional por categoría). |
+| `POST` | `/api/v1/teacher/tags` | `TEACHER`, `ADMIN` | Crea una nueva etiqueta estructurada (categoría + valor + descripción). |
+| `DELETE` | `/api/v1/teacher/tags/{id}` | `TEACHER`, `ADMIN` | Elimina una etiqueta no utilizada. |
+| `POST` | `/api/v1/teacher/tags/context/preview` | `TEACHER`, `ADMIN` | Simula la conjunción de etiquetas y devuelve el número y lista de alumnos coincidentes. |
+| `GET` | `/api/v1/teacher/tags/students/{studentId}` | `TEACHER`, `ADMIN` | Lista las etiquetas asignadas a un alumno (activas o históricas). |
+| `POST` | `/api/v1/teacher/tags/students/{studentId}` | `TEACHER`, `ADMIN` | Asigna una etiqueta a un alumno con fecha de expiración opcional. |
+| `DELETE` | `/api/v1/teacher/tags/assignments/{id}` | `TEACHER`, `ADMIN` | Revoca anticipadamente una asignación de etiqueta. |
+| `GET` | `/api/v1/student/spaces` | `STUDENT` | Lista los espacios docentes en los que el alumno participa por contexto. |
+
+### 31.5 Analítica Contextual y Precisión Histórica
+- **Métricas robustas**: Además de la media tradicional (`overallAverageScore`), el servicio `StudentProgressService` calcula la mediana de calificaciones (`medianScore`) y percentiles de distribución (`p25`, `p50`, `p75`, `p90`).
+- **Histórico temporal**: Las consultas analíticas y de envíos soportan resolución del contexto en el instante en que ocurrió la entrega (`asOf`), garantizando que reclasificaciones de etiquetas futuras no distorsionen los informes docentes de cursos o evaluaciones previas.
+
+### 31.6 Experiencia Frontend SPA
+1. **`TeacherSpacesView.tsx`**:
+   - Vista completa de administración de espacios docentes.
+   - **Context Builder**: Selector categorizado de etiquetas con cálculo y previsualización interactiva en tiempo real del alumnado coincidente (`previewContext`).
+   - Gestión de colecciones asociadas y equipo docente colaborador.
+   - Pestaña de auditoría de alumnos coincidentes por contexto.
+2. **`TeacherStudentsView.tsx`**:
+   - Gestión centrada en etiquetas temporales de alumnos.
+   - Filtros por Espacio, Categoría de etiqueta, Valor y Búsqueda textual.
+   - Modal de asignación de etiquetas con selector de fecha de vigencia y creación rápida inline.
+   - Indicadores visuales de pertenencia automática a espacios.
+3. **`TeacherInsightsView.tsx`**:
+   - Selector directo de Espacios Docentes.
+   - Tarjeta destacada de Mediana de Calificaciones y percentiles (P25, P50, P75, P90).
+4. **`StudentDashboard.tsx`**:
+   - Widget "Mis Espacios Docentes" que informa al alumno de los espacios y colecciones a los que accede según sus etiquetas activas.
+5. **`Navbar.tsx` & `App.tsx`**:
+   - Acceso directo a "Espacios" (`/teacher/spaces`) en la navegación docente con redirección transparente desde `/teacher/courses`.
+
 

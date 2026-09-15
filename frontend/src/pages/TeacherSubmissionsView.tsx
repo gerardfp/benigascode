@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
-import { TeacherSubmissionItem, TeacherSubmissionDetail, Course, Group } from '../types';
+import { TeacherSubmissionItem, TeacherSubmissionDetail, Course, Group, TeachingSpace } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 
 type GroupingMode = 'flat' | 'student' | 'exercise' | 'status';
 
 export const TeacherSubmissionsView: React.FC = () => {
   const [submissions, setSubmissions] = useState<TeacherSubmissionItem[]>([]);
+  const [spaces, setSpaces] = useState<TeachingSpace[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,11 +68,14 @@ export const TeacherSubmissionsView: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'code' | 'evaluation'>('code');
   const [reevaluating, setReevaluating] = useState(false);
 
-  // Cargar cursos
+  // Cargar espacios y cursos
   useEffect(() => {
-    api.listCourses()
-      .then(setCourses)
-      .catch((err) => console.error('Error al cargar cursos:', err));
+    Promise.all([api.listSpaces(), api.listCourses()])
+      .then(([spData, crsData]) => {
+        setSpaces(spData);
+        setCourses(crsData);
+      })
+      .catch((err) => console.error('Error al cargar espacios y cursos:', err));
   }, []);
 
   // Cargar grupos cuando cambia el curso
@@ -91,6 +96,7 @@ export const TeacherSubmissionsView: React.FC = () => {
     setError(null);
     try {
       const data = await api.getTeacherSubmissions({
+        spaceId: selectedSpaceId || selectedCourseId || undefined,
         courseId: selectedCourseId || undefined,
         groupId: selectedGroupId || undefined,
         status: selectedStatus || undefined,
@@ -107,7 +113,7 @@ export const TeacherSubmissionsView: React.FC = () => {
 
   useEffect(() => {
     fetchSubmissions();
-  }, [selectedCourseId, selectedGroupId, selectedStatus]);
+  }, [selectedSpaceId, selectedCourseId, selectedGroupId, selectedStatus]);
 
   // Manejar búsqueda con debounce manual o tecla Enter
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -315,18 +321,27 @@ export const TeacherSubmissionsView: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'flex-end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.25rem' }}>
-              Curso
+              Espacio Docente / Curso
             </label>
             <select
               className="input-field"
-              value={selectedCourseId}
-              onChange={(e) => setSelectedCourseId(e.target.value)}
+              value={selectedSpaceId || selectedCourseId}
+              onChange={(e) => {
+                setSelectedSpaceId(e.target.value);
+                setSelectedCourseId(e.target.value);
+              }}
               style={{ width: '100%', fontSize: '0.875rem' }}
             >
-              <option value="">Todos los cursos</option>
-              {courses.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-              ))}
+              <option value="">Todos los espacios / cursos</option>
+              {spaces.length > 0 ? (
+                spaces.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))
+              ) : (
+                courses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                ))
+              )}
             </select>
           </div>
 

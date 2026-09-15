@@ -13,7 +13,6 @@ import java.util.UUID;
 @Repository
 public interface StudentProgressRepository extends JpaRepository<StudentProgress, UUID> {
 
-    // Método principal de resolución global: UNIQUE(student_id, exercise_id)
     Optional<StudentProgress> findByStudentIdAndExerciseId(UUID studentId, UUID exerciseId);
 
     default Optional<StudentProgress> findByStudentIdAndExerciseIdAndActivityId(UUID studentId, UUID exerciseId, UUID activityId) {
@@ -26,6 +25,12 @@ public interface StudentProgressRepository extends JpaRepository<StudentProgress
 
     List<StudentProgress> findByStudentIdOrderByUpdatedAtDesc(UUID studentId);
 
-    @Query("SELECT sp FROM StudentProgress sp WHERE sp.firstCourseId = :courseId OR (sp.activity IS NOT NULL AND sp.activity.course.id = :courseId) ORDER BY sp.updatedAt DESC")
-    List<StudentProgress> findByCourseId(@Param("courseId") UUID courseId);
+    List<StudentProgress> findByStudentIdInOrderByUpdatedAtDesc(java.util.Collection<UUID> studentIds);
+
+    @Query("SELECT sp FROM StudentProgress sp WHERE (sp.activity IS NOT NULL AND sp.activity.teachingSpace.id = :spaceId) ORDER BY sp.updatedAt DESC")
+    List<StudentProgress> findByTeachingSpaceId(@Param("spaceId") UUID spaceId);
+
+    default List<StudentProgress> findByCourseId(UUID courseId) {
+        return findByTeachingSpaceId(courseId);
+    }
 }

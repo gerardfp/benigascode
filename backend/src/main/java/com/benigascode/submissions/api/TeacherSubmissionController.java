@@ -59,17 +59,17 @@ public class TeacherSubmissionController {
         return ResponseEntity.ok(submissionService.getTeacherSubmissionDetail(id, teacher));
     }
 
-    // Endpoints legados por compatibilidad
-    @GetMapping("/courses/{courseId}/submissions")
-    public ResponseEntity<List<SubmissionDTO>> getSubmissionsForCourse(@PathVariable UUID courseId) {
+    // Endpoints por espacio docente y legados por compatibilidad
+    @GetMapping({"/spaces/{id}/submissions", "/courses/{id}/submissions"})
+    public ResponseEntity<List<SubmissionDTO>> getSubmissionsForSpace(@PathVariable UUID id) {
         User teacher = userService.getCurrentUser();
-        return ResponseEntity.ok(submissionService.getSubmissionsForCourse(courseId, teacher));
+        return ResponseEntity.ok(submissionService.getSubmissionsForCourse(id, teacher));
     }
 
-    @GetMapping("/courses/{courseId}/progress")
-    public ResponseEntity<List<StudentProgressDTO>> getCourseProgress(@PathVariable UUID courseId) {
+    @GetMapping({"/spaces/{id}/progress", "/courses/{id}/progress"})
+    public ResponseEntity<List<StudentProgressDTO>> getSpaceProgress(@PathVariable UUID id) {
         User teacher = userService.getCurrentUser();
-        return ResponseEntity.ok(progressService.getCourseProgress(courseId, teacher));
+        return ResponseEntity.ok(progressService.getCourseProgress(id, teacher));
     }
 
     @GetMapping("/students/{studentId}/progress")

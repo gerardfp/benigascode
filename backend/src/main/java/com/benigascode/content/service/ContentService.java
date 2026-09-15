@@ -9,7 +9,9 @@ import com.benigascode.content.dto.*;
 import com.benigascode.content.repository.*;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.repository.CourseCollectionRepository;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
+import com.benigascode.learning.service.ContextService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,7 +48,8 @@ public class ContentService {
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
-    private final CourseCollectionRepository courseCollectionRepository;
+    private final TeachingSpaceRepository teachingSpaceRepository;
+    private final ContextService contextService;
     private final ObjectMapper objectMapper;
 
     public ContentService(CollectionRepository collectionRepository,
@@ -57,7 +60,8 @@ public class ContentService {
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
-                          CourseCollectionRepository courseCollectionRepository,
+                          TeachingSpaceRepository teachingSpaceRepository,
+                          ContextService contextService,
                           ObjectMapper objectMapper) {
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
@@ -67,7 +71,8 @@ public class ContentService {
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
-        this.courseCollectionRepository = courseCollectionRepository;
+        this.teachingSpaceRepository = teachingSpaceRepository;
+        this.contextService = contextService;
         this.objectMapper = objectMapper;
     }
 
@@ -82,8 +87,11 @@ public class ContentService {
         Set<Collection> accessible = new HashSet<>();
         // 1. Colecciones públicas
         accessible.addAll(collectionRepository.findPublicCollections());
-        // 2. Colecciones en cursos a los que el alumno está asignado
-        accessible.addAll(courseCollectionRepository.findCollectionsByStudentId(user.getId()));
+        // 2. Colecciones en espacios docentes a los que el alumno pertenece según su contexto
+        List<TeachingSpace> studentSpaces = contextService.findSpacesForStudent(user);
+        for (TeachingSpace ts : studentSpaces) {
+            accessible.addAll(ts.getCollections());
+        }
         // 3. Colecciones concedidas mediante clave directa (access_grants)
         accessible.addAll(collectionRepository.findAccessibleCollectionsByUserId(user.getId()));
 
@@ -1045,7 +1053,9 @@ public class ContentService {
         if ("PUBLIC".equalsIgnoreCase(collection.getVisibility())) {
             return;
         }
-        if (courseCollectionRepository.isCollectionAssignedToStudent(user.getId(), collection.getId())) {
+        List<TeachingSpace> studentSpaces = contextService.findSpacesForStudent(user);
+        boolean inSpace = studentSpaces.stream().anyMatch(ts -> ts.getCollections().contains(collection));
+        if (inSpace) {
             return;
         }
         if (accessGrantRepository.existsByUserIdAndCollectionId(user.getId(), collection.getId())) {

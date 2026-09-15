@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { Activity, Collection } from '../types';
+import { Activity, Collection, TeachingSpace } from '../types';
 
 export const StudentDashboard: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [mySpaces, setMySpaces] = useState<TeachingSpace[]>([]);
   const [accessKey, setAccessKey] = useState('');
   const [claimStatus, setClaimStatus] = useState<{ message: string; isError: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     try {
-      const [acts, cols] = await Promise.all([
+      const [acts, cols, spaces] = await Promise.all([
         api.getMyActivities(),
         api.getMyCollections(),
+        api.getMySpaces().catch(() => []),
       ]);
       setActivities(acts);
       setCollections(cols);
+      setMySpaces(spaces);
     } catch (e: any) {
       console.error('Error al cargar datos del alumno:', e);
     } finally {
@@ -116,8 +119,41 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Columna Lateral: Desbloquear Colección por Clave */}
+        {/* Columna Lateral: Espacios Docentes y Desbloquear Colección */}
         <div>
+          {mySpaces.length > 0 && (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 0.75rem', color: '#1e293b' }}>
+                Mis Espacios Docentes
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {mySpaces.map(space => (
+                  <div
+                    key={space.id}
+                    style={{
+                      padding: '0.625rem',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
+                    }}
+                  >
+                    <strong style={{ fontSize: '0.875rem', color: '#0f172a' }}>{space.name}</strong>
+                    {space.description && (
+                      <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                        {space.description}
+                      </p>
+                    )}
+                    {space.teachers && space.teachers.length > 0 && (
+                      <div style={{ fontSize: '0.6875rem', color: '#2563eb', marginTop: '0.25rem' }}>
+                        Profesorado: {space.teachers.map(t => t.fullName).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="card">
             <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: '0 0 0.75rem' }}>
               Acceso con Clave Privada

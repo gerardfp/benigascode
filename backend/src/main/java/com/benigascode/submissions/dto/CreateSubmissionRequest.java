@@ -9,6 +9,8 @@ public record CreateSubmissionRequest(
 
     String language,
 
+    UUID teachingSpaceId,
+
     UUID courseId,
 
     UUID courseCollectionId,
@@ -16,6 +18,10 @@ public record CreateSubmissionRequest(
     UUID collectionId
 ) {
     public CreateSubmissionRequest(String sourceCode, String language) {
-        this(sourceCode, language, null, null, null);
+        this(sourceCode, language, null, null, null, null);
+    }
+
+    public UUID getEffectiveTeachingSpaceId() {
+        return teachingSpaceId != null ? teachingSpaceId : courseId;
     }
 }

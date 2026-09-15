@@ -22,5 +22,9 @@ public record CollectionDTO(
             version != null ? version.getVersionNumber() : 1
         );
     }
+
+    public static CollectionDTO from(Collection collection) {
+        return from(collection, null);
+    }
 }
 

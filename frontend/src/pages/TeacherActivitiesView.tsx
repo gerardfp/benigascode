@@ -64,12 +64,12 @@ export const TeacherActivitiesView: React.FC = () => {
                     <strong style={{ fontSize: '1rem' }}>{a.name}</strong>
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                    Ejercicio asociado: <strong>{a.exerciseTitle}</strong> • Intentos máximos: {a.maxAttempts ?? 'Ilimitados'}
+                    Ejercicio asociado: <strong>{a.exerciseTitle}</strong> {a.teachingSpaceName ? `• Espacio: ${a.teachingSpaceName}` : ''} • Intentos máximos: {a.maxAttempts ?? 'Ilimitados'}
                   </div>
                 </div>
 
                 <Link
-                  to={`/teacher/courses/${a.courseId}/submissions`}
+                  to="/teacher/submissions"
                   className="btn-secondary"
                   style={{ textDecoration: 'none', fontSize: '0.8125rem' }}
                 >

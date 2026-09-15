@@ -13,8 +13,8 @@ import com.benigascode.evaluation.repository.EvaluationRepository;
 import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.domain.Course;
-import com.benigascode.learning.repository.CourseMembershipRepository;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
@@ -51,7 +51,7 @@ class EvaluationServiceTest {
     @Mock
     private AttemptLedgerRepository attemptLedgerRepository;
     @Mock
-    private CourseMembershipRepository membershipRepository;
+    private TeachingSpaceRepository teachingSpaceRepository;
     @Mock
     private StudentProgressService studentProgressService;
     @Mock
@@ -62,7 +62,7 @@ class EvaluationServiceTest {
 
     private User student;
     private User teacher;
-    private Course course;
+    private TeachingSpace teachingSpace;
     private Activity activity;
     private ActivityVersion activityVersion;
     private ExerciseVersion exerciseVersion;
@@ -77,10 +77,10 @@ class EvaluationServiceTest {
         teacher = new User("teacher@benigascode.local", "pass", "Teacher", Role.TEACHER);
         teacher.setId(UUID.randomUUID());
 
-        course = new Course("Java 101", "J101", "2026/27", "Desc");
-        course.setId(UUID.randomUUID());
+        teachingSpace = new TeachingSpace("Java 101", null);
+        teachingSpace.setId(UUID.randomUUID());
 
-        activity = new Activity(course, "Práctica 1", "PRACTICE");
+        activity = new Activity(teachingSpace, "Práctica 1", "PRACTICE");
         activity.setId(UUID.randomUUID());
 
         Exercise exercise = new Exercise("calcular-media");

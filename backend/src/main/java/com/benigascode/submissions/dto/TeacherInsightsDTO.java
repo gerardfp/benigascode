@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public record TeacherInsightsDTO(
-    String scope, // "GENERAL", "GROUP", "STUDENT"
+    String scope,
     UUID courseId,
     String courseName,
     UUID groupId,
@@ -18,6 +18,8 @@ public record TeacherInsightsDTO(
     int totalExercisesSolved,
     double overallPassRate,
     double overallAverageScore,
+    Double medianScore,
+    Map<String, Double> percentiles,
     List<DifficultExerciseItem> difficultExercises,
     Map<String, Integer> scoreDistribution,
     List<DailyActivityItem> activityTimeline,
@@ -64,4 +66,3 @@ public record TeacherInsightsDTO(
         Instant lastActiveAt
     ) {}
 }
-

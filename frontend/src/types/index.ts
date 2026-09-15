@@ -41,9 +41,71 @@ export interface PublicTest {
   explanation?: string;
 }
 
+export interface Tag {
+  id: string;
+  category: string;
+  value: string;
+  description?: string | null;
+  createdAt?: string;
+}
+
+export interface StudentTag {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  tag?: Tag;
+  tagId: string;
+  category: string;
+  value: string;
+  validFrom: string;
+  validUntil: string | null;
+  createdBy?: string | null;
+  active: boolean;
+}
+
+export interface TeachingSpaceTeacher {
+  id: string;
+  fullName: string;
+  username: string;
+}
+
+export interface TeachingSpace {
+  id: string;
+  name: string;
+  description?: string | null;
+  contextConfig?: {
+    tagIds?: string[];
+  };
+  tags: Tag[];
+  collections: Collection[];
+  teachers: TeachingSpaceTeacher[];
+  matchedStudentsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContextPreviewDTO {
+  contextName?: string;
+  requiredTagIds: string[];
+  matchedStudentsCount: number;
+  matchedStudents: {
+    id: string;
+    fullName: string;
+    username: string;
+  }[];
+}
+
+export interface StudentSpaceDTO {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
 export interface Activity {
   id: string;
-  courseId: string;
+  teachingSpaceId?: string;
+  teachingSpaceName?: string;
+  courseId?: string;
   name: string;
   type: 'PRACTICE' | 'EXAM' | 'ASSIGNMENT';
   currentVersionId: string;
@@ -81,6 +143,10 @@ export interface Submission {
   exerciseId?: string;
   exerciseVersionId: string;
   exerciseTitle: string;
+  teachingSpaceId?: string;
+  courseId?: string;
+  courseCollectionId?: string;
+  collectionId?: string;
   language: string;
   status: string;
   sourceCode: string;
@@ -397,6 +463,8 @@ export interface StudentLeaderboardItem {
 
 export interface TeacherInsightsDTO {
   scope: 'GENERAL' | 'GROUP' | 'STUDENT';
+  teachingSpaceId?: string;
+  teachingSpaceName?: string;
   courseId?: string;
   courseName?: string;
   groupId?: string;
@@ -408,6 +476,8 @@ export interface TeacherInsightsDTO {
   totalExercisesSolved: number;
   overallPassRate: number;
   overallAverageScore: number;
+  medianScore?: number;
+  percentiles?: Record<string, number>;
   difficultExercises: DifficultExerciseItem[];
   scoreDistribution: Record<string, number>;
   activityTimeline: DailyActivityItem[];
@@ -491,8 +561,10 @@ export interface TeacherStudent {
   githubUsername: string | null;
   avatarUrl: string | null;
   createdAt: string;
-  courses: StudentCourseMembership[];
-  tags: string[];
+  activeTags?: StudentTag[];
+  spaces?: StudentSpaceDTO[];
+  courses?: StudentCourseMembership[];
+  tags?: string[];
 }
 
 export type CatalogConflictStrategy = 'OVERWRITE' | 'SKIP' | 'NEW_SLUG';

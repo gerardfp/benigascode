@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                 <>
                   <Link to="/teacher/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
                   <Link to="/teacher/exercises" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Ejercicios</Link>
-                  <Link to="/teacher/courses" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Cursos</Link>
+                  <Link to="/teacher/spaces" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Espacios</Link>
                   <Link to="/teacher/students" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Alumnos</Link>
                   <Link to="/teacher/teachers" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Profesores</Link>
                   <Link to="/teacher/activities" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Actividades</Link>

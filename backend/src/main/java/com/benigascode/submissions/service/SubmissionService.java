@@ -12,18 +12,21 @@ import com.benigascode.content.domain.Exercise;
 import com.benigascode.content.domain.ExerciseVersion;
 import com.benigascode.content.repository.ExerciseRepository;
 import com.benigascode.content.repository.ExerciseVersionRepository;
-import com.benigascode.evaluation.domain.EvaluationJob;
-import com.benigascode.evaluation.repository.EvaluationJobRepository;
-import com.benigascode.identity.domain.Role;
-import com.benigascode.identity.domain.User;
-import com.benigascode.learning.repository.CourseMembershipRepository;
 import com.benigascode.evaluation.domain.Evaluation;
+import com.benigascode.evaluation.domain.EvaluationJob;
 import com.benigascode.evaluation.domain.TestResult;
 import com.benigascode.evaluation.dto.EvaluationDTO;
 import com.benigascode.evaluation.dto.TestResultDTO;
+import com.benigascode.evaluation.repository.EvaluationJobRepository;
 import com.benigascode.evaluation.repository.EvaluationRepository;
 import com.benigascode.evaluation.repository.TestResultRepository;
-import com.benigascode.learning.domain.CourseMembership;
+import com.benigascode.identity.domain.Role;
+import com.benigascode.identity.domain.User;
+import com.benigascode.learning.domain.StudentTag;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.StudentTagRepository;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
+import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.domain.AttemptLedger;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.dto.CreateSubmissionRequest;
@@ -49,12 +52,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class SubmissionService {
@@ -76,7 +74,9 @@ public class SubmissionService {
     private final ActivityVersionRepository activityVersionRepository;
     private final ExerciseRepository exerciseRepository;
     private final ExerciseVersionRepository exerciseVersionRepository;
-    private final CourseMembershipRepository membershipRepository;
+    private final TeachingSpaceRepository teachingSpaceRepository;
+    private final ContextService contextService;
+    private final StudentTagRepository studentTagRepository;
     private final ObjectMapper objectMapper;
 
     public SubmissionService(SubmissionRepository submissionRepository,
@@ -88,7 +88,9 @@ public class SubmissionService {
                              ActivityVersionRepository activityVersionRepository,
                              ExerciseRepository exerciseRepository,
                              ExerciseVersionRepository exerciseVersionRepository,
-                             CourseMembershipRepository membershipRepository,
+                             TeachingSpaceRepository teachingSpaceRepository,
+                             ContextService contextService,
+                             StudentTagRepository studentTagRepository,
                              ObjectMapper objectMapper) {
         this.submissionRepository = submissionRepository;
         this.evaluationRepository = evaluationRepository;
@@ -99,7 +101,9 @@ public class SubmissionService {
         this.activityVersionRepository = activityVersionRepository;
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
-        this.membershipRepository = membershipRepository;
+        this.teachingSpaceRepository = teachingSpaceRepository;
+        this.contextService = contextService;
+        this.studentTagRepository = studentTagRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -113,23 +117,20 @@ public class SubmissionService {
             Activity activity = activityRepository.findById(activityId)
                     .orElseThrow(() -> new ResourceNotFoundException("Actividad no encontrada"));
 
-            // Validar matrícula del alumno en el curso
-            if (student.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseId(student.getId(), activity.getCourse().getId())) {
-                throw new AccessDeniedException("No estás matriculado en el curso de esta actividad");
+            TeachingSpace space = activity.getTeachingSpace();
+            if (student.getRole() != Role.ADMIN && !contextService.studentMatchesSpace(student.getId(), space)) {
+                throw new AccessDeniedException("No tienes acceso al espacio docente de esta actividad");
             }
 
-            // Obtener la ActivityVersion vigente
             activityVersion = activityVersionRepository.findLatestByActivityId(activityId)
                     .orElseThrow(() -> new ResourceNotFoundException("Versión de actividad no disponible"));
 
-            // Validar disponibilidad temporal
             if (!activityVersion.isAvailableNow()) {
                 throw new ValidationException("La actividad no se encuentra disponible actualmente para entregas");
             }
 
             exerciseVersion = activityVersion.getExerciseVersion();
 
-            // Control transaccional de intentos
             long consumedAttempts = attemptLedgerRepository.countConsumedAttempts(student.getId(), activityVersion.getId());
             if (activityVersion.getMaxAttempts() != null && consumedAttempts >= activityVersion.getMaxAttempts()) {
                 throw new InvalidAttemptException("Has superado el número máximo de intentos permitidos (" + activityVersion.getMaxAttempts() + ")");
@@ -137,7 +138,6 @@ public class SubmissionService {
 
             attemptNum = (int) consumedAttempts + 1;
         } else {
-            // Entrega directa de ejercicio (práctica)
             exerciseVersion = exerciseVersionRepository.findById(exerciseId)
                     .or(() -> exerciseRepository.findById(exerciseId).flatMap(e -> exerciseVersionRepository.findLatestByExerciseId(e.getId())))
                     .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
@@ -148,29 +148,25 @@ public class SubmissionService {
 
         String lang = (request.language() != null && !request.language().isBlank()) ? request.language() : exerciseVersion.getLanguage();
 
-        // 1. Guardar entrega inmutable snapshot
         Submission submission = new Submission(student, activityVersion, exerciseVersion, request.sourceCode(), lang);
         submission.setAttemptNumber(attemptNum);
-        if (activityVersion != null && activityVersion.getActivity() != null && activityVersion.getActivity().getCourse() != null) {
-            submission.setCourseId(activityVersion.getActivity().getCourse().getId());
-        } else if (request.courseId() != null) {
-            submission.setCourseId(request.courseId());
+
+        if (activityVersion != null && activityVersion.getActivity() != null && activityVersion.getActivity().getTeachingSpace() != null) {
+            submission.setTeachingSpaceId(activityVersion.getActivity().getTeachingSpace().getId());
+        } else if (request.getEffectiveTeachingSpaceId() != null) {
+            submission.setTeachingSpaceId(request.getEffectiveTeachingSpaceId());
         }
-        if (request.courseCollectionId() != null) {
-            submission.setCourseCollectionId(request.courseCollectionId());
-        }
+
         if (request.collectionId() != null) {
             submission.setCollectionId(request.collectionId());
         }
         submission = submissionRepository.save(submission);
 
-        // 2. Registrar intento en el ledger
         AttemptLedger attempt = activityVersion != null ?
                 new AttemptLedger(student, activityVersion, attemptNum, submission) :
                 new AttemptLedger(student, exerciseVersion, attemptNum, submission);
         attemptLedgerRepository.save(attempt);
 
-        // 3. Encolar trabajo de evaluación oficial
         EvaluationJob job = new EvaluationJob(submission);
         evaluationJobRepository.save(job);
 
@@ -187,14 +183,13 @@ public class SubmissionService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada"));
 
-        // Prevención estricta de IDOR
         if (user.getRole() == Role.STUDENT) {
             if (!submission.getStudent().getId().equals(user.getId())) {
                 throw new ResourceNotFoundException("Entrega no encontrada");
             }
-        } else if (user.getRole() == Role.TEACHER && submission.getActivityVersion() != null) {
-            UUID courseId = submission.getActivityVersion().getActivity().getCourse().getId();
-            if (!membershipRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
+        } else if (user.getRole() == Role.TEACHER && submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null) {
+            UUID spaceId = submission.getActivityVersion().getActivity().getTeachingSpace().getId();
+            if (!teachingSpaceRepository.isTeacherOfSpace(spaceId, user.getId())) {
                 throw new AccessDeniedException("No tienes permisos para consultar esta entrega");
             }
         }
@@ -232,10 +227,10 @@ public class SubmissionService {
 
     @Transactional(readOnly = true)
     public List<SubmissionDTO> getSubmissionsForCourse(UUID courseId, User teacher) {
-        if (teacher.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseIdAndRole(teacher.getId(), courseId, "TEACHER")) {
-            throw new AccessDeniedException("No tienes permisos de profesor en este curso");
+        if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(courseId, teacher.getId())) {
+            throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
         }
-        return submissionRepository.findByCourseId(courseId).stream()
+        return submissionRepository.findByTeachingSpaceId(courseId).stream()
                 .map(SubmissionDTO::fromEntity)
                 .toList();
     }
@@ -325,7 +320,7 @@ public class SubmissionService {
 
         List<Submission> allSubs;
         if (courseId != null) {
-            allSubs = submissionRepository.findByCourseId(courseId);
+            allSubs = submissionRepository.findByTeachingSpaceId(courseId);
         } else {
             allSubs = submissionRepository.findAllByOrderByCreatedAtDesc();
         }
@@ -347,17 +342,19 @@ public class SubmissionService {
             }
 
             String grpName = groupNamesByStudent.computeIfAbsent(s.getStudent().getId(), stId -> {
-                List<CourseMembership> cms = membershipRepository.findByUserId(stId);
-                for (CourseMembership cm : cms) {
-                    if (cm.getGroup() != null) return cm.getGroup().getName();
+                List<StudentTag> active = studentTagRepository.findActiveByStudentId(stId, s.getCreatedAt());
+                for (StudentTag st : active) {
+                    if ("group".equalsIgnoreCase(st.getTag().getCategory())) {
+                        return st.getTag().getValue();
+                    }
                 }
-                return "Grupo A";
+                return active.isEmpty() ? "General" : active.get(0).getTag().getValue();
             });
 
             if (groupId != null) {
-                List<CourseMembership> cms = membershipRepository.findByUserId(s.getStudent().getId());
-                boolean inGroup = cms.stream().anyMatch(cm -> cm.getGroup() != null && groupId.equals(cm.getGroup().getId()));
-                if (!inGroup) continue;
+                boolean hasTag = studentTagRepository.findActiveByStudentId(s.getStudent().getId(), s.getCreatedAt())
+                        .stream().anyMatch(st -> st.getTag().getId().equals(groupId));
+                if (!hasTag) continue;
             }
 
             Optional<Evaluation> evalOpt = evaluationRepository.findLatestBySubmissionId(s.getId());
@@ -450,13 +447,16 @@ public class SubmissionService {
             evaluationDTO = EvaluationDTO.fromEntity(eval, dtos);
         }
 
-        String grpName = "Grupo A";
-        List<CourseMembership> cms = membershipRepository.findByUserId(s.getStudent().getId());
-        for (CourseMembership cm : cms) {
-            if (cm.getGroup() != null) {
-                grpName = cm.getGroup().getName();
+        String grpName = "General";
+        List<StudentTag> activeTags = studentTagRepository.findActiveByStudentId(s.getStudent().getId(), s.getCreatedAt());
+        for (StudentTag st : activeTags) {
+            if ("group".equalsIgnoreCase(st.getTag().getCategory())) {
+                grpName = st.getTag().getValue();
                 break;
             }
+        }
+        if ("General".equals(grpName) && !activeTags.isEmpty()) {
+            grpName = activeTags.get(0).getTag().getValue();
         }
 
         UUID actId = s.getActivityVersion() != null && s.getActivityVersion().getActivity() != null ?

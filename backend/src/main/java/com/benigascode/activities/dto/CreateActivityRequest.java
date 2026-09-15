@@ -6,8 +6,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record CreateActivityRequest(
-    @NotNull(message = "El ID del curso es obligatorio")
-    UUID courseId,
+    UUID teachingSpaceId,
+    UUID courseId, // Alias de compatibilidad
 
     @NotBlank(message = "El nombre de la actividad es obligatorio")
     String name,
@@ -22,5 +22,9 @@ public record CreateActivityRequest(
     Instant availableFrom,
     Instant availableUntil,
     Instant dueAt
-) {}
-
+) {
+    public UUID getEffectiveTeachingSpaceId() {
+        if (teachingSpaceId != null) return teachingSpaceId;
+        return courseId;
+    }
+}

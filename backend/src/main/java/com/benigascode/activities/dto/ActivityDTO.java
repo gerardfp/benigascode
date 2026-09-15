@@ -7,7 +7,8 @@ import java.util.UUID;
 
 public record ActivityDTO(
     UUID id,
-    UUID courseId,
+    UUID teachingSpaceId,
+    String teachingSpaceName,
     String name,
     String type,
     UUID currentVersionId,
@@ -23,13 +24,14 @@ public record ActivityDTO(
     public static ActivityDTO from(Activity activity, ActivityVersion version) {
         return new ActivityDTO(
             activity.getId(),
-            activity.getCourse().getId(),
+            activity.getTeachingSpace() != null ? activity.getTeachingSpace().getId() : null,
+            activity.getTeachingSpace() != null ? activity.getTeachingSpace().getName() : null,
             activity.getName(),
             activity.getType(),
             version != null ? version.getId() : null,
             version != null ? version.getVersionNumber() : 1,
-            version != null ? version.getExerciseVersion().getId() : null,
-            version != null ? version.getExerciseVersion().getTitle() : null,
+            version != null && version.getExerciseVersion() != null ? version.getExerciseVersion().getId() : null,
+            version != null && version.getExerciseVersion() != null ? version.getExerciseVersion().getTitle() : null,
             version != null ? version.getMaxAttempts() : null,
             version != null ? version.getAvailableFrom() : null,
             version != null ? version.getAvailableUntil() : null,
@@ -37,5 +39,9 @@ public record ActivityDTO(
             version != null && version.isAvailableNow()
         );
     }
-}
 
+    // Alias de compatibilidad
+    public UUID courseId() {
+        return teachingSpaceId;
+    }
+}

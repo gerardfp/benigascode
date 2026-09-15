@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { TeacherInsightsDTO, Course, Group } from '../types';
+import { TeacherInsightsDTO, Course, Group, TeachingSpace } from '../types';
 import { 
   Users, BarChart2, Calendar, TrendingUp, AlertTriangle, 
   User, Layers, Tag, Eye 
@@ -14,19 +14,24 @@ export const TeacherInsightsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Filtros de navegación
+  const [spaces, setSpaces] = useState<TeachingSpace[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string>('');
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
-  // Cargar cursos al montar
+  // Cargar espacios y cursos al montar
   useEffect(() => {
-    api.listCourses()
-      .then((crs) => {
-        setCourses(crs);
-        if (crs.length > 0) {
-          setSelectedCourseId(crs[0].id);
+    Promise.all([api.listSpaces(), api.listCourses()])
+      .then(([spData, crsData]) => {
+        setSpaces(spData);
+        setCourses(crsData);
+        if (spData.length > 0) {
+          setSelectedSpaceId(spData[0].id);
+        } else if (crsData.length > 0) {
+          setSelectedCourseId(crsData[0].id);
         }
       })
       .catch(console.error);
@@ -50,15 +55,16 @@ export const TeacherInsightsView: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    const params: { courseId?: string; groupId?: string; studentId?: string } = {};
+    const params: { spaceId?: string; courseId?: string; groupId?: string; studentId?: string } = {};
 
+    const targetSpace = selectedSpaceId || selectedCourseId;
     if (activeTab === 'GROUP' && selectedGroupId) {
       params.groupId = selectedGroupId;
-      if (selectedCourseId) params.courseId = selectedCourseId;
+      if (targetSpace) params.spaceId = targetSpace;
     } else if (activeTab === 'STUDENT' && selectedStudentId) {
       params.studentId = selectedStudentId;
-    } else if (activeTab === 'GENERAL' && selectedCourseId) {
-      params.courseId = selectedCourseId;
+    } else if (activeTab === 'GENERAL' && targetSpace) {
+      params.spaceId = targetSpace;
     }
 
     api.getTeacherInsights(params)
@@ -75,7 +81,7 @@ export const TeacherInsightsView: React.FC = () => {
 
   useEffect(() => {
     loadInsights();
-  }, [activeTab, selectedCourseId, selectedGroupId, selectedStudentId]);
+  }, [activeTab, selectedSpaceId, selectedCourseId, selectedGroupId, selectedStudentId]);
 
   // Manejar salto a la vista individual desde la tabla
   const handleViewStudentDetail = (stId: string) => {
@@ -171,20 +177,29 @@ export const TeacherInsightsView: React.FC = () => {
 
       {/* Barra de Filtros según la Pestaña Activa */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Selector de Curso */}
+        {/* Selector de Espacio Docente */}
         <div>
           <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '0.25rem' }}>
-            Curso Académico
+            Espacio Docente
           </label>
           <select
             className="input-field"
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            style={{ fontSize: '0.8125rem', height: '36px', minWidth: '220px' }}
+            value={selectedSpaceId || selectedCourseId}
+            onChange={(e) => {
+              setSelectedSpaceId(e.target.value);
+              setSelectedCourseId(e.target.value);
+            }}
+            style={{ fontSize: '0.8125rem', height: '36px', minWidth: '240px' }}
           >
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-            ))}
+            {spaces.length > 0 ? (
+              spaces.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))
+            ) : (
+              courses.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+              ))
+            )}
           </select>
         </div>
 
@@ -268,6 +283,16 @@ export const TeacherInsightsView: React.FC = () => {
                   <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Nota Media General</div>
                   <div style={{ fontSize: '1.875rem', fontWeight: 700, color: '#92400e', marginTop: '0.25rem' }}>{data.overallAverageScore}</div>
                   <div style={{ fontSize: '0.75rem', color: '#f59e0b' }}>Promedio de calificaciones</div>
+                </div>
+
+                <div className="card" style={{ borderLeft: '4px solid #06b6d4', padding: '1.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Mediana y Percentiles</div>
+                  <div style={{ fontSize: '1.875rem', fontWeight: 700, color: '#155e75', marginTop: '0.25rem' }}>
+                    {data.medianScore ?? data.overallAverageScore}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#06b6d4' }}>
+                    {data.percentiles ? `P25: ${data.percentiles['p25']} • P75: ${data.percentiles['p75']} • P90: ${data.percentiles['p90']}` : 'Mediana estadística'}
+                  </div>
                 </div>
               </div>
 

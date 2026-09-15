@@ -16,8 +16,8 @@ import com.benigascode.evaluation.repository.EvaluationRepository;
 import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.repository.CourseMembershipRepository;
 import com.benigascode.submissions.domain.Submission;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
 import com.benigascode.submissions.service.StudentProgressService;
@@ -48,7 +48,7 @@ public class EvaluationService {
     private final TestResultRepository testResultRepository;
     private final SubmissionRepository submissionRepository;
     private final AttemptLedgerRepository attemptLedgerRepository;
-    private final CourseMembershipRepository membershipRepository;
+    private final TeachingSpaceRepository teachingSpaceRepository;
     private final StudentProgressService studentProgressService;
     private final ObjectMapper objectMapper;
 
@@ -57,7 +57,7 @@ public class EvaluationService {
                              TestResultRepository testResultRepository,
                              SubmissionRepository submissionRepository,
                              AttemptLedgerRepository attemptLedgerRepository,
-                             CourseMembershipRepository membershipRepository,
+                             TeachingSpaceRepository teachingSpaceRepository,
                              StudentProgressService studentProgressService,
                              ObjectMapper objectMapper) {
         this.evaluationJobRepository = evaluationJobRepository;
@@ -65,7 +65,7 @@ public class EvaluationService {
         this.testResultRepository = testResultRepository;
         this.submissionRepository = submissionRepository;
         this.attemptLedgerRepository = attemptLedgerRepository;
-        this.membershipRepository = membershipRepository;
+        this.teachingSpaceRepository = teachingSpaceRepository;
         this.studentProgressService = studentProgressService;
         this.objectMapper = objectMapper;
     }
@@ -233,10 +233,10 @@ public class EvaluationService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada"));
 
-        if (submission.getActivityVersion() != null) {
-            UUID courseId = submission.getActivityVersion().getActivity().getCourse().getId();
-            if (teacher.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseIdAndRole(teacher.getId(), courseId, "TEACHER")) {
-                throw new AccessDeniedException("No tienes permisos de profesor en este curso");
+        if (submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null) {
+            UUID spaceId = submission.getActivityVersion().getActivity().getTeachingSpace().getId();
+            if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(spaceId, teacher.getId())) {
+                throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
             }
         } else {
             if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {

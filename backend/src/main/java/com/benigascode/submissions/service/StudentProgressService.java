@@ -18,12 +18,12 @@ import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.repository.UserRepository;
-import com.benigascode.learning.domain.Course;
-import com.benigascode.learning.domain.CourseMembership;
-import com.benigascode.learning.domain.Group;
-import com.benigascode.learning.repository.CourseMembershipRepository;
-import com.benigascode.learning.repository.CourseRepository;
-import com.benigascode.learning.repository.GroupRepository;
+import com.benigascode.learning.domain.StudentTag;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.StudentTagRepository;
+import com.benigascode.learning.repository.TagRepository;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
+import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.domain.StudentProgress;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.dto.StudentInsightsDTO;
@@ -53,7 +53,6 @@ public class StudentProgressService {
     private static final Logger log = LoggerFactory.getLogger(StudentProgressService.class);
 
     private final StudentProgressRepository studentProgressRepository;
-    private final CourseMembershipRepository membershipRepository;
     private final SubmissionRepository submissionRepository;
     private final EvaluationRepository evaluationRepository;
     private final TestResultRepository testResultRepository;
@@ -61,13 +60,14 @@ public class StudentProgressService {
     private final ExerciseVersionRepository exerciseVersionRepository;
     private final CollectionRepository collectionRepository;
     private final CollectionVersionRepository collectionVersionRepository;
-    private final CourseRepository courseRepository;
-    private final GroupRepository groupRepository;
+    private final TeachingSpaceRepository teachingSpaceRepository;
+    private final TagRepository tagRepository;
+    private final StudentTagRepository studentTagRepository;
+    private final ContextService contextService;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     public StudentProgressService(StudentProgressRepository studentProgressRepository,
-                                  CourseMembershipRepository membershipRepository,
                                   SubmissionRepository submissionRepository,
                                   EvaluationRepository evaluationRepository,
                                   TestResultRepository testResultRepository,
@@ -75,12 +75,13 @@ public class StudentProgressService {
                                   ExerciseVersionRepository exerciseVersionRepository,
                                   CollectionRepository collectionRepository,
                                   CollectionVersionRepository collectionVersionRepository,
-                                  CourseRepository courseRepository,
-                                  GroupRepository groupRepository,
+                                  TeachingSpaceRepository teachingSpaceRepository,
+                                  TagRepository tagRepository,
+                                  StudentTagRepository studentTagRepository,
+                                  ContextService contextService,
                                   UserRepository userRepository,
                                   ObjectMapper objectMapper) {
         this.studentProgressRepository = studentProgressRepository;
-        this.membershipRepository = membershipRepository;
         this.submissionRepository = submissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.testResultRepository = testResultRepository;
@@ -88,8 +89,10 @@ public class StudentProgressService {
         this.exerciseVersionRepository = exerciseVersionRepository;
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
-        this.courseRepository = courseRepository;
-        this.groupRepository = groupRepository;
+        this.teachingSpaceRepository = teachingSpaceRepository;
+        this.tagRepository = tagRepository;
+        this.studentTagRepository = studentTagRepository;
+        this.contextService = contextService;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
@@ -105,9 +108,6 @@ public class StudentProgressService {
 
         if (progress.getFirstSubmissionAt() == null) {
             progress.setFirstSubmissionAt(Instant.now());
-        }
-        if (progress.getFirstCourseId() == null && submission.getCourseId() != null) {
-            progress.setFirstCourseId(submission.getCourseId());
         }
         if (progress.getFirstCollectionId() == null && submission.getCollectionId() != null) {
             progress.setFirstCollectionId(submission.getCollectionId());
@@ -127,7 +127,6 @@ public class StudentProgressService {
             progress.setBestScore(score);
         }
 
-        // Calcular y actualizar tests_passed y total_tests
         List<TestResult> results = testResultRepository.findByEvaluationId(evaluation.getId());
         int passed = (int) results.stream().filter(r -> "PASSED".equalsIgnoreCase(r.getStatus())).count();
         int total = results.size();
@@ -177,13 +176,28 @@ public class StudentProgressService {
     }
 
     @Transactional(readOnly = true)
-    public List<StudentProgressDTO> getCourseProgress(UUID courseId, User teacher) {
-        if (teacher.getRole() != Role.ADMIN && !membershipRepository.existsByUserIdAndCourseIdAndRole(teacher.getId(), courseId, "TEACHER")) {
-            throw new AccessDeniedException("No tienes permisos de profesor en este curso");
+    public List<StudentProgressDTO> getSpaceProgress(UUID spaceId, User teacher) {
+        if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(spaceId, teacher.getId())) {
+            throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
         }
-        return studentProgressRepository.findByCourseId(courseId).stream()
+
+        TeachingSpace space = teachingSpaceRepository.findById(spaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Espacio docente no encontrado: " + spaceId));
+
+        List<User> students = contextService.resolveStudentsForSpace(space);
+        if (students.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> studentIds = students.stream().map(User::getId).toList();
+        return studentProgressRepository.findByStudentIdInOrderByUpdatedAtDesc(studentIds).stream()
                 .map(StudentProgressDTO::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<StudentProgressDTO> getCourseProgress(UUID courseId, User teacher) {
+        return getSpaceProgress(courseId, teacher);
     }
 
     @Transactional(readOnly = true)
@@ -258,7 +272,6 @@ public class StudentProgressService {
                             int submissions = 0;
                             Instant lastAt = null;
 
-                            // Calcular total tests esperados
                             try {
                                 JsonNode tcRoot = objectMapper.readTree(ev.getTestsConfig());
                                 int pub = tcRoot.has("public") && tcRoot.get("public").isArray() ? tcRoot.get("public").size() : 0;
@@ -294,11 +307,10 @@ public class StudentProgressService {
                             boolean isCompleted = passPct >= 100.0 || "MASTERED".equalsIgnoreCase(status);
                             boolean isAttempted = !isCompleted && (submissions > 0 || bestScore > 0.0);
 
-                            // Registrar estadísticas de tags
                             for (String tag : tags) {
                                 String cleanTag = tag.trim().toLowerCase();
                                 int[] counts = tagStats.computeIfAbsent(cleanTag, k -> new int[3]);
-                                counts[0]++; // total
+                                counts[0]++;
                                 if (isCompleted) counts[1]++;
                                 else if (isAttempted) counts[2]++;
                             }
@@ -351,7 +363,6 @@ public class StudentProgressService {
         });
         tagSummaries.sort((a, b) -> Integer.compare(b.totalExercises(), a.totalExercises()));
 
-        // Actividad temporal (últimos 30 días)
         List<Submission> allSubs = submissionRepository.findByStudentIdOrderByCreatedAtDesc(student.getId());
         DateTimeFormatter df = DateTimeFormatter.ISO_LOCAL_DATE;
         Map<String, int[]> dailyMap = new TreeMap<>();
@@ -376,7 +387,6 @@ public class StudentProgressService {
         List<StudentInsightsDTO.DailyActivityItem> timeline = new ArrayList<>();
         dailyMap.forEach((date, c) -> timeline.add(new StudentInsightsDTO.DailyActivityItem(date, c[0], c[1])));
 
-        // Totales globales
         int totalExercises = uniqueExercises.size();
         int completedCount = (int) uniqueExercises.values().stream().filter(e -> e.passPercentage() >= 100.0 || "MASTERED".equalsIgnoreCase(e.status())).count();
         int attemptedCount = (int) uniqueExercises.values().stream().filter(e -> e.passPercentage() < 100.0 && (e.totalSubmissions() > 0 || e.bestScore() > 0.0)).count();
@@ -401,8 +411,17 @@ public class StudentProgressService {
 
     // ==================== INSIGHTS DEL PROFESOR ====================
 
+    public static double computePercentile(List<Double> values, double percentile) {
+        if (values.isEmpty()) return 0.0;
+        List<Double> sorted = new ArrayList<>(values);
+        Collections.sort(sorted);
+        int index = (int) Math.ceil((percentile / 100.0) * sorted.size()) - 1;
+        index = Math.max(0, Math.min(index, sorted.size() - 1));
+        return Math.round(sorted.get(index) * 10.0) / 10.0;
+    }
+
     @Transactional(readOnly = true)
-    public TeacherInsightsDTO getTeacherInsights(UUID courseId, UUID groupId, UUID studentId, User teacher) {
+    public TeacherInsightsDTO getTeacherInsights(UUID spaceId, UUID tagId, UUID studentId, User teacher) {
         if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
             throw new AccessDeniedException("Operación restringida a profesores");
         }
@@ -414,23 +433,27 @@ public class StudentProgressService {
 
             StudentInsightsDTO studentDetail = getMyInsights(student);
 
-            // Obtener curso y grupo del alumno
-            List<CourseMembership> memberships = membershipRepository.findByUserId(studentId);
-            String courseName = "1º DAM - Programación";
-            String groupName = "Grupo A";
-            if (!memberships.isEmpty()) {
-                CourseMembership cm = memberships.get(0);
-                courseName = cm.getCourse().getName();
-                if (cm.getGroup() != null) {
-                    groupName = cm.getGroup().getName();
+            String spaceName = "Espacio Docente";
+            String groupName = "General";
+
+            List<StudentTag> activeTags = studentTagRepository.findActiveByStudentId(studentId);
+            for (StudentTag st : activeTags) {
+                if ("group".equalsIgnoreCase(st.getTag().getCategory())) {
+                    groupName = st.getTag().getValue();
+                    break;
                 }
+            }
+
+            List<TeachingSpace> spaces = contextService.findSpacesForStudent(student);
+            if (!spaces.isEmpty()) {
+                spaceName = spaces.get(0).getName();
             }
 
             return new TeacherInsightsDTO(
                     "STUDENT",
-                    courseId,
-                    courseName,
-                    groupId,
+                    spaceId,
+                    spaceName,
+                    tagId,
                     groupName,
                     student.getId(),
                     student.getFullName(),
@@ -439,6 +462,8 @@ public class StudentProgressService {
                     studentDetail.completedExercises(),
                     studentDetail.completionPercentage(),
                     studentDetail.averageScore(),
+                    studentDetail.averageScore(),
+                    Map.of("p25", studentDetail.averageScore(), "p50", studentDetail.averageScore(), "p75", studentDetail.averageScore(), "p90", studentDetail.averageScore()),
                     List.of(),
                     Map.of(),
                     studentDetail.activityTimeline().stream()
@@ -450,51 +475,49 @@ public class StudentProgressService {
             );
         }
 
-        // 2. Modo Grupo o General
-        List<Course> courses;
+        // 2. Modo Espacio / Contexto / General
+        List<TeachingSpace> spaces;
         if (teacher.getRole() == Role.ADMIN) {
-            courses = courseRepository.findAll();
+            spaces = teachingSpaceRepository.findAll();
         } else {
-            courses = courseRepository.findCoursesByUserId(teacher.getId());
+            spaces = teachingSpaceRepository.findByTeacherId(teacher.getId());
         }
 
-        List<Group> allGroups = new ArrayList<>();
-        List<CourseMembership> allStudentMemberships = new ArrayList<>();
-
-        for (Course c : courses) {
-            if (courseId == null || c.getId().equals(courseId)) {
-                List<Group> grps = groupRepository.findByCourseId(c.getId());
-                allGroups.addAll(grps);
-                List<CourseMembership> cmList = membershipRepository.findByCourseId(c.getId()).stream()
-                        .filter(m -> "STUDENT".equalsIgnoreCase(m.getRole()))
-                        .toList();
-                allStudentMemberships.addAll(cmList);
-            }
+        TeachingSpace selectedSpace = null;
+        if (spaceId != null) {
+            selectedSpace = teachingSpaceRepository.findById(spaceId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Espacio docente no encontrado: " + spaceId));
+            spaces = List.of(selectedSpace);
         }
 
-        // Filtrar por grupo si se especificó
-        if (groupId != null) {
-            allStudentMemberships = allStudentMemberships.stream()
-                    .filter(m -> m.getGroup() != null && m.getGroup().getId().equals(groupId))
-                    .toList();
+        // Determinar alumnos según contexto
+        Set<User> matchedStudents = new LinkedHashSet<>();
+        for (TeachingSpace sp : spaces) {
+            matchedStudents.addAll(contextService.resolveStudentsForSpace(sp));
         }
 
-        List<Submission> allSubmissions = submissionRepository.findAllByOrderByCreatedAtDesc();
+        // Filtrar por tag si se solicitó
+        if (tagId != null) {
+            matchedStudents = matchedStudents.stream()
+                    .filter(st -> studentTagRepository.findActiveByStudentId(st.getId()).stream()
+                            .anyMatch(item -> item.getTag().getId().equals(tagId)))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
 
-        // Encontrar alumnos únicos
-        Map<UUID, User> studentsMap = new HashMap<>();
-        Map<UUID, CourseMembership> membershipByStudent = new HashMap<>();
-        for (CourseMembership m : allStudentMemberships) {
-            studentsMap.put(m.getUser().getId(), m.getUser());
-            membershipByStudent.put(m.getUser().getId(), m);
+        // Submissions relevantes
+        List<Submission> allSubmissions;
+        if (selectedSpace != null) {
+            allSubmissions = submissionRepository.findByTeachingSpaceId(selectedSpace.getId());
+        } else {
+            allSubmissions = submissionRepository.findAllByOrderByCreatedAtDesc();
         }
 
         // Leaderboard de alumnos
         List<TeacherInsightsDTO.StudentLeaderboardItem> leaderboard = new ArrayList<>();
         int totalExercisesSolvedSum = 0;
-        double sumAvgScore = 0.0;
+        List<Double> allStudentAvgScores = new ArrayList<>();
 
-        for (User st : studentsMap.values()) {
+        for (User st : matchedStudents) {
             List<StudentProgress> spList = studentProgressRepository.findByStudentIdOrderByUpdatedAtDesc(st.getId());
             int solved = (int) spList.stream().filter(sp -> sp.getBestScore() != null && sp.getBestScore().compareTo(BigDecimal.valueOf(100)) >= 0).count();
             int attempted = (int) spList.stream().filter(sp -> (sp.getBestScore() == null || sp.getBestScore().compareTo(BigDecimal.valueOf(100)) < 0) && sp.getTotalSubmissions() > 0).count();
@@ -502,19 +525,26 @@ public class StudentProgressService {
             double avgScore = spList.isEmpty() ? 0.0 : Math.round((spList.stream().mapToDouble(sp -> sp.getBestScore() != null ? sp.getBestScore().doubleValue() : 0.0).sum() / spList.size()) * 10.0) / 10.0;
             Instant lastActive = spList.isEmpty() ? null : spList.get(0).getUpdatedAt();
 
-            CourseMembership cm = membershipByStudent.get(st.getId());
-            UUID gId = cm != null && cm.getGroup() != null ? cm.getGroup().getId() : null;
-            String gName = cm != null && cm.getGroup() != null ? cm.getGroup().getName() : "Sin Grupo";
+            String grpName = "General";
+            UUID grpTagId = null;
+            List<StudentTag> activeTags = studentTagRepository.findActiveByStudentId(st.getId());
+            for (StudentTag sTag : activeTags) {
+                if ("group".equalsIgnoreCase(sTag.getTag().getCategory())) {
+                    grpName = sTag.getTag().getValue();
+                    grpTagId = sTag.getTag().getId();
+                    break;
+                }
+            }
 
             totalExercisesSolvedSum += solved;
-            sumAvgScore += avgScore;
+            allStudentAvgScores.add(avgScore);
 
             leaderboard.add(new TeacherInsightsDTO.StudentLeaderboardItem(
                     st.getId(),
                     st.getFullName(),
                     st.getUsername(),
-                    gId,
-                    gName,
+                    grpTagId,
+                    grpName,
                     solved,
                     attempted,
                     avgScore,
@@ -524,31 +554,35 @@ public class StudentProgressService {
         }
         leaderboard.sort((a, b) -> Integer.compare(b.exercisesSolved(), a.exercisesSolved()));
 
-        // Resumen de grupos
-        List<TeacherInsightsDTO.GroupSummaryItem> groupSummaries = new ArrayList<>();
-        for (Group grp : allGroups) {
-            List<TeacherInsightsDTO.StudentLeaderboardItem> grpStudents = leaderboard.stream()
-                    .filter(l -> grp.getId().equals(l.groupId()))
-                    .toList();
-            int stCount = grpStudents.size();
-            int totalGrpSubs = grpStudents.stream().mapToInt(TeacherInsightsDTO.StudentLeaderboardItem::totalSubmissions).sum();
-            double grpAvg = stCount > 0 ? Math.round((grpStudents.stream().mapToDouble(TeacherInsightsDTO.StudentLeaderboardItem::averageScore).sum() / stCount) * 10.0) / 10.0 : 0.0;
-            int totalSolvedInGrp = grpStudents.stream().mapToInt(TeacherInsightsDTO.StudentLeaderboardItem::exercisesSolved).sum();
-            double passRate = totalGrpSubs > 0 ? Math.round(((double) totalSolvedInGrp * 100.0 / totalGrpSubs) * 10.0) / 10.0 : 0.0;
+        // Resumen por espacios docentes
+        List<TeacherInsightsDTO.GroupSummaryItem> spaceSummaries = new ArrayList<>();
+        for (TeachingSpace sp : spaces) {
+            List<User> spStudents = contextService.resolveStudentsForSpace(sp);
+            int stCount = spStudents.size();
+            Set<UUID> spStudentIds = spStudents.stream().map(User::getId).collect(Collectors.toSet());
 
-            groupSummaries.add(new TeacherInsightsDTO.GroupSummaryItem(
-                    grp.getId(),
-                    grp.getName(),
-                    grp.getCourse().getId(),
-                    grp.getCourse().getName(),
+            List<TeacherInsightsDTO.StudentLeaderboardItem> spLeaderboard = leaderboard.stream()
+                    .filter(l -> spStudentIds.contains(l.studentId()))
+                    .toList();
+
+            int totalSpSubs = spLeaderboard.stream().mapToInt(TeacherInsightsDTO.StudentLeaderboardItem::totalSubmissions).sum();
+            double spAvg = stCount > 0 ? Math.round((spLeaderboard.stream().mapToDouble(TeacherInsightsDTO.StudentLeaderboardItem::averageScore).sum() / stCount) * 10.0) / 10.0 : 0.0;
+            int totalSolvedInSp = spLeaderboard.stream().mapToInt(TeacherInsightsDTO.StudentLeaderboardItem::exercisesSolved).sum();
+            double passRate = totalSpSubs > 0 ? Math.round(((double) totalSolvedInSp * 100.0 / totalSpSubs) * 10.0) / 10.0 : 0.0;
+
+            spaceSummaries.add(new TeacherInsightsDTO.GroupSummaryItem(
+                    sp.getId(),
+                    sp.getName(),
+                    sp.getId(),
+                    sp.getName(),
                     stCount,
-                    totalGrpSubs,
-                    grpAvg,
+                    totalSpSubs,
+                    spAvg,
                     passRate
             ));
         }
 
-        // Dificultad de ejercicios: cuellos de botella (más submissions con menor pass rate)
+        // Cuellos de botella / dificultad de ejercicios
         Map<UUID, int[]> exStats = new HashMap<>(); // exId -> [totalSubs, passedSubs]
         Map<UUID, Exercise> exMap = new HashMap<>();
 
@@ -584,10 +618,12 @@ public class StudentProgressService {
         scoreDist.put("70-89%", 0);
         scoreDist.put("90-100%", 0);
 
+        List<Double> allEvaluationScores = new ArrayList<>();
         for (Submission s : allSubmissions) {
             Optional<Evaluation> ev = evaluationRepository.findLatestBySubmissionId(s.getId());
             if (ev.isPresent()) {
                 double sc = ev.get().getScore() != null ? ev.get().getScore().doubleValue() : 0.0;
+                allEvaluationScores.add(sc);
                 if (sc < 50.0) scoreDist.put("0-49%", scoreDist.get("0-49%") + 1);
                 else if (sc < 70.0) scoreDist.put("50-69%", scoreDist.get("50-69%") + 1);
                 else if (sc < 90.0) scoreDist.put("70-89%", scoreDist.get("70-89%") + 1);
@@ -616,22 +652,28 @@ public class StudentProgressService {
         List<TeacherInsightsDTO.DailyActivityItem> timeline = new ArrayList<>();
         dailyMap.forEach((date, c) -> timeline.add(new TeacherInsightsDTO.DailyActivityItem(date, c[0], c[1])));
 
-        int totalStudents = studentsMap.size();
-        double overallAvg = totalStudents > 0 ? Math.round((sumAvgScore / totalStudents) * 10.0) / 10.0 : 0.0;
+        int totalStudents = matchedStudents.size();
+        double overallAvg = totalStudents > 0 ? Math.round((allStudentAvgScores.stream().mapToDouble(Double::doubleValue).sum() / totalStudents) * 10.0) / 10.0 : 0.0;
         double overallPass = allSubmissions.size() > 0 ? Math.round(((double) totalExercisesSolvedSum * 100.0 / allSubmissions.size()) * 10.0) / 10.0 : 0.0;
 
-        String scope = groupId != null ? "GROUP" : "GENERAL";
-        String selGroupName = null;
-        if (groupId != null) {
-            selGroupName = groupRepository.findById(groupId).map(Group::getName).orElse("Grupo");
-        }
+        // Métricas contextuales avanzadas: Media, Mediana y Percentiles (p25, p50, p75, p90)
+        List<Double> scoresForPercentiles = allEvaluationScores.isEmpty() ? allStudentAvgScores : allEvaluationScores;
+        double medianScore = computePercentile(scoresForPercentiles, 50.0);
+        Map<String, Double> percentiles = new LinkedHashMap<>();
+        percentiles.put("p25", computePercentile(scoresForPercentiles, 25.0));
+        percentiles.put("p50", medianScore);
+        percentiles.put("p75", computePercentile(scoresForPercentiles, 75.0));
+        percentiles.put("p90", computePercentile(scoresForPercentiles, 90.0));
+
+        String scope = selectedSpace != null ? "SPACE" : "GENERAL";
+        String selSpaceName = selectedSpace != null ? selectedSpace.getName() : null;
 
         return new TeacherInsightsDTO(
                 scope,
-                courseId,
-                courseId != null ? courseRepository.findById(courseId).map(Course::getName).orElse(null) : null,
-                groupId,
-                selGroupName,
+                spaceId,
+                selSpaceName,
+                tagId,
+                null,
                 null,
                 null,
                 totalStudents,
@@ -639,10 +681,12 @@ public class StudentProgressService {
                 totalExercisesSolvedSum,
                 overallPass,
                 overallAvg,
+                medianScore,
+                percentiles,
                 difficultExercises.stream().limit(8).toList(),
                 scoreDist,
                 timeline,
-                groupSummaries,
+                spaceSummaries,
                 leaderboard,
                 null
         );

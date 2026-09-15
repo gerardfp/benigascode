@@ -8,11 +8,17 @@ import com.benigascode.common.exception.InvalidAttemptException;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.content.domain.Exercise;
 import com.benigascode.content.domain.ExerciseVersion;
+import com.benigascode.content.repository.ExerciseRepository;
+import com.benigascode.content.repository.ExerciseVersionRepository;
 import com.benigascode.evaluation.repository.EvaluationJobRepository;
+import com.benigascode.evaluation.repository.EvaluationRepository;
+import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.domain.Course;
-import com.benigascode.learning.repository.CourseMembershipRepository;
+import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
+import com.benigascode.learning.repository.StudentTagRepository;
+import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.dto.CreateSubmissionRequest;
 import com.benigascode.submissions.dto.SubmissionDTO;
@@ -40,6 +46,10 @@ class SubmissionServiceTest {
     @Mock
     private SubmissionRepository submissionRepository;
     @Mock
+    private EvaluationRepository evaluationRepository;
+    @Mock
+    private TestResultRepository testResultRepository;
+    @Mock
     private AttemptLedgerRepository attemptLedgerRepository;
     @Mock
     private EvaluationJobRepository evaluationJobRepository;
@@ -48,7 +58,15 @@ class SubmissionServiceTest {
     @Mock
     private ActivityVersionRepository activityVersionRepository;
     @Mock
-    private CourseMembershipRepository membershipRepository;
+    private ExerciseRepository exerciseRepository;
+    @Mock
+    private ExerciseVersionRepository exerciseVersionRepository;
+    @Mock
+    private TeachingSpaceRepository teachingSpaceRepository;
+    @Mock
+    private ContextService contextService;
+    @Mock
+    private StudentTagRepository studentTagRepository;
     @Mock
     private ObjectMapper objectMapper;
 
@@ -57,7 +75,7 @@ class SubmissionServiceTest {
 
     private User studentA;
     private User studentB;
-    private Course course;
+    private TeachingSpace space;
     private Activity activity;
     private ActivityVersion activityVersion;
     private ExerciseVersion exerciseVersion;
@@ -70,10 +88,10 @@ class SubmissionServiceTest {
         studentB = new User("studentB@benigascode.local", "pass", "Student B", Role.STUDENT);
         studentB.setId(UUID.randomUUID());
 
-        course = new Course("Java 101", "J101", "2026/27", "Desc");
-        course.setId(UUID.randomUUID());
+        space = new TeachingSpace("Java 101", null);
+        space.setId(UUID.randomUUID());
 
-        activity = new Activity(course, "Práctica 1", "PRACTICE");
+        activity = new Activity(space, "Práctica 1", "PRACTICE");
         activity.setId(UUID.randomUUID());
 
         Exercise exercise = new Exercise("calcular-media");
@@ -97,12 +115,13 @@ class SubmissionServiceTest {
     @Test
     void createSubmission_FirstAttempt_Success() {
         when(activityRepository.findById(activity.getId())).thenReturn(Optional.of(activity));
-        when(membershipRepository.existsByUserIdAndCourseId(studentA.getId(), course.getId())).thenReturn(true);
+        when(contextService.studentMatchesSpace(studentA.getId(), space)).thenReturn(true);
         when(activityVersionRepository.findLatestByActivityId(activity.getId())).thenReturn(Optional.of(activityVersion));
         when(attemptLedgerRepository.countConsumedAttempts(studentA.getId(), activityVersion.getId())).thenReturn(0L);
 
         Submission savedSub = new Submission(studentA, activityVersion, exerciseVersion, "code", "java");
         savedSub.setId(UUID.randomUUID());
+        savedSub.setTeachingSpaceId(space.getId());
         when(submissionRepository.save(any())).thenReturn(savedSub);
 
         SubmissionDTO result = submissionService.createSubmission(
@@ -120,7 +139,7 @@ class SubmissionServiceTest {
     @Test
     void createSubmission_ExceedsMaxAttempts_ThrowsInvalidAttemptException() {
         when(activityRepository.findById(activity.getId())).thenReturn(Optional.of(activity));
-        when(membershipRepository.existsByUserIdAndCourseId(studentA.getId(), course.getId())).thenReturn(true);
+        when(contextService.studentMatchesSpace(studentA.getId(), space)).thenReturn(true);
         when(activityVersionRepository.findLatestByActivityId(activity.getId())).thenReturn(Optional.of(activityVersion));
         when(attemptLedgerRepository.countConsumedAttempts(studentA.getId(), activityVersion.getId())).thenReturn(2L);
 
@@ -150,4 +169,3 @@ class SubmissionServiceTest {
         );
     }
 }
-

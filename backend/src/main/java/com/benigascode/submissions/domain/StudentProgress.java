@@ -64,9 +64,6 @@ public class StudentProgress {
     @Column(name = "first_solved_at")
     private Instant firstSolvedAt;
 
-    @Column(name = "first_course_id")
-    private UUID firstCourseId;
-
     @Column(name = "first_collection_id")
     private UUID firstCollectionId;
 
@@ -221,14 +218,6 @@ public class StudentProgress {
 
     public void setFirstSolvedAt(Instant firstSolvedAt) {
         this.firstSolvedAt = firstSolvedAt;
-    }
-
-    public UUID getFirstCourseId() {
-        return firstCourseId;
-    }
-
-    public void setFirstCourseId(UUID firstCourseId) {
-        this.firstCourseId = firstCourseId;
     }
 
     public UUID getFirstCollectionId() {

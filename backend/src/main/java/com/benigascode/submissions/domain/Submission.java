@@ -30,11 +30,8 @@ public class Submission {
     @JoinColumn(name = "exercise_version_id", nullable = false)
     private ExerciseVersion exerciseVersion;
 
-    @Column(name = "course_id")
-    private UUID courseId;
-
-    @Column(name = "course_collection_id")
-    private UUID courseCollectionId;
+    @Column(name = "teaching_space_id")
+    private UUID teachingSpaceId;
 
     @Column(name = "collection_id")
     private UUID collectionId;
@@ -130,20 +127,20 @@ public class Submission {
         this.exerciseVersion = exerciseVersion;
     }
 
+    public UUID getTeachingSpaceId() {
+        return teachingSpaceId;
+    }
+
+    public void setTeachingSpaceId(UUID teachingSpaceId) {
+        this.teachingSpaceId = teachingSpaceId;
+    }
+
     public UUID getCourseId() {
-        return courseId;
+        return teachingSpaceId;
     }
 
     public void setCourseId(UUID courseId) {
-        this.courseId = courseId;
-    }
-
-    public UUID getCourseCollectionId() {
-        return courseCollectionId;
-    }
-
-    public void setCourseCollectionId(UUID courseCollectionId) {
-        this.courseCollectionId = courseCollectionId;
+        this.teachingSpaceId = courseId;
     }
 
     public UUID getCollectionId() {
