@@ -30,7 +30,7 @@ public class GitHubOAuthService {
     @Value("${benigascode.github.client-secret:}")
     private String clientSecret;
 
-    @Value("${benigascode.github.redirect-uri:http://localhost:3000/teacher/sync/github/callback}")
+    @Value("${benigascode.github.redirect-uri:http://localhost:3000/auth/github/callback}")
     private String redirectUri;
 
     private final RestClient restClient;
@@ -59,8 +59,9 @@ public class GitHubOAuthService {
         }
         String scope = URLEncoder.encode("repo,read:user", StandardCharsets.UTF_8);
         String encodedRedirect = URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
-        return "https://github.com/login/oauth/authorize?client_id=" + clientId + "&scope=" + scope + "&redirect_uri=" + encodedRedirect;
+        return "https://github.com/login/oauth/authorize?client_id=" + clientId + "&scope=" + scope + "&redirect_uri=" + encodedRedirect + "&state=sync";
     }
+
 
     public String buildStudentAuthorizeUrl(String state, String redirectUriOverride) {
         if (!isConfigured()) {

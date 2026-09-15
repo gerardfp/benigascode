@@ -138,5 +138,36 @@ public class TagService {
     public void revokeTag(UUID studentId, UUID tagId, User teacher) {
         revokeTagFromStudent(studentId, tagId, teacher);
     }
+
+    @Transactional
+    public void batchAssignTag(List<UUID> studentIds, UUID tagId, User teacher, Instant validFrom, Instant validUntil) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        Tag tag = tagRepository.findById(tagId)
+            .orElseThrow(() -> new ResourceNotFoundException("Etiqueta no encontrada: " + tagId));
+
+        Instant from = validFrom != null ? validFrom : Instant.now();
+        for (UUID studentId : studentIds) {
+            Optional<StudentTag> existingActive = studentTagRepository.findActiveByStudentIdAndTagId(studentId, tag.getId());
+            if (existingActive.isEmpty()) {
+                User student = userRepository.findById(studentId).orElse(null);
+                if (student != null && student.getRole() == Role.STUDENT) {
+                    StudentTag st = new StudentTag(student, tag, from, validUntil, teacher);
+                    studentTagRepository.save(st);
+                }
+            }
+        }
+    }
+
+    @Transactional
+    public void batchRevokeTag(List<UUID> studentIds, UUID tagId, User teacher) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        Instant now = Instant.now();
+        for (UUID studentId : studentIds) {
+            studentTagRepository.findActiveByStudentIdAndTagId(studentId, tagId).ifPresent(st -> {
+                st.setValidUntil(now);
+                studentTagRepository.save(st);
+            });
+        }
+    }
 }
 

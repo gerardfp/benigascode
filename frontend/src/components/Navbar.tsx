@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { User } from '../types';
 import { api } from '../services/api';
 
@@ -10,7 +10,6 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleLogout = async () => {
     try {
@@ -57,25 +56,53 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           )}
         </div>
 
-        {user ? (
+        {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user.fullName}</div>
-              <span className={`badge ${user.role === 'TEACHER' ? 'badge-info' : 'badge-neutral'}`}>
-                {user.role}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.githubUsername || user.fullName}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '1px solid #cbd5e1',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    backgroundColor: '#e2e8f0',
+                    color: '#475569',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    border: '1px solid #cbd5e1',
+                  }}
+                >
+                  {(user.fullName || user.username || '?').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1e293b' }}>
+                {user.githubUsername || user.fullName}
+              </div>
             </div>
             <button onClick={handleLogout} className="btn-secondary" style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}>
               Cerrar sesión
             </button>
           </div>
-        ) : location.pathname !== '/login' ? (
-          <Link to="/login" className="btn-primary" style={{ textDecoration: 'none' }}>
-            Iniciar sesión
-          </Link>
-        ) : null}
+        )}
       </div>
     </header>
+
+
   );
 };
 

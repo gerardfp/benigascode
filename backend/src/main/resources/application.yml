@@ -55,7 +55,7 @@ benigascode:
   github:
     client-id: ${GITHUB_CLIENT_ID:}
     client-secret: ${GITHUB_CLIENT_SECRET:}
-    redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:3000/teacher/sync/github/callback}
+    redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:3000/auth/github/callback}
   initial-teachers:
     github-usernames: ${INITIAL_TEACHER_GITHUB_USERNAMES:gerardfp}
 

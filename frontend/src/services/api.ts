@@ -63,8 +63,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return {} as T;
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    return {} as T;
+  }
+
+  return JSON.parse(text);
 }
+
 
 export const api = {
   // Autenticación
@@ -232,6 +238,18 @@ export const api = {
 
   revokeStudentTag: (assignmentId: string): Promise<void> =>
     request<void>(`/teacher/tags/assignments/${assignmentId}`, { method: 'DELETE' }),
+
+  batchAssignTag: (studentIds: string[], tagId: string, validUntil?: string): Promise<void> =>
+    request<void>('/teacher/tags/students/batch-assign', {
+      method: 'POST',
+      body: JSON.stringify({ studentIds, tagId, validUntil }),
+    }),
+
+  batchRevokeTag: (studentIds: string[], tagId: string): Promise<void> =>
+    request<void>('/teacher/tags/students/batch-revoke', {
+      method: 'POST',
+      body: JSON.stringify({ studentIds, tagId }),
+    }),
 
   previewContext: (tagIds: string[]): Promise<ContextPreviewDTO> =>
     request<ContextPreviewDTO>('/teacher/tags/context/preview', {

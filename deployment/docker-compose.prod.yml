@@ -76,7 +76,7 @@ services:
       CONTENT_STORAGE_PATH: /var/lib/benigascode/content
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://${DOMAIN_NAME:-localhost}/teacher/sync/github/callback}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-https://${DOMAIN_NAME:-localhost}/auth/github/callback}
       INITIAL_TEACHER_GITHUB_USERNAMES: ${INITIAL_TEACHER_GITHUB_USERNAMES:-gerardfp}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-framework}

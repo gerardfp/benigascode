@@ -92,7 +92,7 @@ sudo usermod -aG docker $USER
    # GitHub OAuth (Opcional - Sincronización de repositorios desde la UI de profesor)
    GITHUB_CLIENT_ID=tu_github_client_id
    GITHUB_CLIENT_SECRET=tu_github_client_secret
-   GITHUB_REDIRECT_URI=https://benigascode.tudominio.edu.es/teacher/sync/github/callback
+   GITHUB_REDIRECT_URI=https://benigascode.tudominio.edu.es/auth/github/callback
    ```
 
 3. Arrancar los servicios con Docker Compose de Producción:

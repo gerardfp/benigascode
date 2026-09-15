@@ -84,6 +84,20 @@ public class TeacherTagController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/students/batch-assign")
+    public ResponseEntity<Void> batchAssignTag(@Valid @RequestBody BatchAssignTagRequest request) {
+        User teacher = userService.getCurrentUser();
+        tagService.batchAssignTag(request.studentIds(), request.tagId(), teacher, request.validFrom(), request.validUntil());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/students/batch-revoke")
+    public ResponseEntity<Void> batchRevokeTag(@Valid @RequestBody BatchRevokeTagRequest request) {
+        User teacher = userService.getCurrentUser();
+        tagService.batchRevokeTag(request.studentIds(), request.tagId(), teacher);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/context/preview")
     public ResponseEntity<ContextPreviewDTO> previewContext(@RequestBody ContextDTO context) {
         List<UUID> tagIds = context.getSafeTagIds();
@@ -92,3 +106,4 @@ public class TeacherTagController {
         return ResponseEntity.ok(new ContextPreviewDTO(dtoList.size(), dtoList));
     }
 }
+
