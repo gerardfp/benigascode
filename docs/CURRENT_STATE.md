@@ -4,6 +4,33 @@
 **Entorno de auditoría**: Repositorio de código fuente `benigascode`  
 **Tipo de documento**: Auditoría y especificación técnica exhaustiva basada exclusivamente en el código existente.
 
+## Resumen de Dimensiones del Sistema
+- Entidades JPA / Tablas en PostgreSQL: 28 entidades correspondientes a 28 tablas gestionadas con 15 migraciones Flyway secuenciales (V1 a V15).
+- Servicios de Lógica de Negocio: 20 servicios Spring repartidos en módulos funcionales (activities, audit, content, evaluation, export, identity, learning, submissions).
+- Endpoints REST: 51 endpoints distribuidos en 18 controladores @RestController.
+- Archivos modificados/creados: Únicamente docs/CURRENT_STATE.md (sin alterar el código fuente de la aplicación ni tocar producción).
+
+## Top 5 Hallazgos Técnicos Más Relevantes
+1. Versionado Inmutable de Ejercicios y Actividades: El modelo separa la identidad permanente del ejercicio (Exercise, por slug) de sus revisiones históricas (ExerciseVersion). Cada actualización genera una nueva versión inmutable con sus propios casos de prueba y configuraciones de compilación/ejecución en JSONB. Las entregas (Submission) y las actividades (ActivityVersion) se enlazan siempre a una versión inmutable específica, impidiendo que cambios docentes futuros alteren el histórico de notas o reproduzcan errores en entregas pasadas.
+
+2. Aislamiento Estricto y Defensa en Profundidad en el Sandbox: El motor de ejecución de código (runner/src/sandbox.py) orquesta contenedores Docker efímeros para cada ejecución bajo restricciones de alta seguridad:
+
+    - Aislamiento total de red: network_mode: "none".
+    - Sistema de ficheros raíz inmutable: read_only: True con un tmpfs limitado a 64 MB (noexec, nosuid).
+    - Eliminación completa de privilegios del kernel: cap_drop: ["ALL"], no-new-privileges: true y ejecución bajo el usuario sin privilegios runner:runner (UID 1001).
+    - Límites estrictos de procesos (pids_limit: 64 contra fork-bombs), cuota de CPU y memoria RAM sin swap.
+
+3. Arquitectura Asíncrona Desacoplada del Runner (Polling + Heartbeat): El backend no realiza llamadas salientes directas hacia el Runner; es el demonio Python (daemon.py) el que realiza polling autenticado mediante cabecera X-Runner-Token contra POST /api/v1/runner/jobs/claim. Durante ejecuciones largas, un hilo en segundo plano emite señales periódicas a /heartbeat cada 5 segundos, evitando que trabajos intensivos sean catalogados erróneamente como fallidos o expiren por timeout.
+
+4. Sincronización Multimodal de Contenido con Resolución de Conflictos: El catálogo de ejercicios y colecciones puede sincronizarse mediante tres canales:
+
+    - Git remoto (vía HTTPS con PAT o SSH con par de claves gestionado en la plataforma).
+    - Webhooks entrantes de GitHub automáticos ante eventos push.
+    - Importación de archivos .zip con simulación previa (preview) y tres estrategias de resolución de colisiones configurables por el profesor: OVERWRITE, SKIP o NEW_SLUG.
+
+5. Espacios de Trabajo Persistentes (Workspaces) sin Penalización: El sistema persiste el código fuente editable de los estudiantes en student_workspaces de forma independiente a las entregas formales. Esto permite a los alumnos guardar borradores continuos y probar casos públicos (preview-runs) sin consumir los límites de intentos oficiales (max_attempts en attempt_ledgers) definidos por el profesor para las actividades evaluables.
+
+
 ---
 
 ## 1. Resumen

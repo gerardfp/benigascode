@@ -36,14 +36,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
   const doLogin = async (userLogin: string, passLogin: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const user = await api.login(username, password);
       const user = await api.login(userLogin, passLogin);
       onLoginSuccess(user);
       if (user.role === 'TEACHER' || user.role === 'ADMIN') {
@@ -58,7 +55,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const setDemoCredentials = (u: string, p: string) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await doLogin(username, password);
@@ -193,11 +189,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <button
                 key={num}
                 type="button"
-                onClick={() => setDemoCredentials(`alumno${num}@benigascode.local`, 'StudentPass123!')}
                 disabled={loading}
                 onClick={() => handleDemoLogin(`alumno${num}@benigascode.local`, 'StudentPass123!')}
                 className="btn-secondary"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', opacity: loading ? 0.7 : 1 }}
               >
                 Alumno {num}
