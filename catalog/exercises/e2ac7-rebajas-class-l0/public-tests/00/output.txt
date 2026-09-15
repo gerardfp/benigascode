@@ -1,2 +1,0 @@
-Producto{descripcion='producto1', precio=10.0}
-Producto{descripcion='producto1', precio=8.5}

@@ -1,7 +1,0 @@
-    if(true){
-        a=10;
-      } else {
-    b=7;
-  }
-
-END

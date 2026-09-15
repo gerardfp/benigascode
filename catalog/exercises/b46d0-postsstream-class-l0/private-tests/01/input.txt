@@ -1,3 +1,0 @@
-2
-@user_one null Blank message
-@user_two null Empty message

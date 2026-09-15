@@ -1,8 +1,0 @@
-class Dictionari {
-    String[] words = {
-        "una",
-        "llista",
-        "de",
-        "paraules"
-    };
-}

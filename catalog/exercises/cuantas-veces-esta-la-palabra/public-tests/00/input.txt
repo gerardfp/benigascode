@@ -1,4 +1,0 @@
-5
-main class void static main
-
-main

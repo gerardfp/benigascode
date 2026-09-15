@@ -1,1 +1,0 @@
-write _once_ run _everywhere_

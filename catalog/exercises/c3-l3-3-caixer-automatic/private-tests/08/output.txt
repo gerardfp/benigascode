@@ -1,5 +1,0 @@
-Ingres realitzat: 10.00
->> Saldo: 10.00
-Operacio no valida
-Operacio no valida
->> Saldo: 10.00

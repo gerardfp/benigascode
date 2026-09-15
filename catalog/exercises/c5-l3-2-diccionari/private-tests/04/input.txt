@@ -1,3 +1,0 @@
-metaprogramming
-rocks
-__END__

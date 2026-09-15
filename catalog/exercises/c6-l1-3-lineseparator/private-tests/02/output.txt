@@ -1,6 +1,0 @@
-Aqui sota hi surt una line de 10 guions
-----------
-Aqui sota hi surt una line de 20 guions
---------------------
-Aqui sota hi surt una line de 30 guions
-------------------------------

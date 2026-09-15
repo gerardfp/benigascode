@@ -1,3 +1,0 @@
-First IP: 235.84.32.0
-Last IP: 235.84.63.255
-Public

@@ -1,8 +1,0 @@
-   while(true){
-   a=3;
-  b=7;
-}
-
-END
-
-

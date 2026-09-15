@@ -1,2 +1,0 @@
-#java 3
-#javascript 2

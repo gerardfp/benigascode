@@ -1,3 +1,0 @@
-ForkJoinWorkerThreadFactory
-fork-join-worker-thread-factory
-fork_join_worker_thread_factory

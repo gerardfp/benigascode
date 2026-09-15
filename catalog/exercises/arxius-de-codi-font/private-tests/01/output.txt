@@ -1,4 +1,0 @@
-Archivo Kotlin MainActivity.kt
-Archivo Swift app.swift
-Archivo C# sample.cs
-Archivo PHP index.php

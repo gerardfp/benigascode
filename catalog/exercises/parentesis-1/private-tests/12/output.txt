@@ -1,2 +1,0 @@
-ERROR: parentesi 3 mal tancat
-ERROR: falta tancar 1 parentesis

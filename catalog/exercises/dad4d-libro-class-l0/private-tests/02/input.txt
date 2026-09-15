@@ -1,5 +1,0 @@
-C: A Reference Manual
-978-0130895929
-5
-Samuel P. Harbison
-5

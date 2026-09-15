@@ -1,5 +1,0 @@
-4 2 $
-Tebi $3
-PREMI
-Fred $0
-Calent $1

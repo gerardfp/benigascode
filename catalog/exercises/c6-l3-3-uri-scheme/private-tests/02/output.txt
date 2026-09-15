@@ -1,1 +1,0 @@
-https://anotherdomain.cat/path/to/page?q=1&s=1#frag

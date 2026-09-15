@@ -1,5 +1,0 @@
-978-0131103627
-C Programming Language
-****
-Dennis M. Ritchie
-*****

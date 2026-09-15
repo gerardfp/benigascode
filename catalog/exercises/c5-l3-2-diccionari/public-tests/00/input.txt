@@ -1,4 +1,0 @@
-hola
-adeu
-mama
-__END__

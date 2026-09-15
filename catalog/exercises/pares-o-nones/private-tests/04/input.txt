@@ -1,2 +1,0 @@
-pares 3
-nones 2

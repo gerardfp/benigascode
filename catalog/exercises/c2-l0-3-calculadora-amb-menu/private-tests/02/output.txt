@@ -1,7 +1,0 @@
-MENU:
-1.-SUMAR
-2.-RESTAR
-3.-MULTIPLICAR
-4.-DIVIDIR
-Esculli una opcio:
-0

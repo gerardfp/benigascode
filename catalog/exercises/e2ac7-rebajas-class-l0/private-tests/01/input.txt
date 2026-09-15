@@ -1,2 +1,0 @@
-productoX 100
-25

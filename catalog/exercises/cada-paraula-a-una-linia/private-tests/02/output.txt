@@ -1,5 +1,0 @@
-gat
-gos
-vaca
-porc
-gall

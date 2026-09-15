@@ -1,3 +1,0 @@
-if(b[0] >= a[1] || b[1] <= a[0]) return false;
-return true;
-END

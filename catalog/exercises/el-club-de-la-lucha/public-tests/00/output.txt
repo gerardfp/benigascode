@@ -1,2 +1,0 @@
-Richard: 10
-Angel: 15

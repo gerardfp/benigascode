@@ -1,1 +1,0 @@
-https://linus:torvalds@git-scm.com:8080/downloads/linux?v=2.21&dev=true#arch

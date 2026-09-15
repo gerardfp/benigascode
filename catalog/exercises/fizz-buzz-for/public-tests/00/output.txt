@@ -1,8 +1,0 @@
-16
-FizzBuzz
-14
-13
-Fizz
-11
-Buzz
-Fizz

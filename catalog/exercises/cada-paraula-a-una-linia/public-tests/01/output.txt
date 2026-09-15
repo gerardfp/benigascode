@@ -1,5 +1,0 @@
-Java
-te
-5
-operadors
-aritmetics

@@ -1,6 +1,0 @@
-@user_one
-Blank message
-------------------------------
-@user_two
-Empty message
-------------------------------

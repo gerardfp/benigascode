@@ -1,2 +1,0 @@
-Area triangle1: 0.00
-Area triangle2: 0.00

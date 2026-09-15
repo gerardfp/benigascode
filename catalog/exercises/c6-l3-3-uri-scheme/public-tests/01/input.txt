@@ -1,5 +1,0 @@
-http
-www.mydomain.com
-/path/to
-query=true
-fragment1

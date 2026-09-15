@@ -1,4 +1,0 @@
-2,hola -> holahola
-4,pa -> papapapa
-5,ja -> jajajajaja
-10,mi -> mimimimimimimimimimi

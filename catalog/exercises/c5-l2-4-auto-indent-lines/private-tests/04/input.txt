@@ -1,9 +1,0 @@
-   if(true){
-   a=3;
-      b=7;
- while(false){
- c=9;
-    }
-       }
-
-END
