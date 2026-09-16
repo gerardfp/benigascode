@@ -90,8 +90,14 @@ export const api = {
   getMyCollections: (): Promise<Collection[]> =>
     request<Collection[]>('/me/collections'),
 
+  getPublicCollections: (): Promise<Collection[]> =>
+    request<Collection[]>('/collections/public'),
+
   getMySpaces: (): Promise<TeachingSpace[]> =>
     request<TeachingSpace[]>('/student/spaces'),
+
+  getMySpace: (id: string): Promise<TeachingSpace> =>
+    request<TeachingSpace>(`/student/spaces/${id}`),
 
   claimCollectionAccess: (accessKey: string): Promise<Collection> =>
     request<Collection>('/collections/access', {
@@ -218,10 +224,16 @@ export const api = {
   listTags: (category?: string): Promise<Tag[]> =>
     request<Tag[]>(`/teacher/tags${category ? `?category=${encodeURIComponent(category)}` : ''}`),
 
-  createTag: (tag: { category: string; value: string; description?: string }): Promise<Tag> =>
+  createTag: (tag: { category: string; value: string; description?: string; color?: string | null }): Promise<Tag> =>
     request<Tag>('/teacher/tags', {
       method: 'POST',
       body: JSON.stringify(tag),
+    }),
+
+  updateTag: (id: string, data: { description?: string; color?: string | null }): Promise<Tag> =>
+    request<Tag>(`/teacher/tags/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   deleteTag: (id: string): Promise<void> =>

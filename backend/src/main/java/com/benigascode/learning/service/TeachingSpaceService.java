@@ -6,6 +6,7 @@ import com.benigascode.common.exception.ValidationException;
 import com.benigascode.content.domain.Collection;
 import com.benigascode.content.dto.CollectionDTO;
 import com.benigascode.content.repository.CollectionRepository;
+import com.benigascode.content.repository.CollectionVersionRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.dto.UserDTO;
@@ -29,17 +30,20 @@ public class TeachingSpaceService {
     private final TeachingSpaceRepository teachingSpaceRepository;
     private final TagRepository tagRepository;
     private final CollectionRepository collectionRepository;
+    private final CollectionVersionRepository collectionVersionRepository;
     private final UserRepository userRepository;
     private final ContextService contextService;
 
     public TeachingSpaceService(TeachingSpaceRepository teachingSpaceRepository,
                                 TagRepository tagRepository,
                                 CollectionRepository collectionRepository,
+                                CollectionVersionRepository collectionVersionRepository,
                                 UserRepository userRepository,
                                 ContextService contextService) {
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.tagRepository = tagRepository;
         this.collectionRepository = collectionRepository;
+        this.collectionVersionRepository = collectionVersionRepository;
         this.userRepository = userRepository;
         this.contextService = contextService;
     }
@@ -236,7 +240,10 @@ public class TeachingSpaceService {
         List<Tag> tags = (!reqTagIds.isEmpty()) ? tagRepository.findAllByIdIn(reqTagIds) : Collections.emptyList();
         List<TagDTO> tagDTOs = tags.stream().map(TagDTO::fromEntity).toList();
         int studentCount = contextService.countMatchingStudents(reqTagIds);
-        return TeachingSpaceDTO.fromEntity(space, tagDTOs, studentCount);
+        List<CollectionDTO> collections = space.getCollections() != null
+            ? space.getCollections().stream().map(c -> CollectionDTO.from(c, collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null))).toList()
+            : Collections.emptyList();
+        return TeachingSpaceDTO.fromEntity(space, tagDTOs, studentCount, collections);
     }
 }
 

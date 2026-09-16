@@ -13,7 +13,13 @@ public record CreateTagRequest(
     String value,
 
     @Size(max = 255, message = "La descripción no puede superar 255 caracteres")
-    String description
+    String description,
+
+    @Size(max = 20, message = "El color no puede superar 20 caracteres")
+    String color
 ) {
+    public CreateTagRequest(String category, String value, String description) {
+        this(category, value, description, null);
+    }
 }
 

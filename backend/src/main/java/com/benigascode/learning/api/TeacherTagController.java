@@ -46,6 +46,14 @@ public class TeacherTagController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<TagDTO> updateTag(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateTagRequest request) {
+        TagDTO updated = tagService.updateTag(id, request);
+        return ResponseEntity.ok(updated);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTag(@PathVariable UUID id) {
         tagService.deleteTag(id);

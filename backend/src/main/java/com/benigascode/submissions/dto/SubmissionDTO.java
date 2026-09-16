@@ -1,6 +1,7 @@
 package com.benigascode.submissions.dto;
 
 import com.benigascode.submissions.domain.Submission;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -22,9 +23,25 @@ public record SubmissionDTO(
     String sourceCode,
     String sourceHash,
     int attemptNumber,
-    Instant createdAt
+    Instant createdAt,
+    String evaluationStatus,
+    BigDecimal score,
+    int testsPassed,
+    int totalTests,
+    Boolean compileSuccess
 ) {
     public static SubmissionDTO fromEntity(Submission submission) {
+        return fromEntity(submission, null, null, 0, 0, null);
+    }
+
+    public static SubmissionDTO fromEntity(
+            Submission submission,
+            String evaluationStatus,
+            BigDecimal score,
+            int testsPassed,
+            int totalTests,
+            Boolean compileSuccess
+    ) {
         UUID actId = submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null ?
                 submission.getActivityVersion().getActivity().getId() : null;
         String actName = submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null ?
@@ -51,7 +68,12 @@ public record SubmissionDTO(
             submission.getSourceCode(),
             submission.getSourceHash(),
             submission.getAttemptNumber(),
-            submission.getCreatedAt()
+            submission.getCreatedAt(),
+            evaluationStatus,
+            score,
+            testsPassed,
+            totalTests,
+            compileSuccess
         );
     }
 }

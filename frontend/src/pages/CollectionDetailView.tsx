@@ -361,10 +361,6 @@ export const CollectionDetailView: React.FC = () => {
                           </span>
                         )}
 
-                        <span className="badge badge-info" style={{ textTransform: 'uppercase', fontSize: '0.7rem' }}>
-                          {ex.language}
-                        </span>
-
                         {/* Etiquetas (Tags) */}
                         {ex.tags && ex.tags.length > 0 && ex.tags.map((t) => (
                           <span
@@ -385,12 +381,11 @@ export const CollectionDetailView: React.FC = () => {
                         ))}
                       </div>
 
-                      <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                        Identificador: <code>{ex.slug}</code> • Versión: v{ex.versionNumber}
-                        {ep && ep.totalSubmissions > 0 && (
-                          <span> • Envíos: <strong>{ep.totalSubmissions}</strong></span>
-                        )}
-                      </div>
+                      {ep && ep.totalSubmissions > 0 && (
+                        <div style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '0.125rem' }}>
+                          Envíos: <strong>{ep.totalSubmissions}</strong>
+                        </div>
+                      )}
                     </div>
                   </div>
 

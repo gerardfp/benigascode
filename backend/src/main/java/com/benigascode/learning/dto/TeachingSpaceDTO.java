@@ -21,13 +21,18 @@ public record TeachingSpaceDTO(
     Instant updatedAt
 ) {
     public static TeachingSpaceDTO fromEntity(TeachingSpace space, List<TagDTO> contextTags, int studentCount) {
+        return fromEntity(space, contextTags, studentCount, null);
+    }
+
+    public static TeachingSpaceDTO fromEntity(TeachingSpace space, List<TagDTO> contextTags, int studentCount, List<CollectionDTO> collections) {
         if (space == null) return null;
         List<UserDTO> teachers = space.getTeachers() != null
             ? space.getTeachers().stream().map(UserDTO::fromEntity).toList()
             : Collections.emptyList();
-        List<CollectionDTO> collections = space.getCollections() != null
-            ? space.getCollections().stream().map(CollectionDTO::from).toList()
-            : Collections.emptyList();
+        List<CollectionDTO> colList = collections != null ? collections :
+            (space.getCollections() != null
+                ? space.getCollections().stream().map(CollectionDTO::from).toList()
+                : Collections.emptyList());
 
         return new TeachingSpaceDTO(
             space.getId(),
@@ -35,11 +40,10 @@ public record TeachingSpaceDTO(
             space.getDescription(),
             contextTags != null ? contextTags : Collections.emptyList(),
             teachers,
-            collections,
+            colList,
             studentCount,
             space.getCreatedAt(),
             space.getUpdatedAt()
         );
     }
 }
-

@@ -1,56 +1,55 @@
 {
-    email {$LETSENCRYPT_EMAIL:admin@benigaslo.dev}
+	email {$LETSENCRYPT_EMAIL:admin@benigaslo.dev}
 }
 
 {$DOMAIN_NAME:benigaslo.dev} {
-    log {
-        output stdout
-        format console
-    }
+	log {
+		output stdout
+		format console
+	}
 
-    # HSTS y cabeceras de seguridad
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';"
-    }
+	# HSTS y cabeceras de seguridad
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com https://*.githubusercontent.com; connect-src 'self';"
+	}
 
-    # Assets estáticos con hash inmutables
-    @assets {
-        path /assets/*
-    }
-    header @assets Cache-Control "public, max-age=31536000, immutable"
+	# Assets estáticos con hash inmutables
+	@assets {
+		path /assets/*
+	}
+	header @assets Cache-Control "public, max-age=31536000, immutable"
 
-    # Rutas SPA y HTML nunca deben cachearse en el navegador
-    @notAssets {
-        not path /assets/*
-    }
-    header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
-    header @notAssets Pragma "no-cache"
-    header @notAssets Expires "0"
+	# Rutas SPA y HTML nunca deben cachearse en el navegador
+	@notAssets {
+		not path /assets/*
+	}
+	header @notAssets Cache-Control "no-cache, no-store, must-revalidate"
+	header @notAssets Pragma "no-cache"
+	header @notAssets Expires "0"
 
-    # API Backend Reverse Proxy
-    handle /api/* {
-        reverse_proxy backend:8080
-    }
+	# API Backend Reverse Proxy
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
 
-    # Spring Actuator Health Check (solo /actuator/health)
-    handle /actuator/health {
-        reverse_proxy backend:8080
-    }
+	# Spring Actuator Health Check (solo /actuator/health)
+	handle /actuator/health {
+		reverse_proxy backend:8080
+	}
 
-    # Denegar acceso al resto de endpoints de actuator
-    handle /actuator/* {
-        respond "Forbidden" 403
-    }
+	# Denegar acceso al resto de endpoints de actuator
+	handle /actuator/* {
+		respond "Forbidden" 403
+	}
 
-    # Frontend SPA
-    handle {
-        reverse_proxy frontend:80
-    }
+	# Frontend SPA
+	handle {
+		reverse_proxy frontend:80
+	}
 
-    encode gzip zstd
+	encode gzip zstd
 }
-

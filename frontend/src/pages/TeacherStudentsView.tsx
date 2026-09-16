@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { TeacherStudent, TeachingSpace, Tag, StudentTag } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
+import { TagBadge } from '../components/TagBadge';
+import { TagColorPicker } from '../components/TagColorPicker';
 import { 
-  Users, Tag as TagIcon, Layers, Trash2, Search, Clock, Plus, X, Check
+  Users, Tag as TagIcon, Layers, Trash2, Search, Plus, X, Check
 } from 'lucide-react';
 
 export const TeacherStudentsView: React.FC = () => {
@@ -34,7 +36,7 @@ export const TeacherStudentsView: React.FC = () => {
   const [selectedTagValue, setSelectedTagValue] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  // Selección múltiple de alumnos
+  // Selección Múltiple (Checkbox)
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [batchSubmitting, setBatchSubmitting] = useState(false);
 
@@ -46,6 +48,7 @@ export const TeacherStudentsView: React.FC = () => {
   const [bulkNewValue, setBulkNewValue] = useState('');
   const [bulkNewDesc, setBulkNewDesc] = useState('');
   const [bulkValidUntil, setBulkValidUntil] = useState('');
+  const [bulkNewColor, setBulkNewColor] = useState<string | null>(null);
 
   // Modal Gestión de Etiquetas para un Alumno individual
   const [managingStudent, setManagingStudent] = useState<TeacherStudent | null>(null);
@@ -62,6 +65,7 @@ export const TeacherStudentsView: React.FC = () => {
   const [newTagCategory, setNewTagCategory] = useState('group');
   const [newTagValue, setNewTagValue] = useState('');
   const [newTagDesc, setNewTagDesc] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -123,6 +127,11 @@ export const TeacherStudentsView: React.FC = () => {
     setSelectedStudentIds(new Set());
   };
 
+  // Colores en uso en el sistema
+  const usedTagColors = useMemo(() => {
+    return availableTags.map(t => t.color).filter(Boolean);
+  }, [availableTags]);
+
   // Alumnos seleccionados
   const selectedStudents = useMemo(() => {
     return students.filter(s => selectedStudentIds.has(s.id));
@@ -133,6 +142,7 @@ export const TeacherStudentsView: React.FC = () => {
     tagId: string;
     category: string;
     value: string;
+    color?: string | null;
     studentIdsWithTag: string[];
   }
 
@@ -147,16 +157,21 @@ export const TeacherStudentsView: React.FC = () => {
         if (!tagId) continue;
         const cat = st.category || st.tag?.category || '';
         const val = st.value || st.tag?.value || '';
+        const tagColor = st.color || st.tag?.color;
 
         if (!tagMap.has(tagId)) {
           tagMap.set(tagId, {
             tagId,
             category: cat,
             value: val,
+            color: tagColor,
             studentIdsWithTag: [student.id],
           });
         } else {
           const existing = tagMap.get(tagId)!;
+          if (!existing.color && tagColor) {
+            existing.color = tagColor;
+          }
           if (!existing.studentIdsWithTag.includes(student.id)) {
             existing.studentIdsWithTag.push(student.id);
           }
@@ -238,6 +253,7 @@ export const TeacherStudentsView: React.FC = () => {
           category: cat,
           value: val,
           description: bulkNewDesc.trim() || undefined,
+          color: bulkNewColor,
         });
         setAvailableTags(prev => [...prev, targetTag!]);
       }
@@ -251,6 +267,7 @@ export const TeacherStudentsView: React.FC = () => {
       setBulkNewValue('');
       setBulkNewDesc('');
       setBulkValidUntil('');
+      setBulkNewColor(null);
       await loadData();
     } catch (err: any) {
       alert(err.message || 'Error al crear y asignar la etiqueta');
@@ -265,6 +282,7 @@ export const TeacherStudentsView: React.FC = () => {
     setSelectedTagIdToAssign('');
     setValidUntilInput('');
     setIsCreatingNewTag(false);
+    setNewTagColor(null);
     setStudentTagsLoading(true);
     try {
       const tags = await api.getStudentTags(student.id, true);
@@ -291,6 +309,7 @@ export const TeacherStudentsView: React.FC = () => {
           category: newTagCategory.trim().toLowerCase(),
           value: newTagValue.trim(),
           description: newTagDesc.trim() || undefined,
+          color: newTagColor,
         });
         setAvailableTags(prev => [...prev, newTag]);
         tagId = newTag.id;
@@ -309,6 +328,8 @@ export const TeacherStudentsView: React.FC = () => {
       setValidUntilInput('');
       setIsCreatingNewTag(false);
       setNewTagValue('');
+      setNewTagDesc('');
+      setNewTagColor(null);
       await loadData();
     } catch (err: any) {
       alert(err.message || 'Error al asignar la etiqueta');
@@ -574,22 +595,11 @@ export const TeacherStudentsView: React.FC = () => {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              fontSize: '0.8125rem',
-                              fontWeight: 600,
-                              color: '#1e293b',
-                            }}
-                          >
-                            {tagInfo.category && (
-                              <span style={{ color: '#2563eb', fontWeight: 600, marginRight: '0.25rem' }}>
-                                {tagInfo.category}:
-                              </span>
-                            )}
-                            <strong>{tagInfo.value}</strong>
-                          </span>
+                          <TagBadge
+                            category={tagInfo.category}
+                            value={tagInfo.value}
+                            color={tagInfo.color}
+                          />
 
                           <span
                             style={{
@@ -720,15 +730,16 @@ export const TeacherStudentsView: React.FC = () => {
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
-                        <span style={{ fontSize: '0.8125rem', color: '#475569' }}>
-                          <span style={{ color: '#2563eb', fontWeight: 600 }}>{tag.category}:</span>{' '}
-                          <strong>{tag.value}</strong>
-                          {tag.description && (
-                            <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
-                              ({tag.description})
-                            </span>
-                          )}
-                        </span>
+                        <TagBadge
+                          category={tag.category}
+                          value={tag.value}
+                          color={tag.color}
+                        />
+                        {tag.description && (
+                          <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
+                            ({tag.description})
+                          </span>
+                        )}
                       </div>
 
                       <button
@@ -842,7 +853,15 @@ export const TeacherStudentsView: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <TagColorPicker
+                  selectedColor={bulkNewColor}
+                  onChange={setBulkNewColor}
+                  category={bulkNewCategory}
+                  value={bulkNewValue}
+                  usedColors={usedTagColors}
+                />
+
                 <button
                   type="submit"
                   className="btn-primary"
@@ -854,6 +873,7 @@ export const TeacherStudentsView: React.FC = () => {
                     alignItems: 'center',
                     gap: '0.375rem',
                     whiteSpace: 'nowrap',
+                    marginLeft: 'auto',
                   }}
                 >
                   <Plus size={14} />
@@ -949,28 +969,15 @@ export const TeacherStudentsView: React.FC = () => {
                             student.activeTags.map(st => {
                               const cat = st.category || st.tag?.category || '';
                               const val = st.value || st.tag?.value || '';
+                              const tagColor = st.color || st.tag?.color;
                               return (
-                                <span
+                                <TagBadge
                                   key={st.id}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    background: '#f1f5f9',
-                                    color: '#334155',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '9999px',
-                                    padding: '0.125rem 0.5rem',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                  }}
-                                  title={st.validUntil ? `Válida hasta: ${new Date(st.validUntil).toLocaleDateString()}` : 'Vigencia activa indefinida'}
-                                >
-                                  {cat && <span style={{ opacity: 0.75, marginRight: '0.25rem' }}>{cat}:</span>}
-                                  <strong>{val || 'Sin valor'}</strong>
-                                  {st.validUntil && (
-                                    <Clock size={10} style={{ marginLeft: '0.25rem', opacity: 0.7 }} />
-                                  )}
-                                </span>
+                                  category={cat}
+                                  value={val}
+                                  color={tagColor}
+                                  validUntil={st.validUntil}
+                                />
                               );
                             })
                           ) : (
@@ -1108,12 +1115,11 @@ export const TeacherStudentsView: React.FC = () => {
                       >
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {cat && (
-                              <span style={{ fontWeight: 600, color: '#2563eb', fontSize: '0.875rem' }}>
-                                {cat}:
-                              </span>
-                            )}
-                            <strong style={{ fontSize: '0.9375rem' }}>{val || 'Sin valor'}</strong>
+                            <TagBadge
+                              category={cat}
+                              value={val}
+                              color={assignment.color || assignment.tag?.color}
+                            />
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
                             Válida desde: {new Date(assignment.validFrom).toLocaleDateString()}
@@ -1223,6 +1229,14 @@ export const TeacherStudentsView: React.FC = () => {
                         style={{ width: '100%', fontSize: '0.8125rem' }}
                       />
                     </div>
+
+                    <TagColorPicker
+                      selectedColor={newTagColor}
+                      onChange={setNewTagColor}
+                      category={newTagCategory}
+                      value={newTagValue}
+                      usedColors={usedTagColors}
+                    />
                   </div>
                 )}
 

@@ -194,13 +194,13 @@ public class SubmissionService {
             }
         }
 
-        return SubmissionDTO.fromEntity(submission);
+        return toEnrichedDTO(submission);
     }
 
     @Transactional(readOnly = true)
     public List<SubmissionDTO> getMySubmissions(User student) {
         return submissionRepository.findByStudentIdOrderByCreatedAtDesc(student.getId()).stream()
-                .map(SubmissionDTO::fromEntity)
+                .map(this::toEnrichedDTO)
                 .toList();
     }
 
@@ -211,7 +211,7 @@ public class SubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
         return submissionRepository.findByStudentAndExercise(student.getId(), exercise.getId()).stream()
-                .map(SubmissionDTO::fromEntity)
+                .map(this::toEnrichedDTO)
                 .toList();
     }
 
@@ -222,7 +222,24 @@ public class SubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
         List<Submission> list = submissionRepository.findByStudentAndExerciseAndOptionalActivity(student.getId(), exercise.getId(), activityId);
-        return list.isEmpty() ? null : SubmissionDTO.fromEntity(list.get(0));
+        return list.isEmpty() ? null : toEnrichedDTO(list.get(0));
+    }
+
+    private SubmissionDTO toEnrichedDTO(Submission s) {
+        Optional<Evaluation> evalOpt = evaluationRepository.findLatestBySubmissionId(s.getId());
+        String evalStatus = evalOpt.map(Evaluation::getStatus).orElse(s.getStatus());
+        BigDecimal score = evalOpt.map(Evaluation::getScore).orElse(BigDecimal.ZERO);
+        Boolean compileSuccess = evalOpt.map(Evaluation::getCompileSuccess).orElse(null);
+
+        int testsPassed = 0;
+        int totalTests = 0;
+        if (evalOpt.isPresent()) {
+            List<TestResult> trList = testResultRepository.findByEvaluationId(evalOpt.get().getId());
+            totalTests = trList.size();
+            testsPassed = (int) trList.stream().filter(tr -> "PASSED".equalsIgnoreCase(tr.getStatus())).count();
+        }
+
+        return SubmissionDTO.fromEntity(s, evalStatus, score, testsPassed, totalTests, compileSuccess);
     }
 
     @Transactional(readOnly = true)

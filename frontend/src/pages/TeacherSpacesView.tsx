@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
 import { TeachingSpace, Tag, Collection, TeacherStudent, ContextPreviewDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
+import { TagBadge } from '../components/TagBadge';
+import { TagColorPicker } from '../components/TagColorPicker';
 import { 
   Layers, Plus, Trash2, Edit3, Users, BookOpen, Shield, Info 
 } from 'lucide-react';
@@ -47,7 +49,12 @@ export const TeacherSpacesView: React.FC = () => {
   const [newTagCategory, setNewTagCategory] = useState('');
   const [newTagValue, setNewTagValue] = useState('');
   const [newTagDesc, setNewTagDesc] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string | null>(null);
   const [inlineTagSubmitting, setInlineTagSubmitting] = useState(false);
+
+  const usedTagColors = useMemo(() => {
+    return allTags.map(t => t.color).filter(Boolean);
+  }, [allTags]);
 
   // Modal Administrar Espacio
   const [activeSpace, setActiveSpace] = useState<TeachingSpace | null>(null);
@@ -202,12 +209,14 @@ export const TeacherSpacesView: React.FC = () => {
         category: newTagCategory.trim().toLowerCase(),
         value: newTagValue.trim(),
         description: newTagDesc.trim() || undefined,
+        color: newTagColor,
       });
       setAllTags(prev => [...prev, created]);
       setSelectedTagIds(prev => [...prev, created.id]);
       setNewTagCategory('');
       setNewTagValue('');
       setNewTagDesc('');
+      setNewTagColor(null);
       setShowInlineTagForm(false);
     } catch (err: any) {
       alert(err.message || 'Error al crear la etiqueta');
@@ -323,23 +332,12 @@ export const TeacherSpacesView: React.FC = () => {
                       {space.tags && space.tags.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                           {space.tags.map(t => (
-                            <span
+                            <TagBadge
                               key={t.id}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                background: '#eff6ff',
-                                color: '#1d4ed8',
-                                border: '1px solid #bfdbfe',
-                                borderRadius: '9999px',
-                                padding: '0.125rem 0.5rem',
-                                fontSize: '0.75rem',
-                                fontWeight: 500,
-                              }}
-                            >
-                              <span style={{ opacity: 0.75, marginRight: '0.25rem' }}>{t.category}:</span>
-                              <strong>{t.value}</strong>
-                            </span>
+                              category={t.category}
+                              value={t.value}
+                              color={t.color}
+                            />
                           ))}
                         </div>
                       ) : (
@@ -538,6 +536,14 @@ export const TeacherSpacesView: React.FC = () => {
                         style={{ fontSize: '0.8125rem' }}
                       />
                     </div>
+
+                    <TagColorPicker
+                      selectedColor={newTagColor}
+                      onChange={setNewTagColor}
+                      category={newTagCategory}
+                      value={newTagValue}
+                      usedColors={usedTagColors}
+                    />
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                       <button
                         type="button"
@@ -581,6 +587,9 @@ export const TeacherSpacesView: React.FC = () => {
                                 key={tag.id}
                                 onClick={() => handleToggleTag(tag.id)}
                                 style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.375rem',
                                   padding: '0.25rem 0.625rem',
                                   borderRadius: '9999px',
                                   fontSize: '0.8125rem',
@@ -592,6 +601,15 @@ export const TeacherSpacesView: React.FC = () => {
                                   color: isSelected ? '#ffffff' : '#334155',
                                 }}
                               >
+                                <span
+                                  style={{
+                                    width: '0.5rem',
+                                    height: '0.5rem',
+                                    borderRadius: '50%',
+                                    backgroundColor: isSelected ? '#ffffff' : (tag.color || '#2563eb'),
+                                    flexShrink: 0,
+                                  }}
+                                />
                                 {isSelected ? '✓ ' : ''}{tag.value}
                               </button>
                             );
@@ -815,9 +833,12 @@ export const TeacherSpacesView: React.FC = () => {
                           <td style={{ padding: '0.5rem 0.75rem' }}>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                               {student.activeTags?.map(st => (
-                                <span key={st.id} style={{ background: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                                  {st.category}:{st.value}
-                                </span>
+                                <TagBadge
+                                  key={st.id}
+                                  category={st.category || st.tag?.category}
+                                  value={st.value || st.tag?.value || ''}
+                                  color={st.color || st.tag?.color}
+                                />
                               ))}
                             </div>
                           </td>

@@ -18,7 +18,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.benigascode.submissions.domain.StudentProgress;
+import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.repository.StudentProgressRepository;
+import com.benigascode.submissions.repository.SubmissionRepository;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -34,6 +36,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ContentService {
@@ -48,6 +51,7 @@ public class ContentService {
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
+    private final SubmissionRepository submissionRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
     private final ContextService contextService;
     private final ObjectMapper objectMapper;
@@ -60,6 +64,7 @@ public class ContentService {
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
+                          SubmissionRepository submissionRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
                           ContextService contextService,
                           ObjectMapper objectMapper) {
@@ -71,9 +76,81 @@ public class ContentService {
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
+        this.submissionRepository = submissionRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.contextService = contextService;
         this.objectMapper = objectMapper;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CollectionDTO> getMyCollections(User user) {
+        if (user.getRole() == Role.TEACHER || user.getRole() == Role.ADMIN) {
+            return collectionRepository.findAll().stream()
+                    .map(c -> CollectionDTO.from(c, collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null)))
+                    .toList();
+        }
+
+        Set<Collection> myCollections = new LinkedHashSet<>();
+
+        // 1. Colecciones en espacios docentes a los que el alumno pertenece
+        List<TeachingSpace> studentSpaces = contextService.findSpacesForStudent(user);
+        for (TeachingSpace ts : studentSpaces) {
+            myCollections.addAll(ts.getCollections());
+        }
+
+        // 2. Colecciones en las que el alumno ha participado (al menos un intento de ejercicio)
+        List<UUID> participatedColIds = submissionRepository.findParticipatedCollectionIdsByStudentId(user.getId());
+        if (participatedColIds != null && !participatedColIds.isEmpty()) {
+            myCollections.addAll(collectionRepository.findAllById(participatedColIds));
+        }
+
+        // Comprobar también entregas del alumno en ejercicios que pertenezcan a colecciones
+        List<Submission> allSubs = submissionRepository.findByStudentIdOrderByCreatedAtDesc(user.getId());
+        Set<String> attemptedExerciseSlugs = allSubs.stream()
+                .filter(s -> s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null)
+                .map(s -> s.getExerciseVersion().getExercise().getSlug())
+                .collect(Collectors.toSet());
+
+        if (!attemptedExerciseSlugs.isEmpty()) {
+            List<Collection> allCollections = collectionRepository.findAll();
+            for (Collection col : allCollections) {
+                if (myCollections.contains(col)) continue;
+                collectionVersionRepository.findLatestByCollectionId(col.getId()).ifPresent(cv -> {
+                    if (collectionVersionContainsAnyExercise(cv, attemptedExerciseSlugs)) {
+                        myCollections.add(col);
+                    }
+                });
+            }
+        }
+
+        // 3. Colecciones concedidas mediante clave directa (access_grants)
+        myCollections.addAll(collectionRepository.findAccessibleCollectionsByUserId(user.getId()));
+
+        return myCollections.stream()
+                .map(c -> CollectionDTO.from(c, collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null)))
+                .toList();
+    }
+
+    private boolean collectionVersionContainsAnyExercise(CollectionVersion cv, Set<String> exerciseSlugs) {
+        if (cv.getItems() == null || cv.getItems().isBlank()) return false;
+        try {
+            JsonNode items = objectMapper.readTree(cv.getItems());
+            if (items.isArray()) {
+                for (JsonNode it : items) {
+                    if ("EXERCISE".equalsIgnoreCase(it.path("type").asText()) && exerciseSlugs.contains(it.path("id").asText())) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CollectionDTO> getPublicCollections(User user) {
+        return collectionRepository.findPublicCollections().stream()
+                .map(c -> CollectionDTO.from(c, collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null)))
+                .toList();
     }
 
     @Transactional(readOnly = true)

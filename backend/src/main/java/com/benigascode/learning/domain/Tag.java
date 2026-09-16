@@ -1,5 +1,6 @@
 package com.benigascode.learning.domain;
 
+import com.benigascode.learning.util.TagColorUtil;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.Objects;
@@ -24,6 +25,9 @@ public class Tag {
     @Column(length = 255)
     private String description;
 
+    @Column(nullable = false, length = 20)
+    private String color;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -31,9 +35,14 @@ public class Tag {
     }
 
     public Tag(String category, String value, String description) {
+        this(category, value, description, null);
+    }
+
+    public Tag(String category, String value, String description, String color) {
         this.category = category;
         this.value = value;
         this.description = description;
+        this.color = TagColorUtil.sanitizeColor(color, category, value);
         this.createdAt = Instant.now();
     }
 
@@ -67,6 +76,18 @@ public class Tag {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getColor() {
+        return color;
+    }
+
+    public void setColor(String color) {
+        this.color = color;
+    }
+
+    public String getEffectiveColor() {
+        return (color != null && !color.isBlank()) ? color : TagColorUtil.getDeterministicColor(category, value);
     }
 
     public Instant getCreatedAt() {

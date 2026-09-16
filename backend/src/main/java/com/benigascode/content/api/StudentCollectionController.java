@@ -30,7 +30,13 @@ public class StudentCollectionController {
     @GetMapping("/me/collections")
     public ResponseEntity<List<CollectionDTO>> listMyCollections() {
         User user = userService.getCurrentUser();
-        return ResponseEntity.ok(contentService.getAccessibleCollections(user));
+        return ResponseEntity.ok(contentService.getMyCollections(user));
+    }
+
+    @GetMapping("/collections/public")
+    public ResponseEntity<List<CollectionDTO>> listPublicCollections() {
+        User user = userService.getCurrentUser();
+        return ResponseEntity.ok(contentService.getPublicCollections(user));
     }
 
     @PostMapping("/collections/access")

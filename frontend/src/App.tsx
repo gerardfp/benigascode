@@ -5,6 +5,9 @@ import { api } from './services/api';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
 import { StudentDashboard } from './pages/StudentDashboard';
+import { StudentSpaceDetailView } from './pages/StudentSpaceDetailView';
+import { StudentCollectionsView } from './pages/StudentCollectionsView';
+import { StudentHistoryView } from './pages/StudentHistoryView';
 import { ExerciseView } from './pages/ExerciseView';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherActivityView } from './pages/TeacherActivityView';
@@ -86,8 +89,12 @@ export const App: React.FC = () => {
             }
           />
           <Route
+            path="/spaces/:spaceId"
+            element={user ? <StudentSpaceDetailView /> : <Navigate to="/login" replace />}
+          />
+          <Route
             path="/collections"
-            element={user ? <StudentDashboard /> : <Navigate to="/login" replace />}
+            element={user ? <StudentCollectionsView /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/collections/:collectionId"
@@ -103,7 +110,7 @@ export const App: React.FC = () => {
           />
           <Route
             path="/history"
-            element={user ? <StudentDashboard /> : <Navigate to="/login" replace />}
+            element={user ? <StudentHistoryView /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/progress"

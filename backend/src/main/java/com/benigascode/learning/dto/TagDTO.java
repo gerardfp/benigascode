@@ -10,6 +10,7 @@ public record TagDTO(
     String category,
     String value,
     String description,
+    String color,
     String formatted,
     Instant createdAt
 ) {
@@ -20,6 +21,7 @@ public record TagDTO(
             tag.getCategory(),
             tag.getValue(),
             tag.getDescription(),
+            tag.getEffectiveColor(),
             tag.getFormatted(),
             tag.getCreatedAt()
         );

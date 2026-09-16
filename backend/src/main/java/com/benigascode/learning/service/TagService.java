@@ -11,8 +11,10 @@ import com.benigascode.learning.dto.AssignStudentTagRequest;
 import com.benigascode.learning.dto.CreateTagRequest;
 import com.benigascode.learning.dto.StudentTagDTO;
 import com.benigascode.learning.dto.TagDTO;
+import com.benigascode.learning.dto.UpdateTagRequest;
 import com.benigascode.learning.repository.StudentTagRepository;
 import com.benigascode.learning.repository.TagRepository;
+import com.benigascode.learning.util.TagColorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +61,26 @@ public class TagService {
             throw new ValidationException("Ya existe una etiqueta con la categoría '" + cleanCategory + "' y valor '" + cleanValue + "'");
         }
 
-        Tag tag = new Tag(cleanCategory, cleanValue, request.description() != null ? request.description().trim() : null);
+        String color = TagColorUtil.sanitizeColor(request.color(), cleanCategory, cleanValue);
+        Tag tag = new Tag(cleanCategory, cleanValue, request.description() != null ? request.description().trim() : null, color);
+        tag = tagRepository.save(tag);
+        return TagDTO.fromEntity(tag);
+    }
+
+    @Transactional
+    public TagDTO updateTag(UUID tagId, UpdateTagRequest request) {
+        Tag tag = tagRepository.findById(tagId)
+            .orElseThrow(() -> new ResourceNotFoundException("Etiqueta no encontrada: " + tagId));
+
+        if (request.description() != null) {
+            tag.setDescription(request.description().trim().isEmpty() ? null : request.description().trim());
+        }
+
+        if (request.color() != null) {
+            String color = TagColorUtil.sanitizeColor(request.color(), tag.getCategory(), tag.getValue());
+            tag.setColor(color);
+        }
+
         tag = tagRepository.save(tag);
         return TagDTO.fromEntity(tag);
     }

@@ -46,6 +46,7 @@ export interface Tag {
   category: string;
   value: string;
   description?: string | null;
+  color?: string;
   createdAt?: string;
 }
 
@@ -57,6 +58,7 @@ export interface StudentTag {
   tagId: string;
   category: string;
   value: string;
+  color?: string | null;
   validFrom: string;
   validUntil: string | null;
   createdBy?: string | null;
@@ -153,6 +155,11 @@ export interface Submission {
   sourceHash?: string;
   attemptNumber?: number;
   createdAt: string;
+  evaluationStatus?: string;
+  score?: number;
+  testsPassed?: number;
+  totalTests?: number;
+  compileSuccess?: boolean;
 }
 
 export interface Evaluation {

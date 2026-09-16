@@ -29,5 +29,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
         return findByTeachingSpaceId(courseId);
     }
 
+    @Query("SELECT DISTINCT s.collectionId FROM Submission s WHERE s.student.id = :studentId AND s.collectionId IS NOT NULL")
+    List<UUID> findParticipatedCollectionIdsByStudentId(UUID studentId);
+
     List<Submission> findAllByOrderByCreatedAtDesc();
 }

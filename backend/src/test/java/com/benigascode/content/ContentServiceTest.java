@@ -12,8 +12,10 @@ import com.benigascode.content.service.ContentService;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.repository.StudentProgressRepository;
+import com.benigascode.submissions.repository.SubmissionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,10 @@ class ContentServiceTest {
     private ContextService contextService;
     @Mock
     private StudentProgressRepository studentProgressRepository;
+    @Mock
+    private SubmissionRepository submissionRepository;
+    @Mock
+    private TeachingSpaceRepository teachingSpaceRepository;
     @Mock
     private ExerciseAssetRepository exerciseAssetRepository;
     @Mock
@@ -127,6 +133,45 @@ class ContentServiceTest {
         assertDoesNotThrow(() ->
             contentService.assertCanAccessCollection(teacher, collection)
         );
+    }
+
+    @Test
+    void getPublicCollections_ReturnsPublicCollections() {
+        Collection publicCol = new Collection("public-col", "PUBLIC");
+        publicCol.setId(UUID.randomUUID());
+        when(collectionRepository.findPublicCollections()).thenReturn(List.of(publicCol));
+        when(collectionVersionRepository.findLatestByCollectionId(publicCol.getId())).thenReturn(Optional.empty());
+
+        List<CollectionDTO> res = contentService.getPublicCollections(student);
+        assertEquals(1, res.size());
+        assertEquals("public-col", res.get(0).slug());
+    }
+
+    @Test
+    void getMyCollections_IncludesParticipatedAndSpaceCollections() {
+        TeachingSpace space = new TeachingSpace("DAM Space", "Desc", List.of());
+        Collection spaceCol = new Collection("space-col", "PRIVATE");
+        spaceCol.setId(UUID.randomUUID());
+        space.getCollections().add(spaceCol);
+
+        when(contextService.findSpacesForStudent(student)).thenReturn(List.of(space));
+
+        UUID partColId = UUID.randomUUID();
+        Collection partCol = new Collection("part-col", "PUBLIC");
+        partCol.setId(partColId);
+
+        when(submissionRepository.findParticipatedCollectionIdsByStudentId(student.getId())).thenReturn(List.of(partColId));
+        when(collectionRepository.findAllById(List.of(partColId))).thenReturn(List.of(partCol));
+        when(submissionRepository.findByStudentIdOrderByCreatedAtDesc(student.getId())).thenReturn(List.of());
+        when(collectionRepository.findAccessibleCollectionsByUserId(student.getId())).thenReturn(List.of());
+
+        when(collectionVersionRepository.findLatestByCollectionId(any())).thenReturn(Optional.empty());
+
+        List<CollectionDTO> res = contentService.getMyCollections(student);
+        assertEquals(2, res.size());
+        List<String> slugs = res.stream().map(CollectionDTO::slug).toList();
+        assertTrue(slugs.contains("space-col"));
+        assertTrue(slugs.contains("part-col"));
     }
 }
 
