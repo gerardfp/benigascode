@@ -37,6 +37,11 @@ import com.benigascode.submissions.dto.TeacherSubmissionDetailDTO;
 import com.benigascode.submissions.dto.TeacherSubmissionItemDTO;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.common.util.LanguageDetector;
+import com.benigascode.content.domain.Collection;
+import com.benigascode.content.repository.CollectionRepository;
+import com.benigascode.submissions.domain.StudentCollectionPreference;
+import com.benigascode.submissions.repository.StudentCollectionPreferenceRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -77,6 +82,8 @@ public class SubmissionService {
     private final TeachingSpaceRepository teachingSpaceRepository;
     private final ContextService contextService;
     private final StudentTagRepository studentTagRepository;
+    private final CollectionRepository collectionRepository;
+    private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final ObjectMapper objectMapper;
 
     public SubmissionService(SubmissionRepository submissionRepository,
@@ -91,6 +98,8 @@ public class SubmissionService {
                              TeachingSpaceRepository teachingSpaceRepository,
                              ContextService contextService,
                              StudentTagRepository studentTagRepository,
+                             CollectionRepository collectionRepository,
+                             StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                              ObjectMapper objectMapper) {
         this.submissionRepository = submissionRepository;
         this.evaluationRepository = evaluationRepository;
@@ -104,6 +113,8 @@ public class SubmissionService {
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.contextService = contextService;
         this.studentTagRepository = studentTagRepository;
+        this.collectionRepository = collectionRepository;
+        this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -136,20 +147,31 @@ public class SubmissionService {
                 throw new InvalidAttemptException("Has superado el número máximo de intentos permitidos (" + activityVersion.getMaxAttempts() + ")");
             }
 
-            attemptNum = (int) consumedAttempts + 1;
+            long maxAttempt = attemptLedgerRepository.findMaxAttemptNumberForActivity(student.getId(), activityVersion.getId());
+            attemptNum = (int) maxAttempt + 1;
         } else {
             exerciseVersion = exerciseVersionRepository.findById(exerciseId)
                     .or(() -> exerciseRepository.findById(exerciseId).flatMap(e -> exerciseVersionRepository.findLatestByExerciseId(e.getId())))
                     .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
-            long consumedAttempts = attemptLedgerRepository.countConsumedExerciseAttempts(student.getId(), exerciseVersion.getId());
-            attemptNum = (int) consumedAttempts + 1;
+            long maxAttempt = attemptLedgerRepository.findMaxAttemptNumberForExercise(student.getId(), exerciseVersion.getId());
+            attemptNum = (int) maxAttempt + 1;
         }
 
         String lang = (request.language() != null && !request.language().isBlank()) ? request.language() : exerciseVersion.getLanguage();
+        String detectedLang = LanguageDetector.detect(request.sourceCode(), request.language());
+        if (detectedLang == null || detectedLang.isBlank()) {
+            detectedLang = exerciseVersion.getLanguage() != null ? exerciseVersion.getLanguage() : "java";
+        }
+        detectedLang = detectedLang.toLowerCase();
 
-        Submission submission = new Submission(student, activityVersion, exerciseVersion, request.sourceCode(), lang);
+        Submission submission = new Submission(student, activityVersion, exerciseVersion, request.sourceCode(), detectedLang);
         submission.setAttemptNumber(attemptNum);
+        if ("python".equalsIgnoreCase(detectedLang)) {
+            submission.setRuntimeId("python-314");
+        } else {
+            submission.setRuntimeId("java-26");
+        }
 
         if (activityVersion != null && activityVersion.getActivity() != null && activityVersion.getActivity().getTeachingSpace() != null) {
             submission.setTeachingSpaceId(activityVersion.getActivity().getTeachingSpace().getId());
@@ -159,6 +181,19 @@ public class SubmissionService {
 
         if (request.collectionId() != null) {
             submission.setCollectionId(request.collectionId());
+            final String finalLang = detectedLang;
+            studentCollectionPreferenceRepository.findByStudentIdAndCollectionId(student.getId(), request.collectionId())
+                    .ifPresentOrElse(
+                            pref -> {
+                                pref.setLastUsedLanguage(finalLang);
+                                studentCollectionPreferenceRepository.save(pref);
+                            },
+                            () -> {
+                                collectionRepository.findById(request.collectionId()).ifPresent(col -> {
+                                    studentCollectionPreferenceRepository.save(new StudentCollectionPreference(student, col, finalLang));
+                                });
+                            }
+                    );
         }
         submission = submissionRepository.save(submission);
 
@@ -266,9 +301,27 @@ public class SubmissionService {
             Map<String, Object> testsRoot = objectMapper.readValue(exerciseVersion.getTestsConfig(), new TypeReference<>() {});
             List<Map<String, Object>> publicTests = (List<Map<String, Object>>) testsRoot.getOrDefault("public", List.of());
 
+            String detectedLang = LanguageDetector.detect(request.sourceCode(), request.language());
+            if (detectedLang == null || detectedLang.isBlank()) {
+                detectedLang = exerciseVersion.getLanguage() != null ? exerciseVersion.getLanguage() : "java";
+            }
+            detectedLang = detectedLang.toLowerCase();
+
+            if ("python".equalsIgnoreCase(detectedLang)) {
+                String cmd = (String) compileConfig.get("command");
+                if (cmd == null || cmd.contains("javac")) {
+                    compileConfig.put("command", "python3 -m py_compile solution.py");
+                }
+                String runCmd = (String) runConfig.get("command");
+                if (runCmd == null || runCmd.contains("java ")) {
+                    runConfig.put("command", "python3 solution.py");
+                }
+            }
+
             Map<String, Object> payload = new HashMap<>();
             payload.put("sourceCode", request.sourceCode());
             payload.put("language", request.language() != null ? request.language() : exerciseVersion.getLanguage());
+            payload.put("language", detectedLang);
             payload.put("compileConfig", compileConfig);
             payload.put("runConfig", runConfig);
             payload.put("comparator", comparatorConfig);

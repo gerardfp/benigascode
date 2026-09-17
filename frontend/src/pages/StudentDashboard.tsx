@@ -332,6 +332,29 @@ export const StudentDashboard: React.FC = () => {
                           {col.description}
                         </p>
                       )}
+                      {collectionProgress[col.id]?.usedLanguages && (collectionProgress[col.id]?.usedLanguages?.length ?? 0) > 0 && (
+                        <div style={{ display: 'flex', gap: '0.375rem', marginTop: '0.625rem', flexWrap: 'wrap' }}>
+                          {collectionProgress[col.id]?.usedLanguages?.map((lang) => (
+                            <span
+                              key={lang}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                fontSize: '0.7rem',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '0.25rem',
+                                backgroundColor: lang.toLowerCase() === 'python' ? '#fef3c7' : '#e0e7ff',
+                                color: lang.toLowerCase() === 'python' ? '#92400e' : '#3730a3',
+                                border: `1px solid ${lang.toLowerCase() === 'python' ? '#fde68a' : '#c7d2fe'}`,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {lang.toLowerCase() === 'python' ? '🐍 Python' : '☕ Java'}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

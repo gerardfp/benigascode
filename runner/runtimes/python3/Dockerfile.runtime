@@ -1,0 +1,11 @@
+# Benigascode Python Sandbox Execution Environment
+FROM python:3.11-alpine
+
+# Crear usuario sin privilegios para ejecutar código de alumno
+RUN addgroup -g 10001 student && adduser -u 10001 -G student -D -s /sbin/nologin student
+
+WORKDIR /workspace
+RUN chown -R student:student /workspace
+
+USER student:student
+

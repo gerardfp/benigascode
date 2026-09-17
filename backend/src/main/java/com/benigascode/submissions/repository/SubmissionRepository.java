@@ -32,5 +32,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT DISTINCT s.collectionId FROM Submission s WHERE s.student.id = :studentId AND s.collectionId IS NOT NULL")
     List<UUID> findParticipatedCollectionIdsByStudentId(UUID studentId);
 
+    @Query("SELECT DISTINCT LOWER(s.language) FROM Submission s WHERE s.student.id = :studentId AND s.collectionId = :collectionId AND s.language IS NOT NULL")
+    List<String> findUsedLanguagesByStudentAndCollection(UUID studentId, UUID collectionId);
+
     List<Submission> findAllByOrderByCreatedAtDesc();
 }

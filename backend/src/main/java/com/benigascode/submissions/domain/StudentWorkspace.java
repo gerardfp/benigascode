@@ -27,6 +27,9 @@ public class StudentWorkspace {
     @Column(name = "source_code", nullable = false, columnDefinition = "TEXT")
     private String sourceCode;
 
+    @Column(name = "language", nullable = false, length = 30)
+    private String language = "java";
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
@@ -34,9 +37,14 @@ public class StudentWorkspace {
     }
 
     public StudentWorkspace(User student, Exercise exercise, String sourceCode) {
+        this(student, exercise, sourceCode, "java");
+    }
+
+    public StudentWorkspace(User student, Exercise exercise, String sourceCode, String language) {
         this.student = student;
         this.exercise = exercise;
         this.sourceCode = sourceCode;
+        this.language = language != null ? language.toLowerCase() : "java";
         this.updatedAt = Instant.now();
     }
 
@@ -58,6 +66,15 @@ public class StudentWorkspace {
 
     public void setSourceCode(String sourceCode) {
         this.sourceCode = sourceCode;
+        this.updatedAt = Instant.now();
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public void setLanguage(String language) {
+        this.language = language != null ? language.toLowerCase() : "java";
         this.updatedAt = Instant.now();
     }
 

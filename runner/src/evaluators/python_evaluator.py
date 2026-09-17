@@ -1,17 +1,18 @@
 import os
-import re
 import shutil
 import tempfile
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from sandbox import Sandbox, ExecutionResult
 from evaluators.comparators import Comparators
-class JavaEvaluator:
+
+class PythonEvaluator:
     """
-    Evalúa soluciones en el runtime Java 26 dentro de un sandbox aislado.
+    Evalúa soluciones en el runtime Python 3 dentro de un sandbox aislado.
     """
 
-    def __init__(self, sandbox: Sandbox):
+    def __init__(self, sandbox: Sandbox, image_name: Optional[str] = None):
         self.sandbox = sandbox
+        self.image_name = image_name or os.environ.get("RUNNER_PYTHON_IMAGE", "benigascode-sandbox-python:latest")
 
     def evaluate(self, job_package: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -19,19 +20,16 @@ class JavaEvaluator:
         {
             "job_id": "...",
             "submission_id": "...",
-            "source_code": "public class Main { ... }",
-            "files": {"Main.java": "...", "Helper.java": "..."}, // opcional para proyectos multifichero
-            "compile_config": {"command": "javac Main.java", "timeout_seconds": 15},
-            "run_config": {"command": "java Main", "timeout_seconds": 3, "memory_limit": "256m", "memory_limit_mb": 256},
-            "comparator": {"type": "exact_line_by_line", "ignore_trailing_whitespace": true},
-            "tests": [
-                {"id": "pub-01", "name": "...", "input": "...", "expected": "...", "weight": 20.0, "is_public": True},
-                ...
-            ]
+            "source_code": "def solve(): ...",
+            "files": {"solution.py": "...", "helper.py": "..."},
+            "compile_config": {"command": "python3 -m py_compile solution.py", "timeout_seconds": 10},
+            "run_config": {"command": "python3 solution.py", "timeout_seconds": 3, "memory_limit": "256m"},
+            "comparator": {"type": "trim"},
+            "tests": [...]
         }
         """
         tmp_base = os.environ.get("BENIGASCODE_TMP_DIR", "/tmp/benigascode" if os.path.exists("/tmp/benigascode") else None)
-        temp_dir = tempfile.mkdtemp(prefix="eval_", dir=tmp_base)
+        temp_dir = tempfile.mkdtemp(prefix="eval_py_", dir=tmp_base)
         try:
             os.chmod(temp_dir, 0o777)
             return self._run_evaluation(job_package, temp_dir)
@@ -47,7 +45,7 @@ class JavaEvaluator:
         comparator_config = job_package.get("comparator", {"type": "TRIM"})
 
         # 1. Escribir archivos en workspace
-        class_name = "Main"
+        entry_file = "solution.py"
         if files and isinstance(files, dict):
             for rel_path, content in files.items():
                 dest_path = os.path.join(workspace, rel_path)
@@ -55,34 +53,34 @@ class JavaEvaluator:
                 with open(dest_path, "w", encoding="utf-8") as f:
                     f.write(content)
                 os.chmod(dest_path, 0o666)
-            if "Main.java" not in files:
+
+            if "solution.py" in files:
+                entry_file = "solution.py"
+            elif "main.py" in files:
+                entry_file = "main.py"
+            else:
                 for k in files.keys():
-                    if k.endswith(".java"):
-                        class_name = os.path.splitext(k)[0]
+                    if k.endswith(".py"):
+                        entry_file = k
                         break
         else:
-            match = re.search(r'\bpublic\s+(?:final\s+|abstract\s+)?class\s+(\w+)', source_code)
-            if not match:
-                match = re.search(r'\bclass\s+(\w+)', source_code)
-            if match:
-                class_name = match.group(1)
-
-            main_file = os.path.join(workspace, f"{class_name}.java")
+            main_file = os.path.join(workspace, entry_file)
             with open(main_file, "w", encoding="utf-8") as f:
                 f.write(source_code)
             os.chmod(main_file, 0o666)
 
-        # 2. Compilar con Java 26
-        compile_cmd_str = compile_config.get("command", f"javac {class_name}.java")
-        if class_name != "Main" and "Main.java" in compile_cmd_str:
-            compile_cmd_str = compile_cmd_str.replace("Main.java", f"{class_name}.java")
+        # 2. Comprobación sintáctica (compilación py_compile)
+        compile_cmd_str = compile_config.get("command")
+        if not compile_cmd_str or "javac" in compile_cmd_str:
+            compile_cmd_str = f"python3 -m py_compile {entry_file}"
         compile_cmd = compile_cmd_str.split()
-        compile_timeout = compile_config.get("timeout_seconds", 15)
+        compile_timeout = compile_config.get("timeout_seconds", 10)
 
         compile_res = self.sandbox.execute_in_sandbox(
             workspace_dir=workspace,
             command=compile_cmd,
             timeout_seconds=compile_timeout,
+            image_name=self.image_name,
         )
 
         if compile_res.exit_code != 0:
@@ -98,10 +96,10 @@ class JavaEvaluator:
                 "test_results": [],
             }
 
-        # 3. Ejecutar suite de pruebas con Java 26
-        run_cmd_str = run_config.get("command", f"java {class_name}")
-        if class_name != "Main" and "Main" in run_cmd_str:
-            run_cmd_str = run_cmd_str.replace("Main", class_name)
+        # 3. Ejecutar suite de pruebas con Python 3
+        run_cmd_str = run_config.get("command")
+        if not run_cmd_str or "java " in run_cmd_str:
+            run_cmd_str = f"python3 {entry_file}"
         run_cmd = run_cmd_str.split()
         run_timeout = run_config.get("timeout_seconds") or run_config.get("timeoutSeconds", 3)
 
@@ -132,6 +130,7 @@ class JavaEvaluator:
                 stdin_data=test_input,
                 timeout_seconds=run_timeout,
                 memory_limit=memory_limit,
+                image_name=self.image_name,
             )
 
             if exec_res.timed_out:
@@ -143,7 +142,7 @@ class JavaEvaluator:
                 has_runtime_error = True
                 passed = False
             else:
-                passed = self._compare_output(exec_res.stdout, expected_output, comparator_config)
+                passed = Comparators.compare(exec_res.stdout, expected_output, comparator_config)
                 status = "PASSED" if passed else "FAILED"
 
             if not passed:
@@ -187,6 +186,3 @@ class JavaEvaluator:
             "testResults": test_results,
             "test_results": test_results,
         }
-
-    def _compare_output(self, actual: str, expected: str, config: Dict[str, Any]) -> bool:
-        return Comparators.compare(actual, expected, config)

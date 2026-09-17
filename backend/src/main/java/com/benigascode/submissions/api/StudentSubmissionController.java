@@ -107,7 +107,16 @@ public class StudentSubmissionController {
         return ResponseEntity.ok(progressService.getMyProgress(student));
     }
 
-    // 8.1 Insights analíticos del alumno
+    // 8.1 Progreso del alumno en un ejercicio específico
+    @GetMapping("/me/progress/exercises/{exerciseId}")
+    public ResponseEntity<StudentProgressDTO> getMyProgressForExercise(@PathVariable UUID exerciseId) {
+        User student = userService.getCurrentUser();
+        return progressService.getMyProgressForExercise(exerciseId, student)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    // 8.2 Insights analíticos del alumno
     @GetMapping("/me/insights")
     public ResponseEntity<StudentInsightsDTO> getMyInsights() {
         User student = userService.getCurrentUser();

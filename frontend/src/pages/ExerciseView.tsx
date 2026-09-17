@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
-import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation } from '../types';
+import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
+import { TagBadge } from '../components/TagBadge';
+import { detectLanguage } from '../utils/languageDetector';
 
 export const ExerciseView: React.FC = () => {
   const { activityId, collectionId, exerciseId } = useParams<{
@@ -15,9 +18,16 @@ export const ExerciseView: React.FC = () => {
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [publicTests, setPublicTests] = useState<PublicTest[]>([]);
   const [code, setCode] = useState<string>('');
+  const [selectedLang, setSelectedLang] = useState<string>('java');
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+
+  // Estados de control de código guardado, probado y entregado
+  const [lastSavedCode, setLastSavedCode] = useState<string | null>(null);
+  const [lastTestedCode, setLastTestedCode] = useState<string | null>(null);
+  const [lastSubmittedCode, setLastSubmittedCode] = useState<string | null>(null);
+  const [studentProgress, setStudentProgress] = useState<StudentProgress | null>(null);
 
   const [previewResult, setPreviewResult] = useState<PreviewRunResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -113,82 +123,237 @@ export const ExerciseView: React.FC = () => {
     };
   }, [isDraggingSplitter]);
 
-  // Cargar ejercicio, workspace del alumno e historial previo
+  // Cargar ejercicio, workspace del alumno, entregas previas y progreso
   useEffect(() => {
     if (!exerciseId) return;
 
-    // 1. Obtener detalles del ejercicio
-    api.getExercise(exerciseId, collectionId)
-      .then((ex) => {
+    const loadExerciseData = async () => {
+      try {
+        const [ex, wsRes, subsRes, progRes] = await Promise.all([
+          api.getExercise(exerciseId, collectionId),
+          api.getWorkspace(exerciseId).catch(() => null),
+          api.getExerciseSubmissions(exerciseId).catch(() => [] as Submission[]),
+          api.getExerciseProgress(exerciseId).catch(() => null),
+        ]);
+
         setExercise(ex);
+        if (progRes) {
+          setStudentProgress(progRes);
+        }
 
-        // 2. Obtener borrador guardado del alumno (workspace)
-        api.getWorkspace(exerciseId)
-          .then((ws) => {
-            if (ws && ws.sourceCode) {
-              setCode(ws.sourceCode);
-              setLastSaved(ws.updatedAt);
-            } else if (ex.starterCode) {
-              setCode(ex.starterCode);
-            }
-          })
-          .catch(() => {
-            if (ex.starterCode) {
-              setCode(ex.starterCode);
-            }
-          });
-      })
-      .catch((err) => setErrorMsg(err.message));
+        const defLang = (ex.defaultLanguage || 'java').toLowerCase();
+        const hasCustomTemplates = ex.starterTemplates && Object.keys(ex.starterTemplates).length > 0;
 
-    // 3. Obtener tests públicos
-    api.getPublicTests(exerciseId)
-      .then(setPublicTests)
-      .catch(console.error);
+        const isOldPhantomSkeleton = (codeText?: string) => {
+          if (!codeText) return false;
+          const trimmed = codeText.trim();
+          return (
+            trimmed === "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Escribe tu solución aquí\n    }\n}".trim() ||
+            trimmed === "// Escribe tu solución aquí\npublic class Main {\n    public static void main(String[] args) {\n        \n    }\n}".trim()
+          );
+        };
 
-    // 4. Cargar entregas previas para restaurar el estado más reciente
-    api.getExerciseSubmissions(exerciseId)
-      .then(async (subs) => {
+        const ws = wsRes;
+        const subs = subsRes || [];
         setSubmissionsHistory(subs);
-        if (subs && subs.length > 0) {
-          const latest = subs[0];
-          setSubmission(latest);
+
+        const hasValidWs = ws && !ws.isStarter && ws.sourceCode && (!isOldPhantomSkeleton(ws.sourceCode) || hasCustomTemplates);
+        const wsTime = hasValidWs && ws.updatedAt ? new Date(ws.updatedAt).getTime() : 0;
+        const latestSub = subs.length > 0 ? subs[0] : null;
+        const subTime = latestSub && latestSub.createdAt ? new Date(latestSub.createdAt).getTime() : 0;
+
+        // Determinar si la acción más reciente fue una entrega o un guardado de borrador
+        if (latestSub && subTime >= wsTime) {
+          // Última acción fue una entrega oficial
+          const subCode = latestSub.sourceCode || '';
+          setCode(subCode);
+          setLastSavedCode(subCode);
+          setLastTestedCode(subCode);
+          setLastSubmittedCode(subCode);
+          if (latestSub.language) {
+            setSelectedLang(latestSub.language.toLowerCase());
+          } else {
+            setSelectedLang(defLang);
+          }
+          setSubmission(latestSub);
+
+          // Cargar evaluación de la entrega
           try {
-            const evals = await api.getEvaluations(latest.id);
+            const evals = await api.getEvaluations(latestSub.id);
             if (evals && evals.length > 0) {
               setEvaluation(evals[0]);
             }
           } catch (e) {
             console.debug('Error recuperando evaluación previa', e);
           }
+        } else if (hasValidWs && ws && ws.sourceCode) {
+          // Última acción fue guardar borrador
+          const wsCode = ws.sourceCode;
+          setCode(wsCode);
+          setLastSaved(ws.updatedAt);
+          setLastSavedCode(wsCode);
+          setLastTestedCode(null);
+          setLastSubmittedCode(latestSub ? latestSub.sourceCode : null);
+          if (ws.language) {
+            setSelectedLang(ws.language.toLowerCase());
+          } else {
+            setSelectedLang(defLang);
+          }
+          // Si guardó el código, no debe aparecer ningún resultado de tests
+          setEvaluation(null);
+          setPreviewResult(null);
+          if (latestSub) {
+            setSubmission(latestSub);
+          }
+        } else {
+          // Sin entregas ni borradores previos: inicializar con plantilla
+          const initialCode = ex.starterTemplates?.[defLang] || ex.starterCode || '';
+          setCode(initialCode);
+          setLastSavedCode(initialCode);
+          setLastTestedCode(null);
+          setLastSubmittedCode(null);
+          setSelectedLang(defLang);
+          setEvaluation(null);
+          setPreviewResult(null);
         }
-      })
+      } catch (err: any) {
+        setErrorMsg(err.message);
+      }
+    };
+
+    loadExerciseData();
+
+    // Obtener tests públicos
+    api.getPublicTests(exerciseId)
+      .then(setPublicTests)
       .catch(console.error);
   }, [exerciseId, collectionId]);
 
+  // Detección automática del lenguaje según el código escrito y la selección
+  const currentLang = useMemo(() => {
+    return detectLanguage(code, selectedLang as 'java' | 'python');
+  }, [code, selectedLang]);
+
+  // Lista de plantillas disponibles en el ejercicio
+  const availableTemplates = useMemo(() => {
+    if (!exercise?.starterTemplates) return [];
+    return Object.keys(exercise.starterTemplates);
+  }, [exercise?.starterTemplates]);
+
+  // Determinar si el código actual está intacto (es idéntico a alguna plantilla inicial o está vacío)
+  const isUntouched = useMemo(() => {
+    if (!code || !code.trim()) return true;
+    if (exercise?.starterTemplates && Object.keys(exercise.starterTemplates).length > 0) {
+      return Object.values(exercise.starterTemplates).some(
+        (tpl) => (tpl || '').trim() === code.trim()
+      );
+    }
+    if (exercise?.starterCode) {
+      return exercise.starterCode.trim() === code.trim();
+    }
+    return false;
+  }, [code, exercise?.starterTemplates, exercise?.starterCode]);
+
+  // Cambio de lenguaje mediante las pestañas de plantilla
+  const handleSelectLanguage = (lang: string) => {
+    const normalized = lang.toLowerCase();
+    setSelectedLang(normalized);
+    const newCode = exercise?.starterTemplates?.[normalized] || exercise?.starterTemplates?.[lang] || '';
+    setCode(newCode);
+    setLastSavedCode(newCode);
+    setLastTestedCode(null);
+    setLastSubmittedCode(null);
+    if (collectionId) {
+      api.setCollectionPreference(collectionId, normalized).catch(console.error);
+    }
+    if (exerciseId) {
+      api.saveWorkspace(exerciseId, newCode, normalized).catch(console.error);
+    }
+  };
+
+  // Restablecer plantilla
+  const handleResetTemplate = () => {
+    const targetTemplate = exercise?.starterTemplates?.[selectedLang] || exercise?.starterCode;
+    if (targetTemplate !== undefined && targetTemplate !== null) {
+      if (window.confirm('¿Deseas restablecer el código a la plantilla inicial? Se descartarán las modificaciones actuales.')) {
+        setCode(targetTemplate);
+        setLastSavedCode(targetTemplate);
+        setLastTestedCode(null);
+        setLastSubmittedCode(null);
+        api.saveWorkspace(exerciseId!, targetTemplate, selectedLang)
+          .then((ws) => {
+            setLastSaved(ws.updatedAt);
+          })
+          .catch(console.error);
+      }
+    }
+  };
+
+  // Cálculo del porcentaje y estado para el checkmark junto al título (coherente con CollectionDetailView)
+  const scorePct = useMemo(() => {
+    if (studentProgress && studentProgress.bestScore !== undefined && studentProgress.bestScore !== null) {
+      return Math.round(studentProgress.bestScore);
+    }
+    if (evaluation && evaluation.score !== undefined && evaluation.score !== null) {
+      return Math.round(evaluation.score);
+    }
+    return 0;
+  }, [studentProgress, evaluation]);
+
+  const isResolved = useMemo(() => {
+    if (studentProgress && (studentProgress.status === 'PASSED' || studentProgress.status === 'MASTERED' || (studentProgress.bestScore !== undefined && studentProgress.bestScore >= 100))) {
+      return true;
+    }
+    if (evaluation && (evaluation.status === 'CORRECT' || (evaluation.score !== undefined && evaluation.score >= 100))) {
+      return true;
+    }
+    return false;
+  }, [studentProgress, evaluation]);
+
+  const isAttempted = useMemo(() => {
+    if (isResolved) return false;
+    if (studentProgress && (studentProgress.totalSubmissions > 0 || studentProgress.status === 'ATTEMPTED' || (studentProgress.bestScore !== undefined && studentProgress.bestScore > 0))) {
+      return true;
+    }
+    if (submissionsHistory && submissionsHistory.length > 0) {
+      return true;
+    }
+    return false;
+  }, [isResolved, studentProgress, submissionsHistory]);
+
+  const getScoreColorConfig = (pct: number) => {
+    if (pct >= 100) return { bg: '#ecfdf5', border: '#a7f3d0', iconColor: '#059669' };
+    if (pct >= 75) return { bg: '#f0fdf4', border: '#bbf7d0', iconColor: '#15803d' };
+    if (pct >= 50) return { bg: '#fefce8', border: '#fde047', iconColor: '#ca8a04' };
+    if (pct >= 25) return { bg: '#fff7ed', border: '#fdba74', iconColor: '#ea580c' };
+    return { bg: '#fef2f2', border: '#fecaca', iconColor: '#dc2626' };
+  };
+
+  // Control de habilitación de botones
+  const isBusy = submitLoading || previewLoading || saveStatus === 'saving';
+  const hasCode = Boolean(code && code.trim().length > 0);
+  const isModifiedSinceSave = hasCode && code !== lastSavedCode;
+  const isModifiedSinceTest = hasCode && code !== lastTestedCode && code !== lastSubmittedCode;
+  const isModifiedSinceSubmit = hasCode && code !== lastSubmittedCode;
+
+  const canSave = isModifiedSinceSave && !isBusy;
+  const canPreview = isModifiedSinceTest && !isBusy;
+  const canSubmit = isModifiedSinceSubmit && !isBusy;
+
   // Guardar borrador en el workspace
   const handleSaveWorkspace = useCallback(async () => {
-    if (!exerciseId || !code) return;
+    if (!exerciseId || !code || !canSave) return;
     setSaveStatus('saving');
     try {
-      const ws = await api.saveWorkspace(exerciseId, code);
+      const ws = await api.saveWorkspace(exerciseId, code, currentLang);
       setSaveStatus('saved');
       setLastSaved(ws.updatedAt);
+      setLastSavedCode(code);
       setTimeout(() => setSaveStatus('idle'), 2500);
     } catch {
       setSaveStatus('error');
     }
-  }, [exerciseId, code]);
-
-  // Restablecer plantilla
-  const handleResetTemplate = () => {
-    if (exercise && exercise.starterCode !== undefined && exercise.starterCode !== null) {
-      if (window.confirm('¿Deseas restablecer el código a la plantilla inicial? Se descartarán las modificaciones actuales.')) {
-        setCode(exercise.starterCode);
-        api.saveWorkspace(exerciseId!, exercise.starterCode).catch(console.error);
-        setLastSaved(new Date().toISOString());
-      }
-    }
-  };
+  }, [exerciseId, code, currentLang, canSave]);
 
   // Renderizado del enunciado Markdown
   const renderedStatementHtml = useMemo(() => {
@@ -211,16 +376,13 @@ export const ExerciseView: React.FC = () => {
   }, [exercise?.id]);
 
   const getTestDisplayName = useCallback((testId: string, testName?: string, index?: number): string => {
-    // 1. Si viene un nombre legible explícito que no sea un ID técnico
     if (testName && !testName.startsWith('pub-') && !testName.startsWith('priv-')) {
       return testName;
     }
-    // 2. Buscar en los tests públicos cargados por ID exacto
     const matchById = publicTests.find(p => p.id === testId);
     if (matchById && matchById.name && !matchById.name.startsWith('pub-')) {
       return matchById.name;
     }
-    // 3. Si tiene formato "pub-XX", extraer el número (0-indexado) y formatear a "Test Público #N"
     if (testId && testId.startsWith('pub-')) {
       const parsedNum = parseInt(testId.replace('pub-', ''), 10);
       if (!isNaN(parsedNum)) {
@@ -230,7 +392,6 @@ export const ExerciseView: React.FC = () => {
         return `Test Público #${parsedNum + 1}`;
       }
     }
-    // 4. Si se conoce el índice en la lista
     if (index !== undefined) {
       if (publicTests[index] && publicTests[index].name && !publicTests[index].name.startsWith('pub-')) {
         return publicTests[index].name;
@@ -240,16 +401,26 @@ export const ExerciseView: React.FC = () => {
     return testName || testId;
   }, [publicTests]);
 
-  // Ejecución real de pruebas preliminares públicas (Java 26 sandbox)
+  // Ejecución real de pruebas preliminares públicas
   const handlePreviewRun = async () => {
-    if (!exerciseId) return;
+    if (!exerciseId || !canPreview) return;
     setPreviewLoading(true);
     setPreviewResult(null);
     setErrorMsg(null);
 
+    // Auto-guardar borrador al probar
+    api.saveWorkspace(exerciseId, code, currentLang)
+      .then((ws) => {
+        setLastSaved(ws.updatedAt);
+        setLastSavedCode(code);
+      })
+      .catch(console.error);
+
     try {
-      const res = await api.previewRun(exerciseId, code, 'java');
+      const res = await api.previewRun(exerciseId, code, currentLang);
       setPreviewResult(res);
+      setLastTestedCode(code);
+      setLastSavedCode(code);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al ejecutar pruebas públicas');
     } finally {
@@ -267,9 +438,10 @@ export const ExerciseView: React.FC = () => {
         if (evals && evals.length > 0) {
           setEvaluation(evals[0]);
           setSubmitLoading(false);
-          // Actualizar lista histórica
+          // Actualizar lista histórica y progreso del ejercicio
           if (exerciseId) {
             api.getExerciseSubmissions(exerciseId).then(setSubmissionsHistory).catch(console.error);
+            api.getExerciseProgress(exerciseId).then(setStudentProgress).catch(console.error);
           }
           return;
         }
@@ -282,11 +454,12 @@ export const ExerciseView: React.FC = () => {
 
   // Entrega oficial (consume intento si es actividad de curso)
   const handleSubmit = async () => {
-    if (!exerciseId) return;
+    if (!exerciseId || !canSubmit) return;
     const isActivity = Boolean(activityId && activityId !== 'practice');
+    const langLabel = currentLang === 'python' ? 'Python 3' : 'Java 26';
     const confirmMsg = isActivity
-      ? '¿Estás seguro de realizar la entrega oficial? Esto consumirá un intento formal de la actividad.'
-      : '¿Deseas enviar tu solución para evaluación oficial en Java 26?';
+      ? `¿Estás seguro de realizar la entrega oficial en ${langLabel}? Esto consumirá un intento formal de la actividad.`
+      : `¿Deseas enviar tu solución en ${langLabel} para evaluación oficial?`;
 
     if (!window.confirm(confirmMsg)) {
       return;
@@ -296,15 +469,23 @@ export const ExerciseView: React.FC = () => {
     setErrorMsg(null);
     setEvaluation(null);
 
-    // Auto-guardar borrador
-    api.saveWorkspace(exerciseId, code).catch(console.error);
+    // Auto-guardar borrador al entregar
+    api.saveWorkspace(exerciseId, code, currentLang)
+      .then((ws) => {
+        setLastSaved(ws.updatedAt);
+        setLastSavedCode(code);
+      })
+      .catch(console.error);
 
     try {
       const sub = isActivity
-        ? await api.submitSolution(activityId!, exerciseId, code, 'java')
-        : await api.submitPracticeSolution(exerciseId, code, 'java', { collectionId });
+        ? await api.submitSolution(activityId!, exerciseId, code, currentLang)
+        : await api.submitPracticeSolution(exerciseId, code, currentLang, { collectionId });
 
       setSubmission(sub);
+      setLastSubmittedCode(code);
+      setLastTestedCode(code);
+      setLastSavedCode(code);
       pollEvaluation(sub.id);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al enviar la solución');
@@ -312,9 +493,18 @@ export const ExerciseView: React.FC = () => {
     }
   };
 
-  // Seleccionar una entrega anterior del historial para inspeccionar su evaluación
+  // Seleccionar una entrega anterior del historial para inspeccionar su evaluación y código
   const handleSelectHistorySubmission = async (histSub: Submission) => {
     setSubmission(histSub);
+    if (histSub.sourceCode) {
+      setCode(histSub.sourceCode);
+      setLastSavedCode(histSub.sourceCode);
+      setLastTestedCode(histSub.sourceCode);
+      setLastSubmittedCode(histSub.sourceCode);
+    }
+    if (histSub.language) {
+      setSelectedLang(histSub.language.toLowerCase());
+    }
     try {
       const evals = await api.getEvaluations(histSub.id);
       if (evals && evals.length > 0) {
@@ -437,19 +627,59 @@ export const ExerciseView: React.FC = () => {
           }}
         >
           <div className="card">
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.5rem' }}>{exercise.title}</h1>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <span className="badge badge-info">{exercise.language.toUpperCase()}</span>
-              <span className="badge badge-neutral" title="Runtime de ejecución real de la plataforma">
-                ⚡ Runtime: Java 26
-              </span>
-              <span className="badge badge-neutral">Versión {exercise.versionNumber}</span>
-              {(!activityId || activityId === 'practice') ? (
-                <span className="badge badge-success">Práctica Libre</span>
-              ) : (
-                <span className="badge badge-warning">Actividad de Curso</span>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
+              {isResolved ? (
+                <div
+                  title="Ejercicio resuelto con éxito (100% de tests superados)"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    backgroundColor: '#dcfce7',
+                    border: '1.5px solid #86efac',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#15803d',
+                    flexShrink: 0,
+                  }}
+                >
+                  <CheckCircle2 size={18} />
+                </div>
+              ) : isAttempted ? (
+                <div
+                  title={`Intentado (${scorePct}% superado)`}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    backgroundColor: getScoreColorConfig(scorePct).bg,
+                    border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: getScoreColorConfig(scorePct).iconColor,
+                    flexShrink: 0,
+                  }}
+                >
+                  <CheckCircle2 size={18} />
+                </div>
+              ) : null}
             </div>
+
+            {/* Etiquetas del ejercicio configuradas por el profesor */}
+            {exercise.tags && exercise.tags.length > 0 && (
+              <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {exercise.tags.map((tag) => {
+                  if (tag.includes(':')) {
+                    const [cat, ...val] = tag.split(':');
+                    return <TagBadge key={tag} category={cat} value={val.join(':')} />;
+                  }
+                  return <TagBadge key={tag} value={tag} />;
+                })}
+              </div>
+            )}
 
             <div
               className="markdown-statement"
@@ -528,21 +758,44 @@ export const ExerciseView: React.FC = () => {
         >
           <div className="card" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  backgroundColor: '#f1f5f9',
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '0.375rem',
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  color: '#1e293b',
-                  border: '1px solid #e2e8f0'
-                }}>
-                  ☕ Main.java
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {/* Selector de plantilla si hay múltiples y el código no ha sido modificado aún */}
+                {availableTemplates.length > 1 && isUntouched && (
+                  <div style={{
+                    display: 'inline-flex',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #cbd5e1',
+                    overflow: 'hidden',
+                    background: '#f8fafc',
+                  }}>
+                    {availableTemplates.map((lang) => {
+                      const isSel = selectedLang.toLowerCase() === lang.toLowerCase();
+                      return (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => handleSelectLanguage(lang)}
+                          style={{
+                            padding: '0.2rem 0.65rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            border: 'none',
+                            background: isSel ? '#2563eb' : 'transparent',
+                            color: isSel ? '#ffffff' : '#64748b',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {lang.toLowerCase() === 'python' ? '🐍 PYTHON' : '☕ JAVA'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando borrador...</span>}
                 {saveStatus === 'saved' && <span style={{ fontSize: '0.75rem', color: '#15803d' }}>✓ Guardado</span>}
                 {lastSaved && saveStatus === 'idle' && (
@@ -556,14 +809,19 @@ export const ExerciseView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSaveWorkspace}
-                  disabled={submitLoading || saveStatus === 'saving'}
+                  disabled={!canSave}
                   className="btn-secondary"
-                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                  title="Guardar borrador de trabajo"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.6rem',
+                    opacity: canSave ? 1 : 0.5,
+                    cursor: canSave ? 'pointer' : 'not-allowed',
+                  }}
+                  title={canSave ? 'Guardar borrador de trabajo' : 'El código no ha sido modificado desde el último guardado o prueba'}
                 >
                   💾 Guardar
                 </button>
-                {exercise.starterCode !== undefined && (
+                {((exercise.starterCode && exercise.starterCode.trim().length > 0) || (exercise.starterTemplates && Object.keys(exercise.starterTemplates).length > 0)) && (
                   <button
                     type="button"
                     onClick={handleResetTemplate}
@@ -578,24 +836,40 @@ export const ExerciseView: React.FC = () => {
               </div>
             </div>
 
-            <CodeEditor value={code} onChange={setCode} language="java" disabled={submitLoading} />
+            <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} />
 
             {/* Barra de botones de ejecución */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.875rem' }}>
               <button
                 onClick={handlePreviewRun}
-                disabled={previewLoading || submitLoading}
+                disabled={!canPreview}
                 className="btn-secondary"
-                style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                style={{
+                  fontSize: '0.875rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  opacity: canPreview ? 1 : 0.5,
+                  cursor: canPreview ? 'pointer' : 'not-allowed',
+                }}
+                title={canPreview ? 'Probar solución contra tests públicos' : 'Modifica el código para volver a probar'}
               >
-                {previewLoading ? '⏳ Probando en Java 26...' : '▶ Probar Tests Públicos'}
+                {previewLoading ? `⏳ Probando en ${currentLang === 'python' ? 'Python 3' : 'Java 26'}...` : '▶ Probar Tests Públicos'}
               </button>
 
               <button
                 onClick={handleSubmit}
-                disabled={previewLoading || submitLoading}
+                disabled={!canSubmit}
                 className="btn-primary"
-                style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                style={{
+                  fontSize: '0.875rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  opacity: canSubmit ? 1 : 0.5,
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                }}
+                title={canSubmit ? 'Entregar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
               >
                 {submitLoading ? '⏳ Evaluando entrega...' : '✓ Entregar Solución Oficial'}
               </button>
@@ -612,9 +886,11 @@ export const ExerciseView: React.FC = () => {
           {previewResult && (
             <div className="card" style={{ borderLeft: previewResult.compileSuccess ? '4px solid #16a34a' : '4px solid #dc2626' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600 }}>Resultado de Pruebas Públicas (Java 26)</h4>
+                <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600 }}>
+                  Resultado de Pruebas Públicas ({previewResult.runtimeId?.includes('python') || currentLang === 'python' ? 'Python 3' : 'Java 26'})
+                </h4>
                 <span className={`badge ${previewResult.compileSuccess ? 'badge-success' : 'badge-danger'}`}>
-                  {previewResult.compileSuccess ? 'Compilación OK' : 'Error de Compilación'}
+                  {previewResult.compileSuccess ? 'Compilación/Sintaxis OK' : 'Error de Compilación/Sintaxis'}
                 </span>
               </div>
 
@@ -676,7 +952,9 @@ export const ExerciseView: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="badge badge-neutral">Java 26 Sandbox</span>
+                  <span className="badge badge-neutral">
+                    {submission.runtimeId?.includes('python') || submission.language?.toLowerCase() === 'python' ? 'Python 3 Sandbox' : 'Java 26 Sandbox'}
+                  </span>
                   <span
                     className={`badge ${
                       evaluation
@@ -697,7 +975,7 @@ export const ExerciseView: React.FC = () => {
                 <div style={{ padding: '1rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#2563eb' }}>
                   <span style={{ fontSize: '1.25rem' }}>⏳</span>
                   <span style={{ fontSize: '0.875rem' }}>
-                    El contenedor Java 26 está compilando y ejecutando las pruebas públicas y privadas en el sandbox...
+                    El sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'} está ejecutando las pruebas públicas y privadas en un contenedor aislado...
                   </span>
                 </div>
               )}
@@ -726,7 +1004,7 @@ export const ExerciseView: React.FC = () => {
                   {evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
                     <div style={{ marginBottom: '1rem' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.35rem' }}>
-                        Detalle del compilador Java 26:
+                        Detalle del compilador / intérprete:
                       </div>
                       <pre style={{ background: '#1e293b', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', margin: 0 }}>
                         {evaluation.compileStderr}

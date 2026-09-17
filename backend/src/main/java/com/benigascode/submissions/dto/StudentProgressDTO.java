@@ -22,6 +22,7 @@ public record StudentProgressDTO(
     int totalTests,
     double passPercentage,
     String lastStatus,
+    String lastLanguage,
     UUID lastEvaluationId,
     Instant completedAt,
     Instant updatedAt
@@ -51,6 +52,7 @@ public record StudentProgressDTO(
             sp.getTotalTests(),
             Math.round(pct * 100.0) / 100.0,
             sp.getLastStatus(),
+            sp.getLastLanguage(),
             sp.getLastEvaluation() != null ? sp.getLastEvaluation().getId() : null,
             sp.getCompletedAt(),
             sp.getUpdatedAt()

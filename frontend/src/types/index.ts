@@ -31,6 +31,8 @@ export interface Exercise {
   tags?: string[];
   collections?: string[];
   createdAt?: string;
+  starterTemplates?: Record<string, string>;
+  defaultLanguage?: string;
 }
 
 export interface PublicTest {
@@ -150,6 +152,7 @@ export interface Submission {
   courseCollectionId?: string;
   collectionId?: string;
   language: string;
+  runtimeId?: string;
   status: string;
   sourceCode: string;
   sourceHash?: string;
@@ -191,6 +194,7 @@ export interface StudentWorkspace {
   sourceCode: string;
   updatedAt: string | null;
   isStarter: boolean;
+  language?: string;
 }
 
 export interface StudentProgress {
@@ -205,6 +209,7 @@ export interface StudentProgress {
   lastSubmissionId?: string;
   lastEvaluationId?: string;
   lastStatus?: string;
+  lastLanguage?: string;
   completedAt?: string;
   updatedAt: string;
 }
@@ -224,6 +229,7 @@ export interface TestResult {
 }
 
 export interface PreviewRunResult {
+  runtimeId?: string;
   compileSuccess: boolean;
   compileStdout: string;
   compileStderr: string;
@@ -321,8 +327,8 @@ export interface SaveExerciseRequest {
   title: string;
   slug: string;
   statement: string;
-  language: string;
-  runtimeId: string;
+  language?: string;
+  runtimeId?: string;
   starterCode?: string;
   templates?: Record<string, string>;
   tags?: string[];
@@ -377,6 +383,8 @@ export interface CollectionProgressDTO {
   completionPercentage: number;
   averageScore: number;
   items: ExerciseProgressItem[];
+  usedLanguages?: string[];
+  lastUsedLanguage?: string;
 }
 
 export interface CollectionProgressSummary {
@@ -388,6 +396,8 @@ export interface CollectionProgressSummary {
   attemptedExercises: number;
   completionPercentage: number;
   averageScore: number;
+  usedLanguages?: string[];
+  lastUsedLanguage?: string;
 }
 
 export interface TagProgressSummary {

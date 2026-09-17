@@ -7,6 +7,10 @@ public record StudentWorkspaceDTO(
     UUID exerciseId,
     String sourceCode,
     Instant updatedAt,
-    boolean isStarter
-) {}
-
+    boolean isStarter,
+    String language
+) {
+    public StudentWorkspaceDTO(UUID exerciseId, String sourceCode, Instant updatedAt, boolean isStarter) {
+        this(exerciseId, sourceCode, updatedAt, isStarter, "java");
+    }
+}

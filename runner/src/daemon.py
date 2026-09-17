@@ -11,6 +11,7 @@ import requests
 
 from sandbox import Sandbox
 from evaluators.java_evaluator import JavaEvaluator
+from evaluators.python_evaluator import PythonEvaluator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +34,7 @@ class RunnerHTTPHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "status": "UP",
                 "runtime": "java-26",
+                "runtimes": ["java-26", "python-314"],
                 "worker_id": self.daemon_instance.worker_id,
             }).encode("utf-8"))
         else:
@@ -53,7 +55,10 @@ class RunnerHTTPHandler(BaseHTTPRequestHandler):
                 content_length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_length).decode("utf-8")
                 job_package = json.loads(body)
-                result = self.daemon_instance.evaluator.evaluate(job_package)
+                evaluator = self.daemon_instance.get_evaluator(job_package)
+                result = dict(evaluator.evaluate(job_package))
+                if "test_results" in result and "testResults" in result:
+                    del result["test_results"]
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -85,10 +90,30 @@ class RunnerDaemon:
         self.running = True
         self.sandbox = Sandbox()
         self.evaluator = JavaEvaluator(self.sandbox)
+        self.java_evaluator = JavaEvaluator(self.sandbox)
+        self.python_evaluator = PythonEvaluator(self.sandbox)
+        self.evaluator = self.java_evaluator
         self.http_server = None
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
+
+    def detect_language(self, code: str) -> str:
+        code_clean = code.strip()
+        if "public class" in code_clean or "System.out" in code_clean or "import java." in code_clean or ("class " in code_clean and "{" in code_clean):
+            return "java"
+        if "def " in code_clean or "import " in code_clean or "print(" in code_clean or "elif " in code_clean or "__name__" in code_clean:
+            return "python"
+        return "java"
+
+    def get_evaluator(self, job_package: Dict[str, Any]):
+        lang = (job_package.get("language") or "").strip().lower()
+        if not lang:
+            code = job_package.get("source_code") or job_package.get("sourceCode") or ""
+            lang = self.detect_language(code)
+        if lang in ("python", "python3", "py"):
+            return self.python_evaluator
+        return self.java_evaluator
 
     def _handle_shutdown(self, signum, frame):
         logger.info("Señal de parada recibida. Finalizando RunnerDaemon de forma ordenada...")
@@ -131,9 +156,12 @@ class RunnerDaemon:
 
     def submit_result(self, job_id: str, result: Dict[str, Any]):
         url = f"{self.api_url}/jobs/{job_id}/result"
+        payload = dict(result)
+        if "test_results" in payload and "testResults" in payload:
+            del payload["test_results"]
         for attempt in range(3):
             try:
-                res = requests.post(url, headers=self.get_headers(), json=result, timeout=10)
+                res = requests.post(url, headers=self.get_headers(), json=payload, timeout=10)
                 if res.status_code in (200, 201):
                     logger.info(f"Resultado del job {job_id} enviado exitosamente.")
                     return
@@ -182,8 +210,9 @@ class RunnerDaemon:
                     heartbeat_thread.start()
 
                     try:
-                        eval_result = self.evaluator.evaluate(job)
-                        logger.info(f"Evaluación Java 26 finalizada para Job {job_id}: Estado={eval_result.get('status')}, Puntuación={eval_result.get('score')}")
+                        evaluator = self.get_evaluator(job)
+                        eval_result = evaluator.evaluate(job)
+                        logger.info(f"Evaluación finalizada para Job {job_id}: Estado={eval_result.get('status')}, Puntuación={eval_result.get('score')}")
                     except Exception as ex:
                         logger.exception(f"Error interno durante la evaluación del job {job_id}: {ex}")
                         eval_result = {

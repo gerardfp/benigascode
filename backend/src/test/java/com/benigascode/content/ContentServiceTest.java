@@ -17,16 +17,22 @@ import com.benigascode.learning.service.ContextService;
 import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.benigascode.content.domain.Exercise;
+import com.benigascode.content.domain.ExerciseVersion;
+import com.benigascode.content.dto.SaveExerciseRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,8 +65,8 @@ class ContentServiceTest {
     private TeachingSpaceRepository teachingSpaceRepository;
     @Mock
     private ExerciseAssetRepository exerciseAssetRepository;
-    @Mock
-    private ObjectMapper objectMapper;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private ContentService contentService;
@@ -172,6 +178,143 @@ class ContentServiceTest {
         List<String> slugs = res.stream().map(CollectionDTO::slug).toList();
         assertTrue(slugs.contains("space-col"));
         assertTrue(slugs.contains("part-col"));
+    }
+
+    @Test
+    void createExercise_WithMultipleTemplates_PrunesBlankAndSetsMultiLanguage() throws Exception {
+        SaveExerciseRequest req = new SaveExerciseRequest(
+                "multi-slug",
+                "Multi Title",
+                "Statement",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of("java", "public class Main {}", "python", "print(1)", "c", "   "),
+                List.of("tag1"),
+                List.of(),
+                List.of()
+        );
+
+        when(exerciseRepository.findBySlug("multi-slug")).thenReturn(Optional.empty());
+        when(exerciseRepository.save(any(Exercise.class))).thenAnswer(inv -> {
+            Exercise e = inv.getArgument(0);
+            e.setId(UUID.randomUUID());
+            return e;
+        });
+        when(exerciseRepository.findById(any())).thenAnswer(inv -> Optional.of(new Exercise("multi-slug")));
+        when(exerciseVersionRepository.findLatestByExerciseId(any())).thenReturn(Optional.of(new ExerciseVersion()));
+        when(exerciseAssetRepository.findByExerciseId(any())).thenReturn(List.of());
+
+        ArgumentCaptor<ExerciseVersion> versionCaptor = ArgumentCaptor.forClass(ExerciseVersion.class);
+
+        contentService.createExercise(req, teacher);
+
+        verify(exerciseVersionRepository).save(versionCaptor.capture());
+        ExerciseVersion saved = versionCaptor.getValue();
+
+        assertEquals("multi", saved.getLanguage());
+        assertEquals("multi", saved.getRuntimeId());
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> parsedTemplates = objectMapper.readValue(saved.getTemplatesConfig(), Map.class);
+        assertEquals(2, parsedTemplates.size());
+        assertEquals("public class Main {}", parsedTemplates.get("java"));
+        assertEquals("print(1)", parsedTemplates.get("python"));
+        assertFalse(parsedTemplates.containsKey("c"));
+    }
+
+    @Test
+    void createExercise_WithOnlyPythonTemplate_InfersPythonLanguageAndRuntime() throws Exception {
+        SaveExerciseRequest req = new SaveExerciseRequest(
+                "python-slug",
+                "Python Title",
+                "Statement",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of("python", "def solution(): pass"),
+                null,
+                List.of(),
+                List.of()
+        );
+
+        when(exerciseRepository.findBySlug("python-slug")).thenReturn(Optional.empty());
+        when(exerciseRepository.save(any(Exercise.class))).thenAnswer(inv -> {
+            Exercise e = inv.getArgument(0);
+            e.setId(UUID.randomUUID());
+            return e;
+        });
+        when(exerciseRepository.findById(any())).thenAnswer(inv -> Optional.of(new Exercise("python-slug")));
+        when(exerciseVersionRepository.findLatestByExerciseId(any())).thenReturn(Optional.of(new ExerciseVersion()));
+        when(exerciseAssetRepository.findByExerciseId(any())).thenReturn(List.of());
+
+        ArgumentCaptor<ExerciseVersion> versionCaptor = ArgumentCaptor.forClass(ExerciseVersion.class);
+
+        contentService.createExercise(req, teacher);
+
+        verify(exerciseVersionRepository).save(versionCaptor.capture());
+        ExerciseVersion saved = versionCaptor.getValue();
+
+        assertEquals("python", saved.getLanguage());
+        assertEquals("python-314", saved.getRuntimeId());
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> parsedTemplates = objectMapper.readValue(saved.getTemplatesConfig(), Map.class);
+        assertEquals(1, parsedTemplates.size());
+        assertEquals("def solution(): pass", parsedTemplates.get("python"));
+    }
+
+    @Test
+    void createExercise_WithOnlyJavaTemplate_InfersJavaLanguageAndRuntime() throws Exception {
+        SaveExerciseRequest req = new SaveExerciseRequest(
+                "java-slug",
+                "Java Title",
+                "Statement",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of("java", "class Solution {}"),
+                null,
+                List.of(),
+                List.of()
+        );
+
+        when(exerciseRepository.findBySlug("java-slug")).thenReturn(Optional.empty());
+        when(exerciseRepository.save(any(Exercise.class))).thenAnswer(inv -> {
+            Exercise e = inv.getArgument(0);
+            e.setId(UUID.randomUUID());
+            return e;
+        });
+        when(exerciseRepository.findById(any())).thenAnswer(inv -> Optional.of(new Exercise("java-slug")));
+        when(exerciseVersionRepository.findLatestByExerciseId(any())).thenReturn(Optional.of(new ExerciseVersion()));
+        when(exerciseAssetRepository.findByExerciseId(any())).thenReturn(List.of());
+
+        ArgumentCaptor<ExerciseVersion> versionCaptor = ArgumentCaptor.forClass(ExerciseVersion.class);
+
+        contentService.createExercise(req, teacher);
+
+        verify(exerciseVersionRepository).save(versionCaptor.capture());
+        ExerciseVersion saved = versionCaptor.getValue();
+
+        assertEquals("java", saved.getLanguage());
+        assertEquals("java-26", saved.getRuntimeId());
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> parsedTemplates = objectMapper.readValue(saved.getTemplatesConfig(), Map.class);
+        assertEquals(1, parsedTemplates.size());
+        assertEquals("class Solution {}", parsedTemplates.get("java"));
     }
 }
 

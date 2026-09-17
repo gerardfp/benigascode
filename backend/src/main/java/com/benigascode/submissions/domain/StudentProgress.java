@@ -58,6 +58,9 @@ public class StudentProgress {
     @Column(name = "last_status", length = 30)
     private String lastStatus;
 
+    @Column(name = "last_language", length = 30)
+    private String lastLanguage;
+
     @Column(name = "first_submission_at")
     private Instant firstSubmissionAt;
 
@@ -242,5 +245,13 @@ public class StudentProgress {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getLastLanguage() {
+        return lastLanguage;
+    }
+
+    public void setLastLanguage(String lastLanguage) {
+        this.lastLanguage = lastLanguage != null ? lastLanguage.toLowerCase() : null;
     }
 }

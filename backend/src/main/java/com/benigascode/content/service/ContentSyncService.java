@@ -456,7 +456,7 @@ public class ContentSyncService {
         String description = yamlNode.path("description").asText("");
         String visibility = yamlNode.path("visibility").asText("PRIVATE").toUpperCase();
         String itemsJson = jsonMapper.writeValueAsString(yamlNode.path("items"));
-        String templatesJson = jsonMapper.writeValueAsString(loadTemplates(colDir, yamlNode));
+        String templatesJson = "{}";
 
         Collection collection = collectionRepository.findBySlug(slug)
                 .orElseGet(() -> collectionRepository.save(new Collection(slug, visibility)));

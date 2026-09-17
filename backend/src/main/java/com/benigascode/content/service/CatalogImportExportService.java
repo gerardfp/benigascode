@@ -646,7 +646,7 @@ public class CatalogImportExportService {
         }
 
         String itemsJson = jsonMapper.writeValueAsString(itemsNode);
-        String templatesJson = jsonMapper.writeValueAsString(contentSyncService.loadTemplates(colDir, yamlNode));
+        String templatesJson = "{}";
 
         Collection collection = collectionRepository.findBySlug(targetSlug)
                 .orElseGet(() -> collectionRepository.save(new Collection(targetSlug, visibility)));

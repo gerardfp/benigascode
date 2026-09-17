@@ -39,8 +39,11 @@ public class EvaluationService {
     private static final Logger log = LoggerFactory.getLogger(EvaluationService.class);
 
     public static final String PLATFORM_ACTUAL_RUNTIME = "java-26";
-    public static final String PLATFORM_RUNTIME_IMAGE = "eclipse-temurin:26-jdk-alpine";
+    public static final String PLATFORM_RUNTIME_IMAGE = "benigascode-sandbox-java26:latest";
     public static final String PLATFORM_RUNTIME_IMAGE_DIGEST = "sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c";
+    public static final String PLATFORM_ACTUAL_PYTHON_RUNTIME = "python-314";
+    public static final String PLATFORM_PYTHON_RUNTIME_IMAGE = "benigascode-sandbox-python:latest";
+    public static final String PLATFORM_PYTHON_RUNTIME_IMAGE_DIGEST = "sha256:60e78c7fdab21ed76e15f4a3b9d056564c147b936c021";
     public static final String EVALUATOR_VERSION = "1.0.0";
 
     private final EvaluationJobRepository evaluationJobRepository;
@@ -100,9 +103,10 @@ public class EvaluationService {
         submissionRepository.save(sub);
 
         ExerciseVersion exVer = sub.getExerciseVersion();
+        boolean isPython = "python".equalsIgnoreCase(sub.getLanguage());
 
-        // Validar compatibilidad de runtime (required_runtime <= PLATFORM_ACTUAL_RUNTIME)
-        if (!isRuntimeCompatible(exVer.getRuntimeId(), PLATFORM_ACTUAL_RUNTIME)) {
+        // Validar compatibilidad de runtime (required_runtime <= PLATFORM_ACTUAL_RUNTIME) si es Java
+        if (!isPython && !isRuntimeCompatible(exVer.getRuntimeId(), PLATFORM_ACTUAL_RUNTIME)) {
             log.error("Incompatibilidad de runtime para job {}: ejercicio requiere {} > plataforma {}",
                     job.getId(), exVer.getRuntimeId(), PLATFORM_ACTUAL_RUNTIME);
             job.setStatus("FAILED");
@@ -114,6 +118,17 @@ public class EvaluationService {
             Map<String, Object> compileConfig = objectMapper.readValue(exVer.getCompileConfig(), new TypeReference<>() {});
             Map<String, Object> runConfig = objectMapper.readValue(exVer.getRunConfig(), new TypeReference<>() {});
             Map<String, Object> comparatorConfig = objectMapper.readValue(exVer.getComparatorConfig(), new TypeReference<>() {});
+
+            if (isPython) {
+                String cmd = (String) compileConfig.get("command");
+                if (cmd == null || cmd.contains("javac")) {
+                    compileConfig.put("command", "python3 -m py_compile solution.py");
+                }
+                String runCmd = (String) runConfig.get("command");
+                if (runCmd == null || runCmd.contains("java ")) {
+                    runConfig.put("command", "python3 solution.py");
+                }
+            }
 
             Map<String, Object> testsRoot = objectMapper.readValue(exVer.getTestsConfig(), new TypeReference<>() {});
             List<Map<String, Object>> publicTests = (List<Map<String, Object>>) testsRoot.getOrDefault("public", List.of());
@@ -166,13 +181,17 @@ public class EvaluationService {
         ExerciseVersion exerciseVersion = submission.getExerciseVersion();
         ActivityVersion activityVersion = submission.getActivityVersion();
 
+        boolean isPython = "python".equalsIgnoreCase(submission.getLanguage());
+        String actualRuntime = isPython ? PLATFORM_ACTUAL_PYTHON_RUNTIME : PLATFORM_ACTUAL_RUNTIME;
+        String runtimeDigest = isPython ? PLATFORM_PYTHON_RUNTIME_IMAGE_DIGEST : PLATFORM_RUNTIME_IMAGE_DIGEST;
+
         Evaluation evaluation = new Evaluation();
         evaluation.setSubmission(submission);
         evaluation.setExerciseVersion(exerciseVersion);
         evaluation.setActivityVersion(activityVersion);
-        evaluation.setRuntimeId(exerciseVersion.getRuntimeId()); // Required runtime
-        evaluation.setActualRuntime(PLATFORM_ACTUAL_RUNTIME);     // Actual runtime Java 26
-        evaluation.setRuntimeImageDigest(PLATFORM_RUNTIME_IMAGE_DIGEST);
+        evaluation.setRuntimeId(isPython ? PLATFORM_ACTUAL_PYTHON_RUNTIME : exerciseVersion.getRuntimeId());
+        evaluation.setActualRuntime(actualRuntime);
+        evaluation.setRuntimeImageDigest(runtimeDigest);
         evaluation.setEvaluatorVersion(EVALUATOR_VERSION);
         evaluation.setStatus(result.status());
         evaluation.setScore(result.score() != null ? result.score() : BigDecimal.ZERO);

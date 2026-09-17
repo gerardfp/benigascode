@@ -12,8 +12,24 @@ public record CollectionProgressDTO(
     int notStartedExercises,
     double completionPercentage,
     double averageScore,
-    List<ExerciseProgressItemDTO> items
+    List<ExerciseProgressItemDTO> items,
+    List<String> usedLanguages,
+    String lastUsedLanguage
 ) {
+    public CollectionProgressDTO(
+        UUID collectionId,
+        String collectionTitle,
+        int totalExercises,
+        int completedExercises,
+        int attemptedExercises,
+        int notStartedExercises,
+        double completionPercentage,
+        double averageScore,
+        List<ExerciseProgressItemDTO> items
+    ) {
+        this(collectionId, collectionTitle, totalExercises, completedExercises, attemptedExercises, notStartedExercises, completionPercentage, averageScore, items, List.of(), null);
+    }
+
     public record ExerciseProgressItemDTO(
         UUID exerciseId,
         UUID exerciseVersionId,
@@ -27,4 +43,3 @@ public record CollectionProgressDTO(
         int totalSubmissions
     ) {}
 }
-

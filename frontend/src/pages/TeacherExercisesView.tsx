@@ -7,8 +7,13 @@ import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
-  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info
+  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check
 } from 'lucide-react';
+
+const TEMPLATE_LANGUAGES = [
+  { id: 'java', label: 'Java', icon: '☕', ext: '.java' },
+  { id: 'python', label: 'Python', icon: '🐍', ext: '.py' }
+];
 
 export const TeacherExercisesView: React.FC = () => {
   const navigate = useNavigate();
@@ -48,15 +53,33 @@ export const TeacherExercisesView: React.FC = () => {
   // Form State
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
-  const [language, setLanguage] = useState('java');
-  const [runtimeId, setRuntimeId] = useState('java-26');
   const [statement, setStatement] = useState('');
-  const [starterCode, setStarterCode] = useState('');
+  const [templates, setTemplates] = useState<Record<string, string>>({ java: '', python: '' });
+  const [activeTemplateLang, setActiveTemplateLang] = useState<string>('java');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [testCases, setTestCases] = useState<TestCaseDTO[]>([]);
   const [assets, setAssets] = useState<AssetDTO[]>([]);
   const [versionNumber, setVersionNumber] = useState<number>(1);
+
+  // Ordered template languages: defined templates first, followed by undefined languages
+  const orderedTemplateLangs = useMemo(() => {
+    const knownLangIds = TEMPLATE_LANGUAGES.map((l) => l.id);
+    const extraLangIds = Object.keys(templates).filter((k) => !knownLangIds.includes(k) && k.trim());
+    const allLangs = [
+      ...TEMPLATE_LANGUAGES,
+      ...extraLangIds.map((k) => ({
+        id: k,
+        label: k.charAt(0).toUpperCase() + k.slice(1),
+        icon: '📄',
+        ext: `.${k}`
+      }))
+    ];
+
+    const defined = allLangs.filter((l) => Boolean(templates[l.id]?.trim()));
+    const undefinedLangs = allLangs.filter((l) => !templates[l.id]?.trim());
+    return [...defined, ...undefinedLangs];
+  }, [templates]);
 
   // Editor UI State
   const [statementView, setStatementView] = useState<'split' | 'edit' | 'preview'>('split');
@@ -234,26 +257,34 @@ export const TeacherExercisesView: React.FC = () => {
       setSelectedId(detail.id);
       setTitle(detail.title || '');
       setSlug(detail.slug || '');
-      setLanguage(detail.language || 'java');
-      setRuntimeId(detail.runtimeId || 'java-26');
       setStatement(detail.statement || '');
-      setStarterCode(detail.starterCode || (detail.templates && detail.templates['java']) || '');
 
-      // Flexible starter code resolution from starterCode or templates map
-      const effectiveRuntime = detail.runtimeId || 'java-26';
-      const effectiveLang = detail.language || 'java';
-      let resolvedStarter = detail.starterCode || '';
-      if (!resolvedStarter && detail.templates) {
-        resolvedStarter =
-          detail.templates[effectiveRuntime] ||
-          detail.templates[`${effectiveRuntime}.java`] ||
-          detail.templates[effectiveLang] ||
-          detail.templates['java'] ||
-          detail.templates['default'] ||
-          Object.values(detail.templates)[0] ||
-          '';
+      // Load templates and clean empty keys
+      const initialTemplates: Record<string, string> = { java: '', python: '' };
+      if (detail.templates) {
+        Object.entries(detail.templates).forEach(([k, v]) => {
+          if (v && v.trim()) {
+            const rawKey = k.toLowerCase().trim();
+            const normKey = (rawKey.startsWith('python') || rawKey === 'py') ? 'python' : ((rawKey.startsWith('java') || rawKey === 'java-26') ? 'java' : rawKey);
+            if (!initialTemplates[normKey]) {
+              initialTemplates[normKey] = v;
+            }
+          }
+        });
       }
-      setStarterCode(resolvedStarter);
+      // If no templates loaded, check legacy starterCode
+      const hasAny = Object.values(initialTemplates).some((v) => Boolean(v?.trim()));
+      if (!hasAny && detail.starterCode && detail.starterCode.trim()) {
+        const rawLang = (detail.language || '').toLowerCase().trim();
+        const normLang = (rawLang.startsWith('python') || rawLang === 'py') ? 'python' : 'java';
+        initialTemplates[normLang] = detail.starterCode;
+      }
+      setTemplates(initialTemplates);
+
+      // Select active tab: first defined language or 'java'
+      const firstDefined = Object.keys(initialTemplates).find((k) => Boolean(initialTemplates[k]?.trim()));
+      setActiveTemplateLang(firstDefined || 'java');
+
       setTags(detail.tags || []);
       setTagInput('');
       setTestCases(detail.testCases || []);
@@ -273,10 +304,12 @@ export const TeacherExercisesView: React.FC = () => {
     setSearchParams({});
     setTitle('');
     setSlug('');
-    setLanguage('java');
-    setRuntimeId('java-26');
     setStatement('# Nuevo Ejercicio\n\nDescripción del problema...');
-    setStarterCode('public class Solution {\n    public static void main(String[] args) {\n        // Tu código aquí\n    }\n}\n');
+    setTemplates({
+      java: 'public class Solution {\n    public static void main(String[] args) {\n        // Tu código aquí\n    }\n}\n',
+      python: ''
+    });
+    setActiveTemplateLang('java');
     setTags([]);
     setTagInput('');
     setTestCases([
@@ -485,18 +518,20 @@ export const TeacherExercisesView: React.FC = () => {
       }
       try {
         setSaving(true);
+        const cleanTemplates: Record<string, string> = {};
+        Object.entries(templates).forEach(([k, v]) => {
+          if (v && v.trim()) cleanTemplates[k] = v;
+        });
+        const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
         const saved = await api.teacherSaveExercise({
           title,
           slug: slug || 'ejercicio-' + Date.now(),
-          language,
-          runtimeId,
           statement,
-          starterCode,
+          starterCode: primaryStarter,
+          templates: cleanTemplates,
+          language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
+          runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
           tags,
-          templates: {
-            [runtimeId || 'java-26']: starterCode,
-            [language || 'java']: starterCode
-          },
           testCases
         });
         currentExId = saved.id;
@@ -858,18 +893,21 @@ export const TeacherExercisesView: React.FC = () => {
     }
 
     try {
+      const cleanTemplates: Record<string, string> = {};
+      Object.entries(templates).forEach(([k, v]) => {
+        if (v && v.trim()) cleanTemplates[k] = v;
+      });
+      const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
+
       const payload = {
         title: title.trim(),
         slug: slug.trim(),
-        language: language.trim() || 'java',
-        runtimeId: runtimeId.trim() || 'java-26',
         statement: statement.trim(),
-        starterCode: starterCode,
+        starterCode: primaryStarter,
+        templates: cleanTemplates,
+        language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
+        runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
         tags: effectiveTags,
-        templates: {
-          [runtimeId.trim() || 'java-26']: starterCode,
-          [language.trim() || 'java']: starterCode
-        },
         testCases: testCases.map((tc, idx) => ({
           ...tc,
           orderIndex: idx,
@@ -1242,7 +1280,7 @@ export const TeacherExercisesView: React.FC = () => {
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Layers size={18} color="#2563eb" /> Parámetros del Ejercicio
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
               Título del Ejercicio *
@@ -1267,32 +1305,6 @@ export const TeacherExercisesView: React.FC = () => {
               onChange={(e) => setSlug(e.target.value)}
               placeholder="Ej: suma-dos-numeros"
               style={{ fontFamily: 'monospace' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Lenguaje
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              placeholder="java"
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Runtime Requerido
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={runtimeId}
-              onChange={(e) => setRuntimeId(e.target.value)}
-              placeholder="java-26"
             />
           </div>
         </div>
@@ -1994,19 +2006,137 @@ export const TeacherExercisesView: React.FC = () => {
 
       {/* SECTION 5: CÓDIGO INICIAL PARA EL ALUMNO (STARTER CODE) */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
-        </h2>
-        <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0 0 0.5rem 0' }}>
-          Código base con el que arrancará el editor del estudiante.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-          {renderClipboardButtons(() => starterCode, setStarterCode)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
+            </h2>
+            <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: 0 }}>
+              Configura el código base según el lenguaje. Las plantillas con código definido aparecerán primero.
+            </p>
+          </div>
         </div>
+
+        {/* Language Tabs */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          paddingBottom: '0.75rem',
+          borderBottom: '1px solid #e2e8f0',
+          marginBottom: '0.75rem'
+        }}>
+          {orderedTemplateLangs.map((lang) => {
+            const isDefined = Boolean(templates[lang.id]?.trim());
+            const isActive = activeTemplateLang === lang.id;
+            return (
+              <button
+                key={lang.id}
+                type="button"
+                onClick={() => setActiveTemplateLang(lang.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: isActive ? 600 : 500,
+                  cursor: 'pointer',
+                  border: isActive ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                  backgroundColor: isActive ? '#eff6ff' : '#ffffff',
+                  color: isActive ? '#1d4ed8' : '#475569',
+                  boxShadow: isActive ? '0 1px 2px rgba(37,99,235,0.1)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{lang.icon}</span>
+                <span>{lang.label}</span>
+                {isDefined && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '50%',
+                      backgroundColor: '#16a34a',
+                      color: '#ffffff',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      lineHeight: 1
+                    }}
+                    title="Plantilla definida"
+                  >
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Toolbar & Status Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          marginBottom: '0.5rem'
+        }}>
+          <div style={{ fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            {Boolean(templates[activeTemplateLang]?.trim()) ? (
+              <span style={{ color: '#16a34a', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                <Check size={14} /> Plantilla activa para {orderedTemplateLangs.find((l) => l.id === activeTemplateLang)?.label || activeTemplateLang}
+              </span>
+            ) : (
+              <span style={{ color: '#94a3b8' }}>
+                Sin plantilla para {orderedTemplateLangs.find((l) => l.id === activeTemplateLang)?.label || activeTemplateLang} (se guardará vacía)
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {renderClipboardButtons(
+              () => templates[activeTemplateLang] || '',
+              (newVal) => setTemplates((prev) => ({ ...prev, [activeTemplateLang]: newVal }))
+            )}
+            {Boolean(templates[activeTemplateLang]?.trim()) && (
+              <button
+                type="button"
+                onClick={() => setTemplates((prev) => ({ ...prev, [activeTemplateLang]: '' }))}
+                className="btn-secondary"
+                style={{
+                  padding: '0.25rem 0.6rem',
+                  fontSize: '0.75rem',
+                  color: '#dc2626',
+                  border: '1px solid #fecaca',
+                  backgroundColor: '#fef2f2',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  borderRadius: '0.25rem',
+                  cursor: 'pointer'
+                }}
+                title="Borrar plantilla para este lenguaje (dejar vacía)"
+              >
+                <Trash2 size={12} /> Borrar plantilla
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Editor Textarea */}
         <textarea
           className="input-field"
-          value={starterCode}
-          onChange={(e) => setStarterCode(e.target.value)}
+          value={templates[activeTemplateLang] || ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            setTemplates((prev) => ({ ...prev, [activeTemplateLang]: val }));
+          }}
           rows={10}
           style={{
             fontFamily: 'Consolas, Monaco, "Courier New", monospace',
@@ -2014,9 +2144,15 @@ export const TeacherExercisesView: React.FC = () => {
             lineHeight: 1.5,
             backgroundColor: '#0f172a',
             color: '#f8fafc',
-            borderRadius: '0.375rem'
+            borderRadius: '0.375rem',
+            width: '100%',
+            boxSizing: 'border-box'
           }}
-          placeholder="public class Solution { ... }"
+          placeholder={
+            activeTemplateLang === 'python'
+              ? '# Escribe aquí la plantilla inicial en Python (o déjala vacía si no aplica)...'
+              : '// Escribe aquí la plantilla inicial en Java (o déjala vacía si no aplica)...'
+          }
         />
       </div>
 

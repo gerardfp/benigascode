@@ -17,8 +17,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.benigascode.submissions.domain.StudentCollectionPreference;
 import com.benigascode.submissions.domain.StudentProgress;
 import com.benigascode.submissions.domain.Submission;
+import com.benigascode.submissions.repository.StudentCollectionPreferenceRepository;
 import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
 import org.springframework.core.io.ByteArrayResource;
@@ -52,6 +54,7 @@ public class ContentService {
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
     private final SubmissionRepository submissionRepository;
+    private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
     private final ContextService contextService;
     private final ObjectMapper objectMapper;
@@ -65,6 +68,7 @@ public class ContentService {
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
                           SubmissionRepository submissionRepository,
+                          StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
                           ContextService contextService,
                           ObjectMapper objectMapper) {
@@ -77,6 +81,7 @@ public class ContentService {
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
         this.submissionRepository = submissionRepository;
+        this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.contextService = contextService;
         this.objectMapper = objectMapper;
@@ -316,6 +321,13 @@ public class ContentService {
         double completionPct = totalExercises > 0 ? Math.round(((double) completedCount * 100.0 / totalExercises) * 10.0) / 10.0 : 0.0;
         double avgScore = totalExercises > 0 ? Math.round((sumScore / totalExercises) * 10.0) / 10.0 : 0.0;
 
+        List<String> usedLangs = new ArrayList<>(submissionRepository.findUsedLanguagesByStudentAndCollection(user.getId(), collectionId));
+        Optional<StudentCollectionPreference> prefOpt = studentCollectionPreferenceRepository.findByStudentIdAndCollectionId(user.getId(), collectionId);
+        String lastUsedLang = prefOpt.map(StudentCollectionPreference::getLastUsedLanguage).orElse(null);
+        if (lastUsedLang != null && !usedLangs.contains(lastUsedLang)) {
+            usedLangs.add(lastUsedLang);
+        }
+
         return new CollectionProgressDTO(
                 collection.getId(),
                 colVersion.getTitle(),
@@ -325,7 +337,9 @@ public class ContentService {
                 notStartedCount,
                 completionPct,
                 avgScore,
-                items
+                items,
+                usedLangs,
+                lastUsedLang
         );
     }
 
@@ -339,108 +353,75 @@ public class ContentService {
         ExerciseVersion version = exerciseVersionRepository.findById(exerciseVersionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
 
-        String starterCode = resolveStarterCode(version, collectionId);
-        return ExerciseDTO.fromVersion(version, starterCode);
+        Map<String, String> templates = resolveStarterTemplates(version, collectionId);
+        String defaultLanguage = resolveDefaultLanguage(version, collectionId, user, templates);
+        String starterCode = templates.getOrDefault(defaultLanguage, resolveStarterCode(version, collectionId));
+        return ExerciseDTO.fromVersion(version, starterCode, templates, defaultLanguage, List.of(), version.getExercise() != null ? version.getExercise().getCreatedAt() : null);
+    }
+
+    public String normalizeLanguageKey(String rawKey) {
+        if (rawKey == null) return null;
+        String k = rawKey.trim().toLowerCase();
+        if (k.startsWith("java")) return "java";
+        if (k.startsWith("python") || k.equals("py")) return "python";
+        return k;
+    }
+
+    public Map<String, String> resolveStarterTemplates(ExerciseVersion version, UUID collectionId) {
+        Map<String, String> result = new LinkedHashMap<>();
+
+        // Plantillas específicas a nivel de ejercicio
+        Map<String, String> exTemplates = parseTemplatesMap(version.getTemplatesConfig());
+        for (Map.Entry<String, String> entry : exTemplates.entrySet()) {
+            String key = normalizeLanguageKey(entry.getKey());
+            if (key != null && entry.getValue() != null && !entry.getValue().isBlank()) {
+                result.putIfAbsent(key, entry.getValue());
+            }
+        }
+
+        // Si no se definió ninguna plantilla en el ejercicio, devolvemos el mapa vacío (sin esqueletos inventados)
+        return result;
+    }
+
+    public String resolveDefaultLanguage(ExerciseVersion version, UUID collectionId, User user, Map<String, String> templates) {
+        if (collectionId != null && user != null) {
+            Optional<StudentCollectionPreference> prefOpt = studentCollectionPreferenceRepository.findByStudentIdAndCollectionId(user.getId(), collectionId);
+            if (prefOpt.isPresent()) {
+                String preferred = prefOpt.get().getLastUsedLanguage().toLowerCase();
+                if (templates.containsKey(preferred)) {
+                    return preferred;
+                }
+            }
+        }
+        if (templates.containsKey("java")) {
+            return "java";
+        }
+        return templates.isEmpty() ? "java" : templates.keySet().iterator().next();
+    }
+
+    @Transactional
+    public void setCollectionPreference(UUID collectionId, String language, User user) {
+        if (collectionId == null || language == null || language.isBlank() || user == null) return;
+        Collection collection = collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Colección no encontrada"));
+        String cleanLang = normalizeLanguageKey(language);
+        if (cleanLang == null) cleanLang = "java";
+
+        StudentCollectionPreference pref = studentCollectionPreferenceRepository
+                .findByStudentIdAndCollectionId(user.getId(), collection.getId())
+                .orElseGet(() -> new StudentCollectionPreference(user, collection, "java"));
+
+        pref.setLastUsedLanguage(cleanLang);
+        pref.setUpdatedAt(Instant.now());
+        studentCollectionPreferenceRepository.save(pref);
     }
 
     public String resolveStarterCode(ExerciseVersion version, UUID collectionId) {
-        String runtimeId = version.getRuntimeId();
-        String language = version.getLanguage();
-        String starterCode = null;
-
-        // 1. Plantilla específica a nivel de ejercicio
-        try {
-            if (version.getTemplatesConfig() != null) {
-                JsonNode exTemplates = objectMapper.readTree(version.getTemplatesConfig());
-                starterCode = extractTemplateForRuntime(exTemplates, runtimeId, language);
-            }
-        } catch (Exception ignored) {
+        Map<String, String> templates = resolveStarterTemplates(version, collectionId);
+        if (templates.containsKey("java")) {
+            return templates.get("java");
         }
-
-        // 2. Si el ejercicio no definió plantilla para este runtime, buscar en la colección
-        if (starterCode == null) {
-            CollectionVersion colVersion = null;
-            if (collectionId != null) {
-                colVersion = collectionVersionRepository.findLatestByCollectionId(collectionId).orElse(null);
-            } else {
-                List<CollectionVersion> allColVersions = collectionVersionRepository.findAll();
-                for (CollectionVersion cv : allColVersions) {
-                    try {
-                        JsonNode items = objectMapper.readTree(cv.getItems());
-                        if (items.isArray()) {
-                            for (JsonNode item : items) {
-                                if (version.getExercise().getSlug().equalsIgnoreCase(item.path("id").asText())) {
-                                    colVersion = cv;
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (Exception ignored) {
-                    }
-                    if (colVersion != null) break;
-                }
-            }
-
-            if (colVersion != null && colVersion.getTemplatesConfig() != null) {
-                try {
-                    JsonNode colTemplates = objectMapper.readTree(colVersion.getTemplatesConfig());
-                    starterCode = extractTemplateForRuntime(colTemplates, runtimeId, language);
-                } catch (Exception ignored) {
-                }
-            }
-        }
-
-        // 3. Fallback al esqueleto por defecto del sistema SOLO si sigue siendo null (no definido)
-        if (starterCode == null) {
-            starterCode = getDefaultStarterCodeForRuntime(runtimeId);
-        }
-
-        return starterCode;
-    }
-
-    private String extractTemplateForRuntime(JsonNode templatesNode, String runtimeId, String language) {
-        if (templatesNode == null || !templatesNode.isObject() || templatesNode.isEmpty()) {
-            return null;
-        }
-        if (runtimeId != null && templatesNode.has(runtimeId)) {
-            return templatesNode.get(runtimeId).asText();
-        }
-        if (runtimeId != null && templatesNode.has(runtimeId + ".java")) {
-            return templatesNode.get(runtimeId + ".java").asText();
-        }
-        if (language != null && templatesNode.has(language)) {
-            return templatesNode.get(language).asText();
-        }
-        if (language != null && templatesNode.has(language + ".java")) {
-            return templatesNode.get(language + ".java").asText();
-        }
-        if (templatesNode.has("java")) {
-            return templatesNode.get("java").asText();
-        }
-        if (templatesNode.has("default")) {
-            return templatesNode.get("default").asText();
-        }
-        var fields = templatesNode.fields();
-        while (fields.hasNext()) {
-            var field = fields.next();
-            if (language != null && field.getKey().toLowerCase().startsWith(language.toLowerCase())) {
-                return field.getValue().asText();
-            }
-        }
-        var elements = templatesNode.elements();
-        if (elements.hasNext()) {
-            return elements.next().asText();
-        }
-        return null;
-    }
-
-    private String getDefaultStarterCodeForRuntime(String runtimeId) {
-        if (runtimeId != null && runtimeId.toLowerCase().startsWith("java")) {
-            return "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Escribe tu solución aquí\n    }\n}\n";
-        } else if (runtimeId != null && runtimeId.toLowerCase().startsWith("python")) {
-            return "# Escribe tu solución aquí\n";
-        }
-        return "";
+        return templates.isEmpty() ? "" : templates.values().iterator().next();
     }
 
     @Transactional(readOnly = true)
@@ -867,12 +848,16 @@ public class ContentService {
         testSuite.put("public", pubTests);
         testSuite.put("private", privTests);
 
-        String runtimeId = req.runtimeId() != null && !req.runtimeId().isBlank() ? req.runtimeId() : "java-26";
-        String lang = req.language() != null && !req.language().isBlank() ? req.language() : "java";
-
-        Map<String, String> templatesMap = new HashMap<>();
+        Map<String, String> templatesMap = new LinkedHashMap<>();
         if (req.templates() != null) {
-            templatesMap.putAll(req.templates());
+            for (Map.Entry<String, String> entry : req.templates().entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    String normKey = normalizeLanguageKey(entry.getKey());
+                    if (normKey != null) {
+                        templatesMap.put(normKey, entry.getValue());
+                    }
+                }
+            }
         } else if (exercise != null && exercise.getId() != null) {
             exerciseVersionRepository.findLatestByExerciseId(exercise.getId()).ifPresent(prev -> {
                 Map<String, String> prevTpls = parseTemplatesMap(prev.getTemplatesConfig());
@@ -882,17 +867,34 @@ public class ContentService {
             });
         }
 
-        if (req.starterCode() != null) {
+        // Only use legacy starterCode fallback if req.templates() was null
+        if (req.templates() == null && req.starterCode() != null) {
             if (!req.starterCode().isBlank()) {
-                templatesMap.put(runtimeId, req.starterCode());
-                templatesMap.put(runtimeId + ".java", req.starterCode());
-                templatesMap.put(lang, req.starterCode());
-                templatesMap.put("java", req.starterCode());
+                String rawLang = req.language() != null && !req.language().isBlank() ? normalizeLanguageKey(req.language()) : "java";
+                if (rawLang == null) rawLang = "java";
+                templatesMap.put(rawLang, req.starterCode());
+            }
+        }
+
+        String lang = req.language();
+        if (lang == null || lang.isBlank() || "multi".equalsIgnoreCase(lang)) {
+            if (templatesMap.containsKey("java") && !templatesMap.containsKey("python")) {
+                lang = "java";
+            } else if (templatesMap.containsKey("python") && !templatesMap.containsKey("java")) {
+                lang = "python";
             } else {
-                templatesMap.remove(runtimeId);
-                templatesMap.remove(runtimeId + ".java");
-                templatesMap.remove(lang);
-                templatesMap.remove("java");
+                lang = "multi";
+            }
+        }
+
+        String runtimeId = req.runtimeId();
+        if (runtimeId == null || runtimeId.isBlank() || "multi".equalsIgnoreCase(runtimeId)) {
+            if ("python".equalsIgnoreCase(lang)) {
+                runtimeId = "python-314";
+            } else if ("java".equalsIgnoreCase(lang)) {
+                runtimeId = "java-26";
+            } else {
+                runtimeId = "multi";
             }
         }
 
@@ -911,8 +913,8 @@ public class ContentService {
             version.setVersionNumber(versionNumber);
             version.setTitle(req.title().trim());
             version.setStatement(req.statement());
-            version.setLanguage(req.language() != null && !req.language().isBlank() ? req.language() : "java");
-            version.setRuntimeId(req.runtimeId() != null && !req.runtimeId().isBlank() ? req.runtimeId() : "java-21");
+            version.setLanguage(lang);
+            version.setRuntimeId(runtimeId);
             version.setCompileConfig(compileJson);
             version.setRunConfig(runJson);
             version.setScoringConfig(scoringJson);
@@ -994,7 +996,7 @@ public class ContentService {
             } catch (Exception ignored) {}
         }
 
-        Map<String, String> templates = parseTemplatesMap(cv.getTemplatesConfig());
+        Map<String, String> templates = Map.of();
 
         return new TeacherCollectionDetailDTO(
                 col.getId(),
@@ -1097,6 +1099,7 @@ public class ContentService {
             cv.setDescription(req.description() != null ? req.description().trim() : "");
             cv.setItems(itemsJson);
             cv.setTemplatesConfig(templatesJson);
+            cv.setTemplatesConfig("{}");
             return cv;
         } catch (Exception e) {
             throw new RuntimeException("Error al serializar colección", e);

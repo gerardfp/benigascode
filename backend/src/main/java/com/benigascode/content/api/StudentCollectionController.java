@@ -64,6 +64,15 @@ public class StudentCollectionController {
         return ResponseEntity.ok(contentService.getExercisesForCollection(id, user));
     }
 
+    @PutMapping("/collections/{id}/preference")
+    public ResponseEntity<Void> setCollectionPreference(
+            @PathVariable UUID id,
+            @RequestBody SetCollectionPreferenceRequest request) {
+        User user = userService.getCurrentUser();
+        contentService.setCollectionPreference(id, request.language(), user);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/exercises/{id}")
     public ResponseEntity<ExerciseDTO> getExercise(
             @PathVariable UUID id,

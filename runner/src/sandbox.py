@@ -37,6 +37,8 @@ class Sandbox:
 
     def __init__(self, image_name: Optional[str] = None):
         self.image_name = image_name or os.environ.get("RUNNER_SANDBOX_IMAGE", "eclipse-temurin:26-jdk-alpine")
+        default_image = os.environ.get("RUNNER_SANDBOX_IMAGE") or os.environ.get("RUNNER_JAVA_IMAGE", "benigascode-sandbox-java26:latest")
+        self.image_name = image_name or default_image
         self.hostname = os.environ.get("HOSTNAME", os.uname().nodename)
         self.docker_available = self._check_docker()
         self.inside_container = self._check_inside_container() if self.docker_available else False
@@ -69,9 +71,11 @@ class Sandbox:
         memory_limit: str = "256m",
         cpu_limit: float = 1.0,
         pids_limit: int = 64,
+        image_name: Optional[str] = None,
     ) -> ExecutionResult:
         """
         Ejecuta un comando dentro del sandbox aislado con Java 26.
+        Ejecuta un comando dentro del sandbox aislado.
         Si Docker está disponible, usa 'docker run' con todas las protecciones.
         Si Docker no está presente (entorno dev/test local sin docker), ejecuta el proceso
         directamente con límites de tiempo y captura de buffers.
@@ -80,7 +84,7 @@ class Sandbox:
 
         if self.docker_available:
             return self._run_docker(
-                workspace_dir, command, stdin_data, timeout_seconds, memory_limit, cpu_limit, pids_limit
+                workspace_dir, command, stdin_data, timeout_seconds, memory_limit, cpu_limit, pids_limit, image_name
             )
         else:
             return self._run_local_fallback(workspace_dir, command, stdin_data, timeout_seconds)
@@ -94,6 +98,7 @@ class Sandbox:
         memory_limit: str,
         cpu_limit: float,
         pids_limit: int,
+        image_name: Optional[str] = None,
     ) -> ExecutionResult:
         container_name = f"benigascode_sandbox_{int(time.time() * 1000)}_{os.getpid()}"
         docker_cmd = [
@@ -115,7 +120,7 @@ class Sandbox:
         else:
             docker_cmd.extend(["-v", f"{os.path.abspath(workspace_dir)}:/workspace:rw", "-w", "/workspace"])
 
-        docker_cmd.append(self.image_name)
+        docker_cmd.append(image_name or self.image_name)
         docker_cmd.extend(command)
 
         timed_out = False

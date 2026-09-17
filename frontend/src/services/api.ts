@@ -111,6 +111,12 @@ export const api = {
   getCollectionExercises: (id: string): Promise<Exercise[]> =>
     request<Exercise[]>(`/collections/${id}/exercises`),
 
+  setCollectionPreference: (collectionId: string, language: string): Promise<void> =>
+    request<void>(`/collections/${collectionId}/preference`, {
+      method: 'PUT',
+      body: JSON.stringify({ language }),
+    }),
+
   getExercise: (id: string, collectionId?: string): Promise<Exercise> =>
     request<Exercise>(`/exercises/${id}${collectionId ? `?collectionId=${collectionId}` : ''}`),
 
@@ -153,10 +159,10 @@ export const api = {
   getWorkspace: (exerciseId: string): Promise<StudentWorkspace> =>
     request<StudentWorkspace>(`/exercises/${exerciseId}/workspace`),
 
-  saveWorkspace: (exerciseId: string, sourceCode: string): Promise<StudentWorkspace> =>
+  saveWorkspace: (exerciseId: string, sourceCode: string, language?: string): Promise<StudentWorkspace> =>
     request<StudentWorkspace>(`/exercises/${exerciseId}/workspace`, {
       method: 'PUT',
-      body: JSON.stringify({ sourceCode }),
+      body: JSON.stringify({ sourceCode, language }),
     }),
 
   getMyProgress: (): Promise<StudentProgress[]> =>

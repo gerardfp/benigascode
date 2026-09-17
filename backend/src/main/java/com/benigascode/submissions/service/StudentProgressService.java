@@ -121,6 +121,9 @@ public class StudentProgressService {
         progress.setLastSubmission(submission);
         progress.setLastEvaluation(evaluation);
         progress.setLastStatus(evaluation.getStatus());
+        if (submission.getLanguage() != null && !submission.getLanguage().isBlank()) {
+            progress.setLastLanguage(submission.getLanguage());
+        }
 
         BigDecimal score = evaluation.getScore() != null ? evaluation.getScore() : BigDecimal.ZERO;
         if (score.compareTo(progress.getBestScore()) > 0) {
@@ -173,6 +176,14 @@ public class StudentProgressService {
         return studentProgressRepository.findByStudentIdOrderByUpdatedAtDesc(student.getId()).stream()
                 .map(StudentProgressDTO::fromEntity)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<StudentProgressDTO> getMyProgressForExercise(UUID exerciseIdOrVersionId, User student) {
+        return studentProgressRepository.findByStudentIdAndExerciseId(student.getId(), exerciseIdOrVersionId)
+                .or(() -> exerciseVersionRepository.findById(exerciseIdOrVersionId)
+                        .flatMap(v -> v.getExercise() != null ? studentProgressRepository.findByStudentIdAndExerciseId(student.getId(), v.getExercise().getId()) : Optional.empty()))
+                .map(StudentProgressDTO::fromEntity);
     }
 
     @Transactional(readOnly = true)

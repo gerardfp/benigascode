@@ -16,5 +16,11 @@ public interface AttemptLedgerRepository extends JpaRepository<AttemptLedger, UU
     @Query("SELECT COUNT(a) FROM AttemptLedger a WHERE a.student.id = :studentId AND a.exerciseVersion.id = :exerciseVersionId AND a.status IN ('RESERVED', 'CONSUMED')")
     long countConsumedExerciseAttempts(UUID studentId, UUID exerciseVersionId);
 
+    @Query("SELECT COALESCE(MAX(a.attemptNumber), 0) FROM AttemptLedger a WHERE a.student.id = :studentId AND a.activityVersion.id = :activityVersionId")
+    long findMaxAttemptNumberForActivity(UUID studentId, UUID activityVersionId);
+
+    @Query("SELECT COALESCE(MAX(a.attemptNumber), 0) FROM AttemptLedger a WHERE a.student.id = :studentId AND a.exerciseVersion.id = :exerciseVersionId")
+    long findMaxAttemptNumberForExercise(UUID studentId, UUID exerciseVersionId);
+
     Optional<AttemptLedger> findBySubmissionId(UUID submissionId);
 }
