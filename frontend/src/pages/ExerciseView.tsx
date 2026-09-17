@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
@@ -85,6 +85,19 @@ export const ExerciseView: React.FC = () => {
     return 44; // Default 44% left, 56% right
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  // Vertical splitter state for Right Column (Top: Editor, Bottom: Test Results)
+  const [rightTopPanelRatio, setRightTopPanelRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('benigascode_exercise_right_split_ratio');
+    if (saved) {
+      const val = parseFloat(saved);
+      if (!isNaN(val) && val >= 20 && val <= 80) return val;
+    }
+    return 58; // Default 58% top editor, 42% bottom tests
+  });
+  const [isDraggingRightSplitter, setIsDraggingRightSplitter] = useState(false);
+  const rightContainerRef = useRef<HTMLDivElement>(null);
+  const [copiedFeedback, setCopiedFeedback] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +171,91 @@ export const ExerciseView: React.FC = () => {
       window.removeEventListener('touchend', handleTouchEnd);
     };
   }, [isDraggingSplitter]);
+
+  // Control del arrastre vertical de la línea divisoria en la columna derecha
+  useEffect(() => {
+    if (!isDraggingRightSplitter) return;
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!rightContainerRef.current) return;
+      const rect = rightContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.clientY - rect.top) / rect.height) * 100;
+      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
+      setRightTopPanelRatio(clampedRatio);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingRightSplitter(false);
+      setRightTopPanelRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_exercise_right_split_ratio', currentRatio.toFixed(1));
+        } catch {
+          // Ignore localStorage errors
+        }
+        return currentRatio;
+      });
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!rightContainerRef.current || e.touches.length === 0) return;
+      const rect = rightContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.touches[0].clientY - rect.top) / rect.height) * 100;
+      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
+      setRightTopPanelRatio(clampedRatio);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingRightSplitter(false);
+      setRightTopPanelRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_exercise_right_split_ratio', currentRatio.toFixed(1));
+        } catch {
+          // Ignore localStorage errors
+        }
+        return currentRatio;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingRightSplitter]);
+
+  // Copiar todo el código al portapapeles
+  const handleCopyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedFeedback(true);
+      setTimeout(() => setCopiedFeedback(false), 2000);
+    } catch (err) {
+      console.error('Error al copiar al portapapeles:', err);
+    }
+  };
+
+  // Pegar del portapapeles borrando todo el contenido actual
+  const handlePasteCode = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text !== undefined && text !== null) {
+        setCode(text);
+      }
+    } catch (err) {
+      console.error('Error al pegar desde el portapapeles:', err);
+    }
+  };
 
   // Cargar ejercicio, workspace del alumno, entregas previas y progreso
   useEffect(() => {
@@ -419,6 +517,88 @@ export const ExerciseView: React.FC = () => {
   const renderExplanationHtml = useCallback((explanationText: string) => {
     return renderMarkdown(explanationText, exercise?.id);
   }, [exercise?.id]);
+
+  // Resumen y estado para la barra superior del panel de Tests
+  const testSummary = useMemo(() => {
+    if (previewLoading) {
+      return {
+        counterText: 'Ejecutando...',
+        statusText: 'EJECUTANDO...',
+        badgeClass: 'badge-info',
+      };
+    }
+    if (submitLoading) {
+      return {
+        counterText: 'Evaluando...',
+        statusText: 'EVALUANDO...',
+        badgeClass: 'badge-info',
+      };
+    }
+    if (previewResult) {
+      if (!previewResult.compileSuccess) {
+        return {
+          counterText: `0 / ${previewResult.testResults?.length || publicTests.length || 0} superados`,
+          statusText: 'COMPILATION_ERROR',
+          badgeClass: 'badge-danger',
+        };
+      }
+      const total = previewResult.testResults.length;
+      const passed = previewResult.testResults.filter((t) => t.passed).length;
+      if (passed === total && total > 0) {
+        return {
+          counterText: `${passed} / ${total} superados`,
+          statusText: 'CORRECTA',
+          badgeClass: 'badge-success',
+        };
+      }
+      const hasRuntimeErr = previewResult.testResults.some((t) => t.status === 'RUNTIME_ERROR');
+      const hasTle = previewResult.testResults.some((t) => t.status === 'TIMEOUT');
+      let statusText: string = 'INCORRECTA';
+      if (hasRuntimeErr) statusText = 'RUNTIME_ERROR';
+      else if (hasTle) statusText = 'TIME_LIMIT_EXCEEDED';
+      return {
+        counterText: `${passed} / ${total} superados`,
+        statusText,
+        badgeClass: 'badge-danger',
+      };
+    }
+    if (evaluation) {
+      if (evaluation.status === 'COMPILE_ERROR') {
+        return {
+          counterText: `0 / ${evaluation.totalTests || 0} superados`,
+          statusText: 'COMPILATION_ERROR',
+          badgeClass: 'badge-danger',
+        };
+      }
+      const total = evaluation.totalTests || 0;
+      const passed = evaluation.passedTests || 0;
+      let statusText: string = evaluation.status;
+      let badgeClass = 'badge-danger';
+      if (evaluation.status === 'CORRECT') {
+        statusText = 'CORRECTA';
+        badgeClass = 'badge-success';
+      } else if (evaluation.status === 'INCORRECT') {
+        statusText = 'INCORRECTA';
+        badgeClass = 'badge-warning';
+      } else if (evaluation.status === 'RUNTIME_ERROR') {
+        statusText = 'RUNTIME_ERROR';
+        badgeClass = 'badge-danger';
+      } else if (evaluation.status === 'TIMEOUT') {
+        statusText = 'TIME_LIMIT_EXCEEDED';
+        badgeClass = 'badge-danger';
+      }
+      return {
+        counterText: `${passed} / ${total} superados`,
+        statusText,
+        badgeClass,
+      };
+    }
+    return {
+      counterText: publicTests.length > 0 ? `0 / ${publicTests.length} superados` : 'Sin ejecuciones aún',
+      statusText: 'PENDIENTE',
+      badgeClass: 'badge-neutral',
+    };
+  }, [previewLoading, submitLoading, previewResult, evaluation, publicTests.length]);
 
   const getTestDisplayName = useCallback((testId: string, testName?: string, index?: number): string => {
     if (testName && !testName.startsWith('pub-') && !testName.startsWith('priv-')) {
@@ -1173,33 +1353,65 @@ export const ExerciseView: React.FC = () => {
           />
         )}
 
-        {/* Panel Derecho: Editor y Resultados */}
+        {/* Panel Derecho: Editor (arriba) y Resultados de Tests (abajo) con divisor vertical */}
         <div
+          ref={rightContainerRef}
           style={{
             width: isSmallScreen ? '100%' : `calc(${100 - leftPanelRatio}% - 4px)`,
             flex: isSmallScreen ? undefined : 1,
-            minWidth: isSmallScreen ? undefined : '300px',
+            minWidth: isSmallScreen ? undefined : '320px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
-            overflowY: isSmallScreen ? 'visible' : 'auto',
-            paddingRight: isSmallScreen ? 0 : '4px',
+            overflow: isSmallScreen ? 'visible' : 'hidden',
+            gap: 0,
           }}
         >
-          <div className="card" style={{ padding: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {/* Tarjeta Superior: Editor de Código */}
+          <div
+            className="card"
+            style={{
+              height: isSmallScreen ? 'auto' : `calc(${rightTopPanelRatio}% - 4px)`,
+              minHeight: isSmallScreen ? '320px' : '160px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxSizing: 'border-box',
+              padding: '0.75rem 1rem',
+              overflow: 'hidden',
+              marginBottom: 0,
+            }}
+          >
+            {/* Barra superior del Editor */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.5rem',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                flexShrink: 0,
+              }}
+            >
+              {/* Sección Izquierda: Icono Código + Selector/Badge Lenguaje + Estado Borrador */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+                  <Code2 size={16} style={{ color: '#2563eb' }} />
+                  <span>Código</span>
+                </div>
+
                 {/* Selector de plantilla si hay múltiples y el código no ha sido modificado aún */}
-                {availableTemplates.length > 1 && isUntouched && (
-                  <div style={{
-                    display: 'inline-flex',
-                    borderRadius: '0.375rem',
-                    border: '1px solid #cbd5e1',
-                    overflow: 'hidden',
-                    background: '#f8fafc',
-                  }}>
+                {availableTemplates.length > 1 && isUntouched ? (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                      overflow: 'hidden',
+                      background: '#f8fafc',
+                    }}
+                  >
                     {availableTemplates.map((lang) => {
                       const isSel = selectedLang.toLowerCase() === lang.toLowerCase();
                       return (
@@ -1208,7 +1420,7 @@ export const ExerciseView: React.FC = () => {
                           type="button"
                           onClick={() => handleSelectLanguage(lang)}
                           style={{
-                            padding: '0.2rem 0.65rem',
+                            padding: '0.15rem 0.55rem',
                             fontSize: '0.75rem',
                             fontWeight: 700,
                             border: 'none',
@@ -1217,7 +1429,7 @@ export const ExerciseView: React.FC = () => {
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.3rem',
+                            gap: '0.25rem',
                             transition: 'all 0.15s ease',
                           }}
                         >
@@ -1226,9 +1438,13 @@ export const ExerciseView: React.FC = () => {
                       );
                     })}
                   </div>
+                ) : (
+                  <span className="badge badge-neutral" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+                    {currentLang === 'python' ? '🐍 Python' : '☕ Java'}
+                  </span>
                 )}
 
-                {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando borrador...</span>}
+                {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando...</span>}
                 {saveStatus === 'saved' && <span style={{ fontSize: '0.75rem', color: '#15803d' }}>✓ Guardado</span>}
                 {lastSaved && saveStatus === 'idle' && (
                   <span style={{ fontSize: '0.75rem', color: '#94a3b8' }} title={new Date(lastSaved).toLocaleString()}>
@@ -1237,7 +1453,42 @@ export const ExerciseView: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {/* Sección Derecha: Copiar, Pegar, Guardar, Plantilla, Probar, Entregar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="btn-secondary"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.55rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                  }}
+                  title="Copiar todo el código al portapapeles"
+                >
+                  {copiedFeedback ? <Check size={13} style={{ color: '#16a34a' }} /> : <Copy size={13} />}
+                  <span>{copiedFeedback ? 'Copiado' : 'Copiar'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePasteCode}
+                  className="btn-secondary"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.55rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                  }}
+                  title="Pegar del portapapeles borrando todo el contenido actual"
+                >
+                  <Clipboard size={13} />
+                  <span>Pegar</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleSaveWorkspace}
@@ -1245,224 +1496,345 @@ export const ExerciseView: React.FC = () => {
                   className="btn-secondary"
                   style={{
                     fontSize: '0.75rem',
-                    padding: '0.25rem 0.6rem',
+                    padding: '0.25rem 0.55rem',
                     opacity: canSave ? 1 : 0.5,
                     cursor: canSave ? 'pointer' : 'not-allowed',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
                   }}
-                  title={canSave ? 'Guardar borrador de trabajo' : 'El código no ha sido modificado desde el último guardado o prueba'}
+                  title={canSave ? 'Guardar borrador de trabajo' : 'El código no ha sido modificado'}
                 >
                   💾 Guardar
                 </button>
+
                 {((exercise.starterCode && exercise.starterCode.trim().length > 0) || (exercise.starterTemplates && Object.keys(exercise.starterTemplates).length > 0)) && (
                   <button
                     type="button"
                     onClick={handleResetTemplate}
                     disabled={submitLoading}
                     className="btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem', color: '#64748b' }}
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '0.25rem 0.55rem',
+                      color: '#64748b',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                    }}
                     title="Restablecer código a la plantilla inicial"
                   >
                     ↺ Plantilla
                   </button>
                 )}
+
+                <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.2rem' }} />
+
+                <button
+                  type="button"
+                  onClick={handlePreviewRun}
+                  disabled={!canPreview}
+                  className="btn-secondary"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.65rem',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    opacity: canPreview ? 1 : 0.5,
+                    cursor: canPreview ? 'pointer' : 'not-allowed',
+                    backgroundColor: '#f1f5f9',
+                  }}
+                  title={canPreview ? 'Probar solución contra tests públicos' : 'Modifica el código para volver a probar'}
+                >
+                  {previewLoading ? '⏳ Probando...' : '▶ Probar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className="btn-primary"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.75rem',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    opacity: canSubmit ? 1 : 0.5,
+                    cursor: canSubmit ? 'pointer' : 'not-allowed',
+                  }}
+                  title={canSubmit ? 'Entregar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
+                >
+                  {submitLoading ? '⏳ Evaluando...' : '✓ Entregar'}
+                </button>
               </div>
             </div>
 
-            <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} />
-
-            {/* Barra de botones de ejecución */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.875rem' }}>
-              <button
-                onClick={handlePreviewRun}
-                disabled={!canPreview}
-                className="btn-secondary"
-                style={{
-                  fontSize: '0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  opacity: canPreview ? 1 : 0.5,
-                  cursor: canPreview ? 'pointer' : 'not-allowed',
-                }}
-                title={canPreview ? 'Probar solución contra tests públicos' : 'Modifica el código para volver a probar'}
-              >
-                {previewLoading ? `⏳ Probando en ${currentLang === 'python' ? 'Python 3' : 'Java 26'}...` : '▶ Probar Tests Públicos'}
-              </button>
-
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className="btn-primary"
-                style={{
-                  fontSize: '0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  opacity: canSubmit ? 1 : 0.5,
-                  cursor: canSubmit ? 'pointer' : 'not-allowed',
-                }}
-                title={canSubmit ? 'Entregar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
-              >
-                {submitLoading ? '⏳ Evaluando entrega...' : '✓ Entregar Solución Oficial'}
-              </button>
+            {/* Monaco Editor ocupando el 100% de la altura disponible */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} height="100%" />
             </div>
           </div>
 
-          {errorMsg && (
-            <div className="card" style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem' }}>
-              {errorMsg}
+          {/* Divisor Vertical (Splitter) entre Editor y Resultados */}
+          {!isSmallScreen && (
+            <div
+              onMouseDown={() => setIsDraggingRightSplitter(true)}
+              onTouchStart={() => setIsDraggingRightSplitter(true)}
+              style={{
+                height: '8px',
+                cursor: 'row-resize',
+                flexShrink: 0,
+                userSelect: 'none',
+                background: isDraggingRightSplitter ? '#3b82f6' : 'transparent',
+                borderRadius: '4px',
+                transition: 'background-color 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+              }}
+              title="Arrastra para redimensionar Editor y Tests"
+            >
+              <div
+                style={{
+                  width: '36px',
+                  height: '3px',
+                  borderRadius: '2px',
+                  backgroundColor: isDraggingRightSplitter ? '#ffffff' : '#cbd5e1',
+                }}
+              />
             </div>
           )}
 
-          {/* Indicador de carga de prueba preliminar pública */}
-          {previewLoading && (
-            <div className="card" style={{ borderLeft: '4px solid #3b82f6', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#1d4ed8' }}>
-              <span style={{ fontSize: '1.25rem' }}>⏳</span>
-              <span style={{ fontSize: '0.875rem' }}>
-                Ejecutando pruebas preliminares públicas en el sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'}...
-              </span>
-            </div>
-          )}
+          {/* Tarjeta Inferior: Casos de Prueba y Resultados */}
+          <div
+            className="card"
+            style={{
+              height: isSmallScreen ? 'auto' : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+              display: 'flex',
+              flexDirection: 'column',
+              boxSizing: 'border-box',
+              padding: '0.75rem 1rem',
+              overflowY: 'auto',
+              minHeight: isSmallScreen ? 'auto' : '140px',
+              marginTop: 0,
+            }}
+          >
+            {/* Barra superior de Testcase / Test Result */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '0.625rem',
+                marginBottom: '0.75rem',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+                  <Terminal size={15} style={{ color: '#64748b' }} />
+                  <span>Test Result</span>
+                </div>
 
-          {/* Resultado de pruebas preliminares públicas */}
-          {previewResult && !previewLoading && (
-            <div className="card" style={{ borderLeft: previewResult.compileSuccess ? '4px solid #16a34a' : '4px solid #dc2626' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600 }}>
-                  Resultado de Pruebas Públicas ({previewResult.runtimeId?.includes('python') || currentLang === 'python' ? 'Python 3' : 'Java 26'})
-                </h4>
-                <span className={`badge ${previewResult.compileSuccess ? 'badge-success' : 'badge-danger'}`}>
-                  {previewResult.compileSuccess ? 'Compilación/Sintaxis OK' : 'Error de Compilación/Sintaxis'}
+                <span
+                  style={{
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    color: '#334155',
+                    backgroundColor: '#f1f5f9',
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  {testSummary.counterText}
                 </span>
               </div>
 
-              {previewResult.compileSuccess ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {previewResult.testResults.map((tr, idx) => (
-                    <div
-                      key={tr.testId || idx}
-                      style={{
-                        padding: '0.625rem 0.875rem',
-                        background: tr.passed ? '#f0fdf4' : '#fef2f2',
-                        border: `1px solid ${tr.passed ? '#bbf7d0' : '#fecaca'}`,
-                        borderRadius: '0.5rem',
-                        fontSize: '0.8125rem'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                        <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
-                        <span style={{ color: tr.passed ? '#15803d' : '#b91c1c' }}>
-                          {tr.passed ? '✓ Superado' : '✗ Fallido'}
-                        </span>
-                      </div>
-                      {!tr.passed && (
-                        <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          <div>
-                            <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
-                            <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                          </div>
-                          <div>
-                            <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
-                            <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.stdout || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
-                  <pre style={{ background: '#f8fafc', color: '#b91c1c', border: '1px solid #fecaca', padding: '0.5rem', borderRadius: '0.25rem', overflowX: 'auto', margin: 0 }}>
-                    {previewResult.compileStderr || previewResult.compileStdout}
-                  </pre>
-                </div>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span
+                  className={`badge ${testSummary.badgeClass}`}
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.03em',
+                    padding: '0.25rem 0.65rem',
+                  }}
+                >
+                  {testSummary.statusText}
+                </span>
+              </div>
             </div>
-          )}
 
-          {/* Resultado de la evaluación oficial */}
-          {(submission || submitLoading) && !previewResult && !previewLoading && (
-            <div className="card" style={{ borderLeft: '4px solid #2563eb' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-                    {submission
-                      ? `Entrega Oficial ${submission.attemptNumber ? `(Intento #${submission.attemptNumber})` : ''}`
-                      : 'Evaluando Entrega Oficial...'}
-                  </h4>
-                  {submission && (
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
-                      Registrada el {new Date(submission.createdAt).toLocaleString()}
-                    </div>
-                  )}
+            {/* Contenido detallado del resultado de pruebas */}
+            {errorMsg && (
+              <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+                {errorMsg}
+              </div>
+            )}
+
+            {/* Indicador de ejecución de pruebas públicas */}
+            {previewLoading && (
+              <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#1d4ed8', backgroundColor: '#eff6ff', borderRadius: '0.375rem', border: '1px solid #bfdbfe' }}>
+                <span style={{ fontSize: '1.25rem' }}>⏳</span>
+                <span style={{ fontSize: '0.875rem' }}>
+                  Ejecutando pruebas preliminares públicas en el sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'}...
+                </span>
+              </div>
+            )}
+
+            {/* Resultado de pruebas preliminares públicas */}
+            {previewResult && !previewLoading && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                    Sandbox: {previewResult.runtimeId?.includes('python') || currentLang === 'python' ? 'Python 3' : 'Java 26'}
+                  </span>
+                  <span className={`badge ${previewResult.compileSuccess ? 'badge-success' : 'badge-danger'}`}>
+                    {previewResult.compileSuccess ? 'Compilación OK' : 'Error de Compilación'}
+                  </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="badge badge-neutral">
+                {previewResult.compileSuccess ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {previewResult.testResults.map((tr, idx) => (
+                      <div
+                        key={tr.testId || idx}
+                        style={{
+                          padding: '0.625rem 0.875rem',
+                          background: tr.passed ? '#f0fdf4' : '#fef2f2',
+                          border: `1px solid ${tr.passed ? '#bbf7d0' : '#fecaca'}`,
+                          borderRadius: '0.5rem',
+                          fontSize: '0.8125rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
+                          <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
+                          <span style={{ color: tr.passed ? '#15803d' : '#b91c1c' }}>
+                            {tr.passed ? '✓ Superado' : '✗ Fallido'}
+                          </span>
+                        </div>
+                        {!tr.passed && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <div>
+                              <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
+                              <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
+                              <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.stdout || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
+                    <pre style={{ background: '#f8fafc', color: '#b91c1c', border: '1px solid #fecaca', padding: '0.5rem', borderRadius: '0.25rem', overflowX: 'auto', margin: 0 }}>
+                      {previewResult.compileStderr || previewResult.compileStdout}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Resultado de la evaluación oficial */}
+            {(submission || submitLoading) && !previewResult && !previewLoading && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>
+                      {submission
+                        ? `Entrega Oficial ${submission.attemptNumber ? `(Intento #${submission.attemptNumber})` : ''}`
+                        : 'Evaluando Entrega Oficial...'}
+                    </h4>
+                    {submission && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+                        Registrada el {new Date(submission.createdAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
                     {submission?.runtimeId?.includes('python') || submission?.language?.toLowerCase() === 'python' || currentLang === 'python'
                       ? 'Python 3 Sandbox'
                       : 'Java 26 Sandbox'}
                   </span>
-                  <span
-                    className={`badge ${
-                      evaluation
-                        ? evaluation.status === 'CORRECT'
-                          ? 'badge-success'
-                          : evaluation.status === 'INCORRECT'
-                          ? 'badge-warning'
-                          : 'badge-danger'
-                        : 'badge-info'
-                    }`}
-                  >
-                    {evaluation ? evaluation.status : 'EVALUANDO EN COLA...'}
-                  </span>
                 </div>
-              </div>
 
-              {submitLoading && (
-                <div style={{ padding: '1rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#2563eb' }}>
-                  <span style={{ fontSize: '1.25rem' }}>⏳</span>
-                  <span style={{ fontSize: '0.875rem' }}>
-                    El sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'} está ejecutando las pruebas públicas y privadas en un contenedor aislado...
-                  </span>
-                </div>
-              )}
-
-              {evaluation && (
-                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
-                  {/* Puntuación y desglose general */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '2rem', fontWeight: 800, color: evaluation.score >= 100 ? '#15803d' : evaluation.score > 0 ? '#d97706' : '#b91c1c' }}>
-                        {evaluation.score}
-                      </span>
-                      <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 600 }}>/ 100 pts</span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.5rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
-                      <span>Tests superados: <strong style={{ color: '#0f172a' }}>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
-                      <span style={{ color: '#cbd5e1' }}>•</span>
-                      <span>Públicos: <strong style={{ color: '#0f172a' }}>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
-                      <span style={{ color: '#cbd5e1' }}>•</span>
-                      <span>Privados: <strong style={{ color: '#0f172a' }}>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
-                    </div>
+                {submitLoading && (
+                  <div style={{ padding: '0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#2563eb' }}>
+                    <span style={{ fontSize: '1.25rem' }}>⏳</span>
+                    <span style={{ fontSize: '0.875rem' }}>
+                      El sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'} está ejecutando las pruebas públicas y privadas en un contenedor aislado...
+                    </span>
                   </div>
+                )}
 
-                  {/* Detalle de error de compilación si aplica */}
-                  {evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
-                    <div style={{ marginTop: '1rem' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.35rem' }}>
-                        Detalle del compilador / intérprete:
+                {evaluation && (
+                  <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.75rem', fontWeight: 800, color: evaluation.score >= 100 ? '#15803d' : evaluation.score > 0 ? '#d97706' : '#b91c1c' }}>
+                          {evaluation.score}
+                        </span>
+                        <span style={{ fontSize: '0.9375rem', color: '#64748b', fontWeight: 600 }}>/ 100 pts</span>
                       </div>
-                      <pre style={{ background: '#1e293b', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', margin: 0 }}>
-                        {evaluation.compileStderr}
-                      </pre>
+
+                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
+                        <span>Tests superados: <strong style={{ color: '#0f172a' }}>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
+                        <span style={{ color: '#cbd5e1' }}>•</span>
+                        <span>Públicos: <strong style={{ color: '#0f172a' }}>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
+                        <span style={{ color: '#cbd5e1' }}>•</span>
+                        <span>Privados: <strong style={{ color: '#0f172a' }}>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+
+                    {evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.35rem' }}>
+                          Detalle del compilador / intérprete:
+                        </div>
+                        <pre style={{ background: '#1e293b', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', margin: 0 }}>
+                          {evaluation.compileStderr}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Estado inicial sin ejecuciones */}
+            {!previewLoading && !submitLoading && !previewResult && !evaluation && !errorMsg && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: 1,
+                  minHeight: '100px',
+                  color: '#94a3b8',
+                  textAlign: 'center',
+                  padding: '1.5rem',
+                }}
+              >
+                <p style={{ margin: 0, fontSize: '0.875rem' }}>
+                  Pulsa <strong>▶ Probar</strong> para verificar tu código con los tests públicos o <strong>✓ Entregar</strong> para la evaluación oficial.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

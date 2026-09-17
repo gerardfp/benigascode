@@ -6,6 +6,7 @@ interface CodeEditorProps {
   onChange: (val: string) => void;
   language?: string;
   disabled?: boolean;
+  height?: string;
 }
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -13,6 +14,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   language = 'java',
   disabled = false,
+  height = '100%',
 }) => {
   const normalizedLanguage = language?.toLowerCase() === 'python' ? 'python' : 'java';
 
@@ -24,11 +26,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         overflow: 'hidden',
         border: '1px solid #334155',
         backgroundColor: '#1e1e1e',
-        minHeight: '480px',
+        height: height,
+        minHeight: '180px',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
       }}
     >
       <Editor
-        height="480px"
+        height={height}
         language={normalizedLanguage}
         value={value}
         theme="vs-dark"
@@ -36,7 +42,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         loading={
           <div
             style={{
-              height: '480px',
+              height: '100%',
+              minHeight: '180px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
