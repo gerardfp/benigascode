@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
@@ -98,6 +98,10 @@ export const ExerciseView: React.FC = () => {
   const [isDraggingRightSplitter, setIsDraggingRightSplitter] = useState(false);
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
+
+  // Altura fija de la cabecera del panel de Test cuando está colapsado (en px)
+  const TEST_PANEL_HEADER_HEIGHT = 44;
+  const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState<boolean>(false);
   const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -182,9 +186,21 @@ export const ExerciseView: React.FC = () => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!rightContainerRef.current) return;
       const rect = rightContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.clientY - rect.top) / rect.height) * 100;
-      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
-      setRightTopPanelRatio(clampedRatio);
+      const totalHeight = rect.height;
+      const cursorY = e.clientY - rect.top;
+      const maxEditorHeight = totalHeight - 8 - TEST_PANEL_HEADER_HEIGHT;
+      const minEditorHeight = 100;
+
+      if (cursorY >= maxEditorHeight - 12) {
+        setIsTestPanelCollapsed(true);
+      } else if (cursorY <= minEditorHeight) {
+        setIsTestPanelCollapsed(false);
+        setRightTopPanelRatio((minEditorHeight / totalHeight) * 100);
+      } else {
+        setIsTestPanelCollapsed(false);
+        const rawRatio = (cursorY / totalHeight) * 100;
+        setRightTopPanelRatio(rawRatio);
+      }
     };
 
     const handleMouseUp = () => {
@@ -202,9 +218,21 @@ export const ExerciseView: React.FC = () => {
     const handleTouchMove = (e: TouchEvent) => {
       if (!rightContainerRef.current || e.touches.length === 0) return;
       const rect = rightContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.touches[0].clientY - rect.top) / rect.height) * 100;
-      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
-      setRightTopPanelRatio(clampedRatio);
+      const totalHeight = rect.height;
+      const cursorY = e.touches[0].clientY - rect.top;
+      const maxEditorHeight = totalHeight - 8 - TEST_PANEL_HEADER_HEIGHT;
+      const minEditorHeight = 100;
+
+      if (cursorY >= maxEditorHeight - 12) {
+        setIsTestPanelCollapsed(true);
+      } else if (cursorY <= minEditorHeight) {
+        setIsTestPanelCollapsed(false);
+        setRightTopPanelRatio((minEditorHeight / totalHeight) * 100);
+      } else {
+        setIsTestPanelCollapsed(false);
+        const rawRatio = (cursorY / totalHeight) * 100;
+        setRightTopPanelRatio(rawRatio);
+      }
     };
 
     const handleTouchEnd = () => {
@@ -233,6 +261,17 @@ export const ExerciseView: React.FC = () => {
       window.removeEventListener('touchend', handleTouchEnd);
     };
   }, [isDraggingRightSplitter]);
+
+  // Expandir panel de tests automáticamente al 50% de la columna
+  const expandTestPanelToHalf = useCallback(() => {
+    setIsTestPanelCollapsed(false);
+    setRightTopPanelRatio(50);
+    try {
+      localStorage.setItem('benigascode_exercise_right_split_ratio', '50.0');
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
 
   // Copiar todo el código al portapapeles
   const handleCopyCode = async () => {
@@ -629,6 +668,9 @@ export const ExerciseView: React.FC = () => {
   // Ejecución real de pruebas preliminares públicas
   const handlePreviewRun = async () => {
     if (!exerciseId || !canPreview) return;
+    if (isTestPanelCollapsed) {
+      expandTestPanelToHalf();
+    }
     setPreviewLoading(true);
     setPreviewResult(null);
     setSubmission(null);
@@ -692,6 +734,9 @@ export const ExerciseView: React.FC = () => {
       return;
     }
 
+    if (isTestPanelCollapsed) {
+      expandTestPanelToHalf();
+    }
     setSubmitLoading(true);
     setSubmission(null);
     setEvaluation(null);
@@ -798,7 +843,7 @@ export const ExerciseView: React.FC = () => {
             flexDirection: 'column',
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
-            overflowY: isSmallScreen ? 'visible' : 'auto',
+            overflow: isSmallScreen ? 'visible' : 'hidden',
             paddingRight: isSmallScreen ? 0 : '4px',
           }}
         >
@@ -807,9 +852,10 @@ export const ExerciseView: React.FC = () => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              minHeight: '100%',
+              height: isSmallScreen ? 'auto' : '100%',
               boxSizing: 'border-box',
               padding: '1.25rem',
+              overflow: 'hidden',
             }}
           >
             {/* Barra superior de navegación y selector de vista */}
@@ -822,7 +868,8 @@ export const ExerciseView: React.FC = () => {
                 gap: '0.75rem',
                 borderBottom: '1px solid #e2e8f0',
                 paddingBottom: '0.875rem',
-                marginBottom: '1.25rem',
+                marginBottom: '1rem',
+                flexShrink: 0,
               }}
             >
               {/* Sección Izquierda: Navegación (Volver, Anterior, Siguiente) */}
@@ -903,37 +950,31 @@ export const ExerciseView: React.FC = () => {
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.2rem',
-                          padding: '0.35rem 0.6rem',
-                          fontSize: '0.8125rem',
+                          justifyContent: 'center',
+                          padding: '0.35rem 0.5rem',
                           color: '#334155',
                           textDecoration: 'none',
-                          fontWeight: 500,
                           borderRight: '1px solid #cbd5e1',
                         }}
                         title={`Anterior: ${prevExercise.title}`}
                       >
-                        <ChevronLeft size={15} />
-                        <span>Anterior</span>
+                        <ChevronLeft size={16} />
                       </Link>
                     ) : (
                       <span
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.2rem',
-                          padding: '0.35rem 0.6rem',
-                          fontSize: '0.8125rem',
+                          justifyContent: 'center',
+                          padding: '0.35rem 0.5rem',
                           color: '#94a3b8',
-                          fontWeight: 500,
                           borderRight: '1px solid #cbd5e1',
                           cursor: 'not-allowed',
                           opacity: 0.6,
                         }}
                         title="No hay ejercicio anterior"
                       >
-                        <ChevronLeft size={15} />
-                        <span>Anterior</span>
+                        <ChevronLeft size={16} />
                       </span>
                     )}
 
@@ -943,35 +984,29 @@ export const ExerciseView: React.FC = () => {
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.2rem',
-                          padding: '0.35rem 0.6rem',
-                          fontSize: '0.8125rem',
+                          justifyContent: 'center',
+                          padding: '0.35rem 0.5rem',
                           color: '#334155',
                           textDecoration: 'none',
-                          fontWeight: 500,
                         }}
                         title={`Siguiente: ${nextExercise.title}`}
                       >
-                        <span>Siguiente</span>
-                        <ChevronRight size={15} />
+                        <ChevronRight size={16} />
                       </Link>
                     ) : (
                       <span
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.2rem',
-                          padding: '0.35rem 0.6rem',
-                          fontSize: '0.8125rem',
+                          justifyContent: 'center',
+                          padding: '0.35rem 0.5rem',
                           color: '#94a3b8',
-                          fontWeight: 500,
                           cursor: 'not-allowed',
                           opacity: 0.6,
                         }}
                         title="No hay siguiente ejercicio"
                       >
-                        <span>Siguiente</span>
-                        <ChevronRight size={15} />
+                        <ChevronRight size={16} />
                       </span>
                     )}
                   </div>
@@ -1052,7 +1087,16 @@ export const ExerciseView: React.FC = () => {
               </div>
             </div>
 
-            {leftTab === 'statement' ? (
+            {/* Contenedor scrolleable del contenido (la cabecera superior permanece fija) */}
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: isSmallScreen ? 'visible' : 'auto',
+                paddingRight: isSmallScreen ? 0 : '4px',
+              }}
+            >
+              {leftTab === 'statement' ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                   <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
@@ -1331,6 +1375,7 @@ export const ExerciseView: React.FC = () => {
               )}
             </div>
           )}
+            </div>
           </div>
         </div>
 
@@ -1372,7 +1417,11 @@ export const ExerciseView: React.FC = () => {
           <div
             className="card"
             style={{
-              height: isSmallScreen ? 'auto' : `calc(${rightTopPanelRatio}% - 4px)`,
+              height: isSmallScreen
+                ? 'auto'
+                : isTestPanelCollapsed
+                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+                : `calc(${rightTopPanelRatio}% - 4px)`,
               minHeight: isSmallScreen ? '320px' : '160px',
               display: 'flex',
               flexDirection: 'column',
@@ -1380,6 +1429,7 @@ export const ExerciseView: React.FC = () => {
               padding: '0.75rem 1rem',
               overflow: 'hidden',
               marginBottom: 0,
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
             }}
           >
             {/* Barra superior del Editor */}
@@ -1614,29 +1664,38 @@ export const ExerciseView: React.FC = () => {
           <div
             className="card"
             style={{
-              height: isSmallScreen ? 'auto' : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+              height: isSmallScreen
+                ? 'auto'
+                : isTestPanelCollapsed
+                ? `${TEST_PANEL_HEADER_HEIGHT}px`
+                : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+              minHeight: isSmallScreen ? 'auto' : `${TEST_PANEL_HEADER_HEIGHT}px`,
               display: 'flex',
               flexDirection: 'column',
               boxSizing: 'border-box',
-              padding: '0.75rem 1rem',
-              overflowY: 'auto',
-              minHeight: isSmallScreen ? 'auto' : '140px',
+              padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+              overflow: 'hidden',
               marginTop: 0,
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
             }}
           >
             {/* Barra superior de Testcase / Test Result */}
             <div
+              onClick={isTestPanelCollapsed ? expandTestPanelToHalf : undefined}
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderBottom: '1px solid #e2e8f0',
-                paddingBottom: '0.625rem',
-                marginBottom: '0.75rem',
+                borderBottom: isTestPanelCollapsed ? 'none' : '1px solid #e2e8f0',
+                paddingBottom: isTestPanelCollapsed ? 0 : '0.625rem',
+                marginBottom: isTestPanelCollapsed ? 0 : '0.75rem',
                 flexWrap: 'wrap',
                 gap: '0.5rem',
                 flexShrink: 0,
+                cursor: isTestPanelCollapsed ? 'pointer' : 'default',
+                userSelect: 'none',
               }}
+              title={isTestPanelCollapsed ? 'Clic en la cabecera para expandir al 50%' : undefined}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
@@ -1671,8 +1730,48 @@ export const ExerciseView: React.FC = () => {
                 >
                   {testSummary.statusText}
                 </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isTestPanelCollapsed) {
+                      expandTestPanelToHalf();
+                    } else {
+                      setIsTestPanelCollapsed(true);
+                    }
+                  }}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.2rem 0.4rem',
+                    fontSize: '0.75rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '0.375rem',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                  }}
+                  title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
+                >
+                  {isTestPanelCollapsed ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                </button>
               </div>
             </div>
+
+            {/* Contenedor scrolleable del resultado de pruebas (la cabecera superior permanece fija) */}
+            {!isTestPanelCollapsed && (
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: isSmallScreen ? 'visible' : 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  paddingRight: isSmallScreen ? 0 : '2px',
+                }}
+              >
 
             {/* Contenido detallado del resultado de pruebas */}
             {errorMsg && (
@@ -1832,6 +1931,8 @@ export const ExerciseView: React.FC = () => {
                 <p style={{ margin: 0, fontSize: '0.875rem' }}>
                   Pulsa <strong>▶ Probar</strong> para verificar tu código con los tests públicos o <strong>✓ Entregar</strong> para la evaluación oficial.
                 </p>
+              </div>
+            )}
               </div>
             )}
           </div>
