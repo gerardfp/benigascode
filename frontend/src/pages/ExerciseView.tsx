@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
@@ -40,6 +40,40 @@ export const ExerciseView: React.FC = () => {
 
   // Pestaña activa en el panel izquierdo: 'statement' (enunciado) o 'submissions' (entregas)
   const [leftTab, setLeftTab] = useState<'statement' | 'submissions'>('statement');
+  const [collectionExercises, setCollectionExercises] = useState<Exercise[]>([]);
+
+  // Cargar lista de ejercicios de la colección para navegación Anterior / Siguiente
+  useEffect(() => {
+    if (!collectionId) {
+      setCollectionExercises([]);
+      return;
+    }
+    api.getCollectionExercises(collectionId)
+      .then((exercises) => {
+        setCollectionExercises(exercises || []);
+      })
+      .catch((err) => {
+        console.debug('No se pudieron cargar ejercicios de la colección', err);
+        setCollectionExercises([]);
+      });
+  }, [collectionId]);
+
+  // Ejercicios anterior y siguiente dentro de la colección
+  const { prevExercise, nextExercise } = useMemo(() => {
+    if (!collectionExercises || collectionExercises.length === 0 || !exerciseId) {
+      return { prevExercise: null, nextExercise: null };
+    }
+    const idx = collectionExercises.findIndex(
+      (e) => e.id === exerciseId || e.exerciseId === exerciseId || e.slug === exerciseId
+    );
+    if (idx === -1) {
+      return { prevExercise: null, nextExercise: null };
+    }
+    return {
+      prevExercise: idx > 0 ? collectionExercises[idx - 1] : null,
+      nextExercise: idx < collectionExercises.length - 1 ? collectionExercises[idx + 1] : null,
+    };
+  }, [collectionExercises, exerciseId]);
 
   // Responsive layout & resizable splitter state
   const [leftPanelRatio, setLeftPanelRatio] = useState<number>(() => {
@@ -128,6 +162,7 @@ export const ExerciseView: React.FC = () => {
   // Cargar ejercicio, workspace del alumno, entregas previas y progreso
   useEffect(() => {
     if (!exerciseId) return;
+    setLeftTab('statement');
 
     const loadExerciseData = async () => {
       try {
@@ -549,30 +584,16 @@ export const ExerciseView: React.FC = () => {
 
   return (
     <div
-      className="app-container"
       style={{
-        maxWidth: 1400,
+        width: '100%',
+        maxWidth: '100%',
         height: isSmallScreen ? 'auto' : 'calc(100vh - 65px)',
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        paddingTop: '0.75rem',
-        paddingBottom: isSmallScreen ? '2rem' : '0.5rem',
+        padding: isSmallScreen ? '0.75rem' : '0.5rem 1rem',
       }}
     >
-      {/* Barra superior de navegación */}
-      <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        {collectionId ? (
-          <Link to={`/collections/${collectionId}`} style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
-            &larr; Volver a la Colección
-          </Link>
-        ) : (
-          <Link to="/" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
-            &larr; Volver al Dashboard
-          </Link>
-        )}
-      </div>
-
       <div
         ref={splitContainerRef}
         style={{
@@ -587,95 +608,272 @@ export const ExerciseView: React.FC = () => {
           overflow: isSmallScreen ? 'visible' : 'hidden',
         }}
       >
-        {/* Panel Izquierdo: Enunciado y Casos Públicos / Historial de Entregas */}
+        {/* Panel Izquierdo: Tarjeta única con navegación, selector, enunciado/entregas y tests */}
         <div
           style={{
-            width: isSmallScreen ? '100%' : `calc(${leftPanelRatio}% - 6px)`,
+            width: isSmallScreen ? '100%' : `calc(${leftPanelRatio}% - 4px)`,
             minWidth: isSmallScreen ? undefined : '260px',
             maxWidth: isSmallScreen ? undefined : '75%',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.75rem',
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
             overflowY: isSmallScreen ? 'visible' : 'auto',
-            paddingRight: isSmallScreen ? 0 : '6px',
-            scrollbarWidth: 'thin',
+            paddingRight: isSmallScreen ? 0 : '4px',
           }}
         >
-          {/* Pestañas del Panel Izquierdo: Enunciado vs Entregas */}
           <div
+            className="card"
             style={{
               display: 'flex',
-              gap: '0.35rem',
-              borderBottom: '1px solid #e2e8f0',
-              paddingBottom: '0.35rem',
-              flexShrink: 0,
+              flexDirection: 'column',
+              minHeight: '100%',
+              boxSizing: 'border-box',
+              padding: '1.25rem',
             }}
           >
-            <button
-              type="button"
-              onClick={() => setLeftTab('statement')}
+            {/* Barra superior de navegación y selector de vista */}
+            <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.375rem',
-                border: leftTab === 'statement' ? '1px solid #93c5fd' : '1px solid transparent',
-                backgroundColor: leftTab === 'statement' ? '#eff6ff' : 'transparent',
-                color: leftTab === 'statement' ? '#1d4ed8' : '#64748b',
-                fontWeight: leftTab === 'statement' ? 600 : 500,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                borderBottom: '1px solid #e2e8f0',
+                paddingBottom: '0.875rem',
+                marginBottom: '1.25rem',
               }}
             >
-              <FileText size={16} />
-              <span>Enunciado</span>
-            </button>
+              {/* Sección Izquierda: Navegación (Volver, Anterior, Siguiente) */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {collectionId ? (
+                  <Link
+                    to={`/collections/${collectionId}`}
+                    className="btn-secondary"
+                    style={{
+                      textDecoration: 'none',
+                      fontSize: '0.8125rem',
+                      padding: '0.35rem 0.65rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: '#475569',
+                      borderRadius: '0.375rem',
+                    }}
+                    title="Volver a la Colección"
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Colección</span>
+                  </Link>
+                ) : activityId ? (
+                  <Link
+                    to={`/activity/${activityId}`}
+                    className="btn-secondary"
+                    style={{
+                      textDecoration: 'none',
+                      fontSize: '0.8125rem',
+                      padding: '0.35rem 0.65rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: '#475569',
+                      borderRadius: '0.375rem',
+                    }}
+                    title="Volver a la Actividad"
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Volver</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/"
+                    className="btn-secondary"
+                    style={{
+                      textDecoration: 'none',
+                      fontSize: '0.8125rem',
+                      padding: '0.35rem 0.65rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: '#475569',
+                      borderRadius: '0.375rem',
+                    }}
+                    title="Volver al Dashboard"
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Inicio</span>
+                  </Link>
+                )}
 
-            <button
-              type="button"
-              onClick={() => setLeftTab('submissions')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.375rem',
-                border: leftTab === 'submissions' ? '1px solid #93c5fd' : '1px solid transparent',
-                backgroundColor: leftTab === 'submissions' ? '#eff6ff' : 'transparent',
-                color: leftTab === 'submissions' ? '#1d4ed8' : '#64748b',
-                fontWeight: leftTab === 'submissions' ? 600 : 500,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <History size={16} />
-              <span>Entregas</span>
-              {submissionsHistory.length > 0 && (
-                <span
+                {collectionId && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.375rem',
+                      overflow: 'hidden',
+                      backgroundColor: '#f8fafc',
+                    }}
+                  >
+                    {prevExercise ? (
+                      <Link
+                        to={`/collections/${collectionId}/exercise/${prevExercise.id}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                          padding: '0.35rem 0.6rem',
+                          fontSize: '0.8125rem',
+                          color: '#334155',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                          borderRight: '1px solid #cbd5e1',
+                        }}
+                        title={`Anterior: ${prevExercise.title}`}
+                      >
+                        <ChevronLeft size={15} />
+                        <span>Anterior</span>
+                      </Link>
+                    ) : (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                          padding: '0.35rem 0.6rem',
+                          fontSize: '0.8125rem',
+                          color: '#94a3b8',
+                          fontWeight: 500,
+                          borderRight: '1px solid #cbd5e1',
+                          cursor: 'not-allowed',
+                          opacity: 0.6,
+                        }}
+                        title="No hay ejercicio anterior"
+                      >
+                        <ChevronLeft size={15} />
+                        <span>Anterior</span>
+                      </span>
+                    )}
+
+                    {nextExercise ? (
+                      <Link
+                        to={`/collections/${collectionId}/exercise/${nextExercise.id}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                          padding: '0.35rem 0.6rem',
+                          fontSize: '0.8125rem',
+                          color: '#334155',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                        }}
+                        title={`Siguiente: ${nextExercise.title}`}
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight size={15} />
+                      </Link>
+                    ) : (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                          padding: '0.35rem 0.6rem',
+                          fontSize: '0.8125rem',
+                          color: '#94a3b8',
+                          fontWeight: 500,
+                          cursor: 'not-allowed',
+                          opacity: 0.6,
+                        }}
+                        title="No hay siguiente ejercicio"
+                      >
+                        <span>Siguiente</span>
+                        <ChevronRight size={15} />
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Sección Derecha: Selector de contenido (Enunciado / Entregas) con diseño tipo segmented-control diferenciado */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '0.2rem',
+                  backgroundColor: '#f1f5f9',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLeftTab('statement')}
                   style={{
-                    marginLeft: '0.25rem',
-                    backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#f1f5f9',
-                    color: leftTab === 'submissions' ? '#1e40af' : '#64748b',
-                    fontSize: '0.75rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '9999px',
-                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    backgroundColor: leftTab === 'statement' ? '#ffffff' : 'transparent',
+                    color: leftTab === 'statement' ? '#1e293b' : '#64748b',
+                    fontWeight: leftTab === 'statement' ? 700 : 500,
+                    fontSize: '0.8125rem',
+                    cursor: 'pointer',
+                    boxShadow: leftTab === 'statement' ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  {submissionsHistory.length}
-                </span>
-              )}
-            </button>
-          </div>
+                  <FileText size={15} style={{ color: leftTab === 'statement' ? '#2563eb' : '#64748b' }} />
+                  <span>Enunciado</span>
+                </button>
 
-          {leftTab === 'statement' ? (
-            <>
-              <div className="card">
+                <button
+                  type="button"
+                  onClick={() => setLeftTab('submissions')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    backgroundColor: leftTab === 'submissions' ? '#ffffff' : 'transparent',
+                    color: leftTab === 'submissions' ? '#1e293b' : '#64748b',
+                    fontWeight: leftTab === 'submissions' ? 700 : 500,
+                    fontSize: '0.8125rem',
+                    cursor: 'pointer',
+                    boxShadow: leftTab === 'submissions' ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <History size={15} style={{ color: leftTab === 'submissions' ? '#2563eb' : '#64748b' }} />
+                  <span>Entregas</span>
+                  {submissionsHistory.length > 0 && (
+                    <span
+                      style={{
+                        marginLeft: '0.15rem',
+                        backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#e2e8f0',
+                        color: leftTab === 'submissions' ? '#1e40af' : '#475569',
+                        fontSize: '0.7rem',
+                        padding: '0.05rem 0.4rem',
+                        borderRadius: '9999px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {submissionsHistory.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {leftTab === 'statement' ? (
+              <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                   <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
                   {isResolved ? (
@@ -734,46 +932,48 @@ export const ExerciseView: React.FC = () => {
                   className="markdown-statement"
                   dangerouslySetInnerHTML={{ __html: renderedStatementHtml }}
                 />
-              </div>
 
-              {/* Tests públicos informativos simplificados sin marcos individuales */}
-              {publicTests.length > 0 && (
-                <div className="card">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {publicTests.map((t, idx) => (
-                      <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
-                          {getTestDisplayName(t.id, t.name, idx)}
+                {/* Tests públicos informativos dentro de la misma tarjeta con su <h2> */}
+                {publicTests.length > 0 && (
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 1rem', color: '#0f172a' }}>
+                      Tests públicos
+                    </h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {publicTests.map((t, idx) => (
+                        <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
+                            {getTestDisplayName(t.id, t.name, idx)}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
+                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
+                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                            </div>
+                          </div>
+                          {t.explanation && (
+                            <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
+                              <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                              <div
+                                className="markdown-statement"
+                                style={{ marginTop: '0.25rem' }}
+                                dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <div>
-                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
-                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                          </div>
-                          <div>
-                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
-                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                          </div>
-                        </div>
-                        {t.explanation && (
-                          <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
-                            <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                            <div
-                              className="markdown-statement"
-                              style={{ marginTop: '0.25rem' }}
-                              dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* Lista de Envíos / Historial */
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                )}
+              </>
+            ) : (
+              /* Lista de Envíos / Historial dentro de la misma tarjeta */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
                 <div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
@@ -951,19 +1151,22 @@ export const ExerciseView: React.FC = () => {
               )}
             </div>
           )}
+          </div>
         </div>
 
-        {/* Espacio entre bloques que actúa como manejador de redimensionado (estilo VS Code, sin línea extra) */}
+        {/* Espacio entre bloques que actúa como manejador de redimensionado (estilo VS Code, 8px) */}
         {!isSmallScreen && (
           <div
             onMouseDown={() => setIsDraggingSplitter(true)}
             onTouchStart={() => setIsDraggingSplitter(true)}
             style={{
-              width: '12px',
+              width: '8px',
               cursor: 'col-resize',
               flexShrink: 0,
               userSelect: 'none',
-              background: 'transparent',
+              background: isDraggingSplitter ? '#3b82f6' : 'transparent',
+              borderRadius: '4px',
+              transition: 'background-color 0.15s ease',
               zIndex: 10,
             }}
             title="Arrastra para redimensionar paneles"
@@ -973,7 +1176,7 @@ export const ExerciseView: React.FC = () => {
         {/* Panel Derecho: Editor y Resultados */}
         <div
           style={{
-            width: isSmallScreen ? '100%' : `calc(${100 - leftPanelRatio}% - 6px)`,
+            width: isSmallScreen ? '100%' : `calc(${100 - leftPanelRatio}% - 4px)`,
             flex: isSmallScreen ? undefined : 1,
             minWidth: isSmallScreen ? undefined : '300px',
             display: 'flex',
@@ -982,8 +1185,7 @@ export const ExerciseView: React.FC = () => {
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
             overflowY: isSmallScreen ? 'visible' : 'auto',
-            paddingRight: isSmallScreen ? 0 : '6px',
-            scrollbarWidth: 'thin',
+            paddingRight: isSmallScreen ? 0 : '4px',
           }}
         >
           <div className="card" style={{ padding: '1rem' }}>
