@@ -136,8 +136,7 @@ benigascode/
 │   │   └── Caddyfile                    # Proxy inverso Caddy con enrutamiento de API y estáticos
 │   ├── docker-compose.dev.yml           # Orquestación local para desarrollo
 │   └── docker-compose.prod.yml          # Orquestación para despliegue en servidor de producción
-└── docs/                                # Documentación de arquitectura, decisiones y especificaciones
-    └── CURRENT_STATE.md                 # Este informe técnico
+└── CURRENT_STATE.md                     # Informe técnico completo y especificación del sistema
 ```
 
 ---
