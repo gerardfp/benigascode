@@ -53,7 +53,7 @@ jobs:
 
             # 2. Descargar últimos cambios y tags desde GitHub
             echo "📥 Obteniendo cambios desde el repositorio..."
-            git fetch --tags origin
+            git fetch --tags --force origin
             
             # Limpiar cambios locales no commiteados o archivos no rastreados en el servidor
             echo "🧹 Descartando cambios residuales no commiteados en el servidor..."
