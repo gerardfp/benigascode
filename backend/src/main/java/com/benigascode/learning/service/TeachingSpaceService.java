@@ -52,19 +52,15 @@ public class TeachingSpaceService {
     public List<TeachingSpaceDTO> getSpacesForUser(User user) {
         if (user.getRole() == Role.ADMIN) {
             return teachingSpaceRepository.findAllByOrderByNameAsc().stream()
-                .map(this::toDTO)
                 .map(s -> toDTO(s, true))
                 .toList();
         } else if (user.getRole() == Role.TEACHER) {
             return teachingSpaceRepository.findByTeacherId(user.getId()).stream()
-                .map(this::toDTO)
                 .map(s -> toDTO(s, true))
                 .toList();
         } else {
-            // ALUMNO: devolver los espacios a los que pertenece dinámicamente según su contexto
             // ALUMNO: devolver los espacios a los que pertenece dinámicamente según su contexto, sin exponer etiquetas
             return contextService.findSpacesForStudent(user).stream()
-                .map(this::toDTO)
                 .map(s -> toDTO(s, false))
                 .toList();
         }
@@ -85,7 +81,6 @@ public class TeachingSpaceService {
             assertTeacherOrAdmin(user, spaceId);
         }
 
-        return toDTO(space);
         return toDTO(space, isTeacherOrAdmin);
     }
 
