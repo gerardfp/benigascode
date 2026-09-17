@@ -816,7 +816,7 @@ export const ExerciseView: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        padding: isSmallScreen ? '0.75rem' : '0.5rem 1rem',
+        padding: '6px',
       }}
     >
       <div
@@ -844,7 +844,6 @@ export const ExerciseView: React.FC = () => {
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
             overflow: isSmallScreen ? 'visible' : 'hidden',
-            paddingRight: isSmallScreen ? 0 : '4px',
           }}
         >
           <div
@@ -881,17 +880,16 @@ export const ExerciseView: React.FC = () => {
                     style={{
                       textDecoration: 'none',
                       fontSize: '0.8125rem',
-                      padding: '0.35rem 0.65rem',
+                      padding: '0.35rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
+                      justifyContent: 'center',
                       color: '#475569',
                       borderRadius: '0.375rem',
                     }}
                     title="Volver a la Colección"
                   >
-                    <ArrowLeft size={15} />
-                    <span>Colección</span>
+                    <ArrowLeft size={16} />
                   </Link>
                 ) : activityId ? (
                   <Link
@@ -900,17 +898,16 @@ export const ExerciseView: React.FC = () => {
                     style={{
                       textDecoration: 'none',
                       fontSize: '0.8125rem',
-                      padding: '0.35rem 0.65rem',
+                      padding: '0.35rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
+                      justifyContent: 'center',
                       color: '#475569',
                       borderRadius: '0.375rem',
                     }}
                     title="Volver a la Actividad"
                   >
-                    <ArrowLeft size={15} />
-                    <span>Volver</span>
+                    <ArrowLeft size={16} />
                   </Link>
                 ) : (
                   <Link
@@ -919,17 +916,16 @@ export const ExerciseView: React.FC = () => {
                     style={{
                       textDecoration: 'none',
                       fontSize: '0.8125rem',
-                      padding: '0.35rem 0.65rem',
+                      padding: '0.35rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
+                      justifyContent: 'center',
                       color: '#475569',
                       borderRadius: '0.375rem',
                     }}
                     title="Volver al Dashboard"
                   >
-                    <ArrowLeft size={15} />
-                    <span>Inicio</span>
+                    <ArrowLeft size={16} />
                   </Link>
                 )}
 
@@ -1093,7 +1089,6 @@ export const ExerciseView: React.FC = () => {
                 flex: 1,
                 minHeight: 0,
                 overflowY: isSmallScreen ? 'visible' : 'auto',
-                paddingRight: isSmallScreen ? 0 : '4px',
               }}
             >
               {leftTab === 'statement' ? (
@@ -1393,9 +1388,21 @@ export const ExerciseView: React.FC = () => {
               borderRadius: '4px',
               transition: 'background-color 0.15s ease',
               zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
             title="Arrastra para redimensionar paneles"
-          />
+          >
+            <div
+              style={{
+                width: '3px',
+                height: '36px',
+                borderRadius: '2px',
+                backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
+              }}
+            />
+          </div>
         )}
 
         {/* Panel Derecho: Editor (arriba) y Resultados de Tests (abajo) con divisor vertical */}
@@ -1432,7 +1439,7 @@ export const ExerciseView: React.FC = () => {
               transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
             }}
           >
-            {/* Barra superior del Editor */}
+            {/* Barra superior del Editor: 3 bloques (Izquierda, Centro, Derecha) */}
             <div
               style={{
                 display: 'flex',
@@ -1444,8 +1451,8 @@ export const ExerciseView: React.FC = () => {
                 flexShrink: 0,
               }}
             >
-              {/* Sección Izquierda: Icono Código + Selector/Badge Lenguaje + Estado Borrador */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {/* Bloque 1 (Izquierda): Código, Java / Python */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 'fit-content' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
                   <Code2 size={16} style={{ color: '#2563eb' }} />
                   <span>Código</span>
@@ -1496,15 +1503,10 @@ export const ExerciseView: React.FC = () => {
 
                 {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando...</span>}
                 {saveStatus === 'saved' && <span style={{ fontSize: '0.75rem', color: '#15803d' }}>✓ Guardado</span>}
-                {lastSaved && saveStatus === 'idle' && (
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }} title={new Date(lastSaved).toLocaleString()}>
-                    Borrador: {new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
               </div>
 
-              {/* Sección Derecha: Copiar, Pegar, Guardar, Plantilla, Probar, Entregar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {/* Bloque 2 (Centro): Copiar, Pegar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
                 <button
                   type="button"
                   onClick={handleCopyCode}
@@ -1538,7 +1540,10 @@ export const ExerciseView: React.FC = () => {
                   <Clipboard size={13} />
                   <span>Pegar</span>
                 </button>
+              </div>
 
+              {/* Bloque 3 (Derecha): Guardar, Plantilla, Probar, Enviar */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem', minWidth: 'fit-content' }}>
                 <button
                   type="button"
                   onClick={handleSaveWorkspace}
@@ -1553,7 +1558,7 @@ export const ExerciseView: React.FC = () => {
                     alignItems: 'center',
                     gap: '0.3rem',
                   }}
-                  title={canSave ? 'Guardar borrador de trabajo' : 'El código no ha sido modificado'}
+                  title={canSave ? 'Guardar borrador de trabajo' : lastSaved ? `Guardado a las ${new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'El código no ha sido modificado'}
                 >
                   💾 Guardar
                 </button>
@@ -1578,7 +1583,7 @@ export const ExerciseView: React.FC = () => {
                   </button>
                 )}
 
-                <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.2rem' }} />
+                <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.15rem' }} />
 
                 <button
                   type="button"
@@ -1616,9 +1621,9 @@ export const ExerciseView: React.FC = () => {
                     opacity: canSubmit ? 1 : 0.5,
                     cursor: canSubmit ? 'pointer' : 'not-allowed',
                   }}
-                  title={canSubmit ? 'Entregar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
+                  title={canSubmit ? 'Enviar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
                 >
-                  {submitLoading ? '⏳ Evaluando...' : '✓ Entregar'}
+                  {submitLoading ? '⏳ Evaluando...' : '✓ Enviar'}
                 </button>
               </div>
             </div>
