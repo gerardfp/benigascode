@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
@@ -37,7 +37,9 @@ export const ExerciseView: React.FC = () => {
   const [submissionsHistory, setSubmissionsHistory] = useState<Submission[]>([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+
+  // Pestaña activa en el panel izquierdo: 'statement' (enunciado) o 'submissions' (entregas)
+  const [leftTab, setLeftTab] = useState<'statement' | 'submissions'>('statement');
 
   // Responsive layout & resizable splitter state
   const [leftPanelRatio, setLeftPanelRatio] = useState<number>(() => {
@@ -202,9 +204,7 @@ export const ExerciseView: React.FC = () => {
           // Si guardó el código, no debe aparecer ningún resultado de tests
           setEvaluation(null);
           setPreviewResult(null);
-          if (latestSub) {
-            setSubmission(latestSub);
-          }
+          setSubmission(null);
         } else {
           // Sin entregas ni borradores previos: inicializar con plantilla
           const initialCode = ex.starterTemplates?.[defLang] || ex.starterCode || '';
@@ -215,6 +215,7 @@ export const ExerciseView: React.FC = () => {
           setSelectedLang(defLang);
           setEvaluation(null);
           setPreviewResult(null);
+          setSubmission(null);
         }
       } catch (err: any) {
         setErrorMsg(err.message);
@@ -263,6 +264,9 @@ export const ExerciseView: React.FC = () => {
     setLastSavedCode(newCode);
     setLastTestedCode(null);
     setLastSubmittedCode(null);
+    setPreviewResult(null);
+    setSubmission(null);
+    setEvaluation(null);
     if (collectionId) {
       api.setCollectionPreference(collectionId, normalized).catch(console.error);
     }
@@ -280,6 +284,9 @@ export const ExerciseView: React.FC = () => {
         setLastSavedCode(targetTemplate);
         setLastTestedCode(null);
         setLastSubmittedCode(null);
+        setPreviewResult(null);
+        setSubmission(null);
+        setEvaluation(null);
         api.saveWorkspace(exerciseId!, targetTemplate, selectedLang)
           .then((ws) => {
             setLastSaved(ws.updatedAt);
@@ -349,6 +356,9 @@ export const ExerciseView: React.FC = () => {
       setSaveStatus('saved');
       setLastSaved(ws.updatedAt);
       setLastSavedCode(code);
+      setPreviewResult(null);
+      setSubmission(null);
+      setEvaluation(null);
       setTimeout(() => setSaveStatus('idle'), 2500);
     } catch {
       setSaveStatus('error');
@@ -406,6 +416,8 @@ export const ExerciseView: React.FC = () => {
     if (!exerciseId || !canPreview) return;
     setPreviewLoading(true);
     setPreviewResult(null);
+    setSubmission(null);
+    setEvaluation(null);
     setErrorMsg(null);
 
     // Auto-guardar borrador al probar
@@ -466,8 +478,11 @@ export const ExerciseView: React.FC = () => {
     }
 
     setSubmitLoading(true);
-    setErrorMsg(null);
+    setSubmission(null);
     setEvaluation(null);
+    setPreviewResult(null);
+    setPreviewLoading(false);
+    setErrorMsg(null);
 
     // Auto-guardar borrador al entregar
     api.saveWorkspace(exerciseId, code, currentLang)
@@ -495,16 +510,23 @@ export const ExerciseView: React.FC = () => {
 
   // Seleccionar una entrega anterior del historial para inspeccionar su evaluación y código
   const handleSelectHistorySubmission = async (histSub: Submission) => {
+    setPreviewResult(null);
+    setPreviewLoading(false);
+    setSubmitLoading(false);
+    setErrorMsg(null);
+    setEvaluation(null);
     setSubmission(histSub);
-    if (histSub.sourceCode) {
-      setCode(histSub.sourceCode);
-      setLastSavedCode(histSub.sourceCode);
-      setLastTestedCode(histSub.sourceCode);
-      setLastSubmittedCode(histSub.sourceCode);
-    }
+
+    const subCode = histSub.sourceCode || '';
+    setCode(subCode);
+    setLastSavedCode(subCode);
+    setLastTestedCode(subCode);
+    setLastSubmittedCode(subCode);
+
     if (histSub.language) {
       setSelectedLang(histSub.language.toLowerCase());
     }
+
     try {
       const evals = await api.getEvaluations(histSub.id);
       if (evals && evals.length > 0) {
@@ -513,7 +535,7 @@ export const ExerciseView: React.FC = () => {
         setEvaluation(null);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error recuperando evaluación previa', e);
     }
   };
 
@@ -549,52 +571,7 @@ export const ExerciseView: React.FC = () => {
             &larr; Volver al Dashboard
           </Link>
         )}
-
-        {submissionsHistory.length > 0 && (
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className="btn-secondary"
-            style={{ fontSize: '0.8125rem', padding: '0.3rem 0.6rem' }}
-          >
-            📋 Historial de Entregas ({submissionsHistory.length})
-          </button>
-        )}
       </div>
-
-      {/* Historial desplegable de entregas */}
-      {showHistory && submissionsHistory.length > 0 && (
-        <div className="card" style={{ marginBottom: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', flexShrink: 0 }}>
-          <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9375rem', fontWeight: 600 }}>Tus entregas anteriores en este ejercicio</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 200, overflowY: 'auto' }}>
-            {submissionsHistory.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => handleSelectHistorySubmission(s)}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0.5rem 0.75rem',
-                  backgroundColor: submission?.id === s.id ? '#e0e7ff' : '#ffffff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: 600 }}>Intento #{s.attemptNumber || 1}</span>
-                  <span style={{ color: '#64748b', marginLeft: '0.75rem' }}>{new Date(s.createdAt).toLocaleString()}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className={`badge ${s.status === 'FINISHED' ? 'badge-neutral' : 'badge-warning'}`}>{s.status}</span>
-                  {submission?.id === s.id && <span style={{ color: '#4338ca', fontWeight: 600 }}>● Seleccionada</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div
         ref={splitContainerRef}
@@ -610,7 +587,7 @@ export const ExerciseView: React.FC = () => {
           overflow: isSmallScreen ? 'visible' : 'hidden',
         }}
       >
-        {/* Panel Izquierdo: Enunciado y Casos Públicos */}
+        {/* Panel Izquierdo: Enunciado y Casos Públicos / Historial de Entregas */}
         <div
           style={{
             width: isSmallScreen ? '100%' : `calc(${leftPanelRatio}% - 6px)`,
@@ -618,7 +595,7 @@ export const ExerciseView: React.FC = () => {
             maxWidth: isSmallScreen ? undefined : '75%',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
+            gap: '0.75rem',
             boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
             overflowY: isSmallScreen ? 'visible' : 'auto',
@@ -626,99 +603,352 @@ export const ExerciseView: React.FC = () => {
             scrollbarWidth: 'thin',
           }}
         >
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
-              {isResolved ? (
-                <div
-                  title="Ejercicio resuelto con éxito (100% de tests superados)"
+          {/* Pestañas del Panel Izquierdo: Enunciado vs Entregas */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.35rem',
+              borderBottom: '1px solid #e2e8f0',
+              paddingBottom: '0.35rem',
+              flexShrink: 0,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setLeftTab('statement')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.375rem',
+                border: leftTab === 'statement' ? '1px solid #93c5fd' : '1px solid transparent',
+                backgroundColor: leftTab === 'statement' ? '#eff6ff' : 'transparent',
+                color: leftTab === 'statement' ? '#1d4ed8' : '#64748b',
+                fontWeight: leftTab === 'statement' ? 600 : 500,
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <FileText size={16} />
+              <span>Enunciado</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLeftTab('submissions')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '0.375rem',
+                border: leftTab === 'submissions' ? '1px solid #93c5fd' : '1px solid transparent',
+                backgroundColor: leftTab === 'submissions' ? '#eff6ff' : 'transparent',
+                color: leftTab === 'submissions' ? '#1d4ed8' : '#64748b',
+                fontWeight: leftTab === 'submissions' ? 600 : 500,
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <History size={16} />
+              <span>Entregas</span>
+              {submissionsHistory.length > 0 && (
+                <span
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
-                    backgroundColor: '#dcfce7',
-                    border: '1.5px solid #86efac',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#15803d',
-                    flexShrink: 0,
+                    marginLeft: '0.25rem',
+                    backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#f1f5f9',
+                    color: leftTab === 'submissions' ? '#1e40af' : '#64748b',
+                    fontSize: '0.75rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '9999px',
+                    fontWeight: 600,
                   }}
                 >
-                  <CheckCircle2 size={18} />
-                </div>
-              ) : isAttempted ? (
-                <div
-                  title={`Intentado (${scorePct}% superado)`}
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
-                    backgroundColor: getScoreColorConfig(scorePct).bg,
-                    border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: getScoreColorConfig(scorePct).iconColor,
-                    flexShrink: 0,
-                  }}
-                >
-                  <CheckCircle2 size={18} />
-                </div>
-              ) : null}
-            </div>
-
-            {/* Etiquetas del ejercicio configuradas por el profesor */}
-            {exercise.tags && exercise.tags.length > 0 && (
-              <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {exercise.tags.map((tag) => {
-                  if (tag.includes(':')) {
-                    const [cat, ...val] = tag.split(':');
-                    return <TagBadge key={tag} category={cat} value={val.join(':')} />;
-                  }
-                  return <TagBadge key={tag} value={tag} />;
-                })}
-              </div>
-            )}
-
-            <div
-              className="markdown-statement"
-              dangerouslySetInnerHTML={{ __html: renderedStatementHtml }}
-            />
+                  {submissionsHistory.length}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Tests públicos informativos simplificados sin marcos individuales */}
-          {publicTests.length > 0 && (
-            <div className="card">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {publicTests.map((t, idx) => (
-                  <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
-                      {getTestDisplayName(t.id, t.name, idx)}
+          {leftTab === 'statement' ? (
+            <>
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                  <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
+                  {isResolved ? (
+                    <div
+                      title="Ejercicio resuelto con éxito (100% de tests superados)"
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        backgroundColor: '#dcfce7',
+                        border: '1.5px solid #86efac',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#15803d',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <CheckCircle2 size={18} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
-                        <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                      </div>
-                      <div>
-                        <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
-                        <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                      </div>
+                  ) : isAttempted ? (
+                    <div
+                      title={`Intentado (${scorePct}% superado)`}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        backgroundColor: getScoreColorConfig(scorePct).bg,
+                        border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: getScoreColorConfig(scorePct).iconColor,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <CheckCircle2 size={18} />
                     </div>
-                    {t.explanation && (
-                      <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
-                        <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                        <div
-                          className="markdown-statement"
-                          style={{ marginTop: '0.25rem' }}
-                          dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
-                        />
-                      </div>
-                    )}
+                  ) : null}
+                </div>
+
+                {/* Etiquetas del ejercicio configuradas por el profesor */}
+                {exercise.tags && exercise.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {exercise.tags.map((tag) => {
+                      if (tag.includes(':')) {
+                        const [cat, ...val] = tag.split(':');
+                        return <TagBadge key={tag} category={cat} value={val.join(':')} />;
+                      }
+                      return <TagBadge key={tag} value={tag} />;
+                    })}
                   </div>
-                ))}
+                )}
+
+                <div
+                  className="markdown-statement"
+                  dangerouslySetInnerHTML={{ __html: renderedStatementHtml }}
+                />
               </div>
+
+              {/* Tests públicos informativos simplificados sin marcos individuales */}
+              {publicTests.length > 0 && (
+                <div className="card">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {publicTests.map((t, idx) => (
+                      <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #e2e8f0' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
+                          {getTestDisplayName(t.id, t.name, idx)}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div>
+                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
+                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
+                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                          </div>
+                        </div>
+                        {t.explanation && (
+                          <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
+                            <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                            <div
+                              className="markdown-statement"
+                              style={{ marginTop: '0.25rem' }}
+                              dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Lista de Envíos / Historial */
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                    {exercise.title}
+                  </h2>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: '#64748b' }}>
+                    {submissionsHistory.length === 1
+                      ? '1 entrega registrada'
+                      : `${submissionsHistory.length} entregas registradas (más reciente primero)`}
+                  </p>
+                </div>
+                {isResolved ? (
+                  <div
+                    title="Ejercicio resuelto con éxito (100% de tests superados)"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      backgroundColor: '#dcfce7',
+                      border: '1.5px solid #86efac',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#15803d',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                ) : isAttempted ? (
+                  <div
+                    title={`Intentado (${scorePct}% superado)`}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      backgroundColor: getScoreColorConfig(scorePct).bg,
+                      border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: getScoreColorConfig(scorePct).iconColor,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                ) : null}
+              </div>
+
+              {submissionsHistory.length === 0 ? (
+                <div
+                  style={{
+                    padding: '2.5rem 1.5rem',
+                    textAlign: 'center',
+                    backgroundColor: '#f8fafc',
+                    border: '1px dashed #cbd5e1',
+                    borderRadius: '0.5rem',
+                    color: '#64748b',
+                  }}
+                >
+                  <History size={36} style={{ margin: '0 auto 0.75rem', color: '#94a3b8', strokeWidth: 1.5 }} />
+                  <p style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#334155', margin: '0 0 0.35rem' }}>
+                    Sin entregas todavía
+                  </p>
+                  <p style={{ fontSize: '0.8125rem', margin: '0 0 1rem', maxWidth: 360, marginLeft: 'auto', marginRight: 'auto' }}>
+                    Aún no has enviado ninguna solución oficial para este ejercicio. Cuando realices una entrega, aparecerá aquí en tu historial.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLeftTab('statement')}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem' }}
+                  >
+                    ← Ver Enunciado
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                  {submissionsHistory.map((s, idx) => {
+                    const isSelected = submission?.id === s.id;
+                    const score = s.score !== undefined && s.score !== null ? Math.round(s.score) : null;
+                    const scoreColors = score !== null ? getScoreColorConfig(score) : null;
+
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => handleSelectHistorySubmission(s)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                          border: isSelected ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
+                          borderRadius: '0.5rem',
+                          cursor: 'pointer',
+                          boxShadow: isSelected ? '0 1px 3px rgba(59, 130, 246, 0.15)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e293b' }}>
+                              Intento #{s.attemptNumber || (submissionsHistory.length - idx)}
+                            </span>
+                            {isSelected && (
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '0.25rem',
+                                  backgroundColor: '#dbeafe',
+                                  color: '#1d4ed8',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                ● Cargado en editor
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '0.25rem',
+                                backgroundColor: '#f1f5f9',
+                                color: '#475569',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {s.language?.toLowerCase() === 'python' ? '🐍 Python' : '☕ Java'}
+                            </span>
+
+                            {score !== null ? (
+                              <span
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '0.25rem',
+                                  backgroundColor: scoreColors?.bg || '#f1f5f9',
+                                  color: scoreColors?.iconColor || '#334155',
+                                  border: `1px solid ${scoreColors?.border || '#cbd5e1'}`,
+                                }}
+                              >
+                                {score} / 100
+                              </span>
+                            ) : (
+                              <span className={`badge ${s.status === 'FINISHED' ? 'badge-neutral' : 'badge-warning'}`} style={{ fontSize: '0.75rem' }}>
+                                {s.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <Clock size={13} />
+                            <span>{new Date(s.createdAt).toLocaleString()}</span>
+                          </div>
+
+                          {s.totalTests !== undefined && s.totalTests > 0 && (
+                            <span>
+                              Tests: <strong>{s.testsPassed || 0} / {s.totalTests}</strong> superados
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -882,8 +1112,18 @@ export const ExerciseView: React.FC = () => {
             </div>
           )}
 
+          {/* Indicador de carga de prueba preliminar pública */}
+          {previewLoading && (
+            <div className="card" style={{ borderLeft: '4px solid #3b82f6', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#1d4ed8' }}>
+              <span style={{ fontSize: '1.25rem' }}>⏳</span>
+              <span style={{ fontSize: '0.875rem' }}>
+                Ejecutando pruebas preliminares públicas en el sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'}...
+              </span>
+            </div>
+          )}
+
           {/* Resultado de pruebas preliminares públicas */}
-          {previewResult && (
+          {previewResult && !previewLoading && (
             <div className="card" style={{ borderLeft: previewResult.compileSuccess ? '4px solid #16a34a' : '4px solid #dc2626' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600 }}>
@@ -939,21 +1179,27 @@ export const ExerciseView: React.FC = () => {
           )}
 
           {/* Resultado de la evaluación oficial */}
-          {submission && (
+          {(submission || submitLoading) && !previewResult && !previewLoading && (
             <div className="card" style={{ borderLeft: '4px solid #2563eb' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-                    Entrega Oficial {submission.attemptNumber ? `(Intento #${submission.attemptNumber})` : ''}
+                    {submission
+                      ? `Entrega Oficial ${submission.attemptNumber ? `(Intento #${submission.attemptNumber})` : ''}`
+                      : 'Evaluando Entrega Oficial...'}
                   </h4>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
-                    Registrada el {new Date(submission.createdAt).toLocaleString()}
-                  </div>
+                  {submission && (
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
+                      Registrada el {new Date(submission.createdAt).toLocaleString()}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span className="badge badge-neutral">
-                    {submission.runtimeId?.includes('python') || submission.language?.toLowerCase() === 'python' ? 'Python 3 Sandbox' : 'Java 26 Sandbox'}
+                    {submission?.runtimeId?.includes('python') || submission?.language?.toLowerCase() === 'python' || currentLang === 'python'
+                      ? 'Python 3 Sandbox'
+                      : 'Java 26 Sandbox'}
                   </span>
                   <span
                     className={`badge ${
@@ -983,7 +1229,7 @@ export const ExerciseView: React.FC = () => {
               {evaluation && (
                 <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
                   {/* Puntuación y desglose general */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
                       <span style={{ fontSize: '2rem', fontWeight: 800, color: evaluation.score >= 100 ? '#15803d' : evaluation.score > 0 ? '#d97706' : '#b91c1c' }}>
                         {evaluation.score}
@@ -991,18 +1237,18 @@ export const ExerciseView: React.FC = () => {
                       <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 600 }}>/ 100 pts</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', color: '#475569' }}>
-                      <span>Tests superados: <strong>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
-                      <span>•</span>
-                      <span>Públicos: <strong>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
-                      <span>•</span>
-                      <span>Privados: <strong>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
+                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.5rem 0.875rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
+                      <span>Tests superados: <strong style={{ color: '#0f172a' }}>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
+                      <span style={{ color: '#cbd5e1' }}>•</span>
+                      <span>Públicos: <strong style={{ color: '#0f172a' }}>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
+                      <span style={{ color: '#cbd5e1' }}>•</span>
+                      <span>Privados: <strong style={{ color: '#0f172a' }}>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
                     </div>
                   </div>
 
                   {/* Detalle de error de compilación si aplica */}
                   {evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
-                    <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ marginTop: '1rem' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.35rem' }}>
                         Detalle del compilador / intérprete:
                       </div>
@@ -1011,69 +1257,6 @@ export const ExerciseView: React.FC = () => {
                       </pre>
                     </div>
                   )}
-
-                  {/* Desglose de resultados de tests */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {/* Tests públicos */}
-                    {evaluation.testResults
-                      .filter((tr) => tr.isPublic)
-                      .map((tr, idx) => (
-                        <div
-                          key={tr.id || idx}
-                          style={{
-                            padding: '0.625rem 0.875rem',
-                            background: tr.status === 'PASSED' ? '#f0fdf4' : '#fef2f2',
-                            border: `1px solid ${tr.status === 'PASSED' ? '#bbf7d0' : '#fecaca'}`,
-                            borderRadius: '0.5rem',
-                            fontSize: '0.8125rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                            <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
-                            <span style={{ color: tr.status === 'PASSED' ? '#15803d' : '#b91c1c' }}>
-                              {tr.score} pts {tr.status === 'PASSED' ? '✓' : '✗'}
-                            </span>
-                          </div>
-                          {tr.status !== 'PASSED' && (
-                            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                              <div>
-                                <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
-                                <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                              </div>
-                              <div>
-                                <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
-                                <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{(tr.actualOutput || tr.stdout) || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-
-                    {/* Resumen consolidado y protegido de tests privados */}
-                    {(evaluation.totalPrivateTests ?? 0) > 0 && (
-                      <div
-                        style={{
-                          padding: '0.75rem',
-                          background: '#f8fafc',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '0.375rem',
-                          fontSize: '0.8125rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            🛡️ Tests Privados Protegidos
-                          </span>
-                          <span style={{ color: (evaluation.passedPrivateTests === evaluation.totalPrivateTests) ? '#15803d' : '#475569' }}>
-                            {evaluation.passedPrivateTests} de {evaluation.totalPrivateTests} superados
-                          </span>
-                        </div>
-                        <p style={{ margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.75rem' }}>
-                          Los casos privados evalúan casos límite y robustez. Sus entradas y salidas esperadas están protegidas para salvaguardar la integridad de la evaluación académica.
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>

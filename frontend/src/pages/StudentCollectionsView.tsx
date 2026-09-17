@@ -1,24 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { Collection } from '../types';
-import { BookOpen, Search, CheckCircle2, ArrowRight, FolderGit2 } from 'lucide-react';
+import { Collection, CollectionProgressDTO } from '../types';
+import { StudentCollectionCard } from '../components/StudentCollectionCard';
+import { BookOpen, Search, FolderGit2 } from 'lucide-react';
 
 export const StudentCollectionsView: React.FC = () => {
   const [publicCollections, setPublicCollections] = useState<Collection[]>([]);
-  const [myCollectionIds, setMyCollectionIds] = useState<Set<string>>(new Set());
+  const [collectionProgress, setCollectionProgress] = useState<Record<string, CollectionProgressDTO>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      api.getPublicCollections(),
-      api.getMyCollections().catch(() => []),
-    ])
-      .then(([pubCols, myCols]) => {
+    api.getPublicCollections()
+      .then((pubCols) => {
         setPublicCollections(pubCols);
-        setMyCollectionIds(new Set(myCols.map((c) => c.id)));
+        if (pubCols.length > 0) {
+          Promise.allSettled(
+            pubCols.map((c) => api.getCollectionProgress(c.id))
+          ).then((results) => {
+            const map: Record<string, CollectionProgressDTO> = {};
+            results.forEach((res, idx) => {
+              if (res.status === 'fulfilled') {
+                map[pubCols[idx].id] = res.value;
+              }
+            });
+            setCollectionProgress(map);
+          });
+        }
       })
       .catch((err) => {
         console.error('Error al cargar colecciones públicas:', err);
@@ -90,117 +99,16 @@ export const StudentCollectionsView: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem' }}>
-          {filteredCollections.map((col) => {
-            const isEnrolled = myCollectionIds.has(col.id);
-
-            return (
-              <div
-                key={col.id}
-                className="card"
-                style={{
-                  border: isEnrolled ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                  backgroundColor: isEnrolled ? '#f8fafc' : '#ffffff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: isEnrolled ? '0 1px 3px rgba(37, 99, 235, 0.08)' : undefined,
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                }}
-              >
-                <div>
-                  {/* Badges superiores */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <span
-                        className="badge"
-                        style={{
-                          fontSize: '0.6875rem',
-                          backgroundColor: '#e0f2fe',
-                          color: '#0369a1',
-                        }}
-                      >
-                        PÚBLICA
-                      </span>
-                      {isEnrolled && (
-                        <span
-                          className="badge"
-                          style={{
-                            fontSize: '0.6875rem',
-                            backgroundColor: '#dcfce7',
-                            color: '#15803d',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            fontWeight: 600,
-                          }}
-                        >
-                          <CheckCircle2 size={12} /> En mis colecciones
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>
-                      v{col.versionNumber || 1}
-                    </span>
-                  </div>
-
-                  {/* Título */}
-                  <Link to={`/collections/${col.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <h2
-                      style={{
-                        margin: '0 0 0.5rem',
-                        fontSize: '1.125rem',
-                        fontWeight: 600,
-                        color: '#0f172a',
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {col.title}
-                    </h2>
-                  </Link>
-
-                  {/* Descripción */}
-                  <p
-                    style={{
-                      margin: 0,
-                      color: '#64748b',
-                      fontSize: '0.8125rem',
-                      lineHeight: 1.5,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {col.description || 'Sin descripción disponible.'}
-                  </p>
-                </div>
-
-                {/* Pie de tarjeta con botón */}
-                <div style={{ marginTop: '1.25rem', paddingTop: '0.875rem', borderTop: '1px solid #f1f5f9' }}>
-                  <Link
-                    to={`/collections/${col.id}`}
-                    className={isEnrolled ? 'btn-secondary' : 'btn-primary'}
-                    style={{
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '100%',
-                      gap: '0.375rem',
-                      fontSize: '0.8125rem',
-                      padding: '0.5rem',
-                    }}
-                  >
-                    {isEnrolled ? 'Continuar practicando' : 'Acceder a la colección'} <ArrowRight size={14} />
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+          {filteredCollections.map((col) => (
+            <StudentCollectionCard
+              key={col.id}
+              collection={col}
+              progress={collectionProgress[col.id]}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 };
-

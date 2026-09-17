@@ -53,15 +53,19 @@ public class TeachingSpaceService {
         if (user.getRole() == Role.ADMIN) {
             return teachingSpaceRepository.findAllByOrderByNameAsc().stream()
                 .map(this::toDTO)
+                .map(s -> toDTO(s, true))
                 .toList();
         } else if (user.getRole() == Role.TEACHER) {
             return teachingSpaceRepository.findByTeacherId(user.getId()).stream()
                 .map(this::toDTO)
+                .map(s -> toDTO(s, true))
                 .toList();
         } else {
             // ALUMNO: devolver los espacios a los que pertenece dinámicamente según su contexto
+            // ALUMNO: devolver los espacios a los que pertenece dinámicamente según su contexto, sin exponer etiquetas
             return contextService.findSpacesForStudent(user).stream()
                 .map(this::toDTO)
+                .map(s -> toDTO(s, false))
                 .toList();
         }
     }
@@ -71,6 +75,7 @@ public class TeachingSpaceService {
         TeachingSpace space = teachingSpaceRepository.findById(spaceId)
             .orElseThrow(() -> new ResourceNotFoundException("Espacio docente no encontrado: " + spaceId));
 
+        boolean isTeacherOrAdmin = user.getRole() == Role.TEACHER || user.getRole() == Role.ADMIN;
         if (user.getRole() == Role.STUDENT) {
             boolean matches = contextService.studentMatchesContext(user.getId(), space.getRequiredTagIds());
             if (!matches) {
@@ -81,6 +86,7 @@ public class TeachingSpaceService {
         }
 
         return toDTO(space);
+        return toDTO(space, isTeacherOrAdmin);
     }
 
     @Transactional
@@ -240,6 +246,18 @@ public class TeachingSpaceService {
         List<Tag> tags = (!reqTagIds.isEmpty()) ? tagRepository.findAllByIdIn(reqTagIds) : Collections.emptyList();
         List<TagDTO> tagDTOs = tags.stream().map(TagDTO::fromEntity).toList();
         int studentCount = contextService.countMatchingStudents(reqTagIds);
+        return toDTO(space, true);
+    }
+
+    private TeachingSpaceDTO toDTO(TeachingSpace space, boolean isTeacherOrAdmin) {
+        List<TagDTO> tagDTOs = Collections.emptyList();
+        int studentCount = 0;
+        if (isTeacherOrAdmin) {
+            List<UUID> reqTagIds = space.getRequiredTagIds();
+            List<Tag> tags = (!reqTagIds.isEmpty()) ? tagRepository.findAllByIdIn(reqTagIds) : Collections.emptyList();
+            tagDTOs = tags.stream().map(TagDTO::fromEntity).toList();
+            studentCount = contextService.countMatchingStudents(reqTagIds);
+        }
         List<CollectionDTO> collections = space.getCollections() != null
             ? space.getCollections().stream().map(c -> CollectionDTO.from(c, collectionVersionRepository.findLatestByCollectionId(c.getId()).orElse(null))).toList()
             : Collections.emptyList();

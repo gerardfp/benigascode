@@ -228,10 +228,11 @@ public class EvaluationService {
                 testResult.setPublic(tr.isPublic());
                 testResult.setStatus(tr.status());
                 testResult.setDurationMs(tr.durationMs());
-                testResult.setStdout(tr.stdout());
-                testResult.setStderr(tr.stderr());
-                testResult.setExpectedOutput(tr.expectedOutput());
-                testResult.setActualOutput(tr.actualOutput());
+                // No almacenar la salida exacta de cada test en el histórico: solo cantidad de tests superados vs total y estado
+                testResult.setStdout(null);
+                testResult.setStderr(null);
+                testResult.setExpectedOutput(null);
+                testResult.setActualOutput(null);
                 testResult.setScore(tr.score() != null ? tr.score() : BigDecimal.ZERO);
                 testResultRepository.save(testResult);
             }
