@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React from 'react';
+import Editor from '@monaco-editor/react';
 
 interface CodeEditorProps {
   value: string;
@@ -13,85 +14,58 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   language = 'java',
   disabled = false,
 }) => {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newValue = value.substring(0, start) + '    ' + value.substring(end);
-      onChange(newValue);
-
-      // Reubicar cursor después de la tabulación
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 4;
-      }, 0);
-    }
-  };
-
-  const lines = value.split('\n');
+  const normalizedLanguage = language?.toLowerCase() === 'python' ? 'python' : 'java';
 
   return (
     <div
-      data-language={language}
+      data-language={normalizedLanguage}
       style={{
-        display: 'flex',
-        backgroundColor: '#1e293b',
         borderRadius: '0.5rem',
         overflow: 'hidden',
         border: '1px solid #334155',
-        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-        fontSize: '0.875rem',
-        minHeight: '380px',
+        backgroundColor: '#1e1e1e',
+        minHeight: '480px',
       }}
     >
-      {/* Columna de números de línea */}
-      <div style={{
-        padding: '0.75rem 0.5rem',
-        backgroundColor: '#0f172a',
-        color: '#64748b',
-        textAlign: 'right',
-        userSelect: 'none',
-        minWidth: '2.5rem',
-        borderRight: '1px solid #334155',
-        lineHeight: '1.5rem',
-      }}>
-        {lines.map((_, i) => (
-          <div key={i}>{i + 1}</div>
-        ))}
-      </div>
-
-      {/* Área de edición */}
-      <textarea
-        ref={textareaRef}
+      <Editor
+        height="480px"
+        language={normalizedLanguage}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={disabled}
-        spellCheck={false}
-        aria-label={`Editor de código (${language})`}
-        style={{
-          flex: 1,
-          padding: '0.75rem',
-          backgroundColor: 'transparent',
-          color: '#f8fafc',
-          border: 'none',
-          outline: 'none',
-          resize: 'none',
-          lineHeight: '1.5rem',
-          whiteSpace: 'pre',
-          overflowWrap: 'normal',
-          overflowX: 'auto',
-          minHeight: '380px',
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
+        theme="vs-dark"
+        onChange={(val) => onChange(val ?? '')}
+        loading={
+          <div
+            style={{
+              height: '480px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#1e1e1e',
+              color: '#94a3b8',
+              fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+              fontSize: '0.875rem',
+            }}
+          >
+            Cargando editor ({normalizedLanguage.toUpperCase()})...
+          </div>
+        }
+        options={{
+          readOnly: disabled,
+          minimap: { enabled: false },
+          fontSize: 14,
+          tabSize: 4,
+          insertSpaces: true,
+          automaticLayout: true,
+          scrollBeyondLastLine: false,
+          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+          padding: { top: 12, bottom: 12 },
+          lineNumbersMinChars: 3,
+          renderWhitespace: 'selection',
+          bracketPairColorization: { enabled: true },
+          formatOnPaste: true,
+          formatOnType: true,
         }}
       />
     </div>
   );
 };
-
