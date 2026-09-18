@@ -84,8 +84,101 @@ export const TeacherExercisesView: React.FC = () => {
     return [...defined, ...undefinedLangs];
   }, [templates]);
 
-  // Editor UI State
-  const [editorSubMode, setEditorSubMode] = useState<'form' | 'markdown'>('form');
+  // Editor UI State with LocalStorage persistence
+  const [editorSubMode, setEditorSubMode] = useState<'form' | 'markdown'>(() => {
+    try {
+      const saved = localStorage.getItem('benigascode_teacher_editor_mode');
+      if (saved === 'form' || saved === 'markdown') return saved;
+    } catch {}
+    return 'form';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('benigascode_teacher_editor_mode', editorSubMode);
+    } catch {}
+  }, [editorSubMode]);
+
+  // Markdown / Preview split ratio with LocalStorage persistence
+  const [splitRatio, setSplitRatio] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('benigascode_teacher_markdown_split_ratio');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 20 && val <= 80) return val;
+      }
+    } catch {}
+    return 50; // Default 50% / 50%
+  });
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setIsSmallScreen(window.innerWidth < 992);
+    };
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isDraggingSplitter) return;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.clientX - rect.left) / rect.width) * 100;
+      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
+      setSplitRatio(clampedRatio);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false);
+      setSplitRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_teacher_markdown_split_ratio', currentRatio.toFixed(1));
+        } catch {}
+        return currentRatio;
+      });
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!splitContainerRef.current || e.touches.length === 0) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const rawRatio = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
+      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
+      setSplitRatio(clampedRatio);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingSplitter(false);
+      setSplitRatio((currentRatio) => {
+        try {
+          localStorage.setItem('benigascode_teacher_markdown_split_ratio', currentRatio.toFixed(1));
+        } catch {}
+        return currentRatio;
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingSplitter]);
+
   const [markdownText, setMarkdownText] = useState<string>('');
   const [markdownPreview, setMarkdownPreview] = useState<boolean>(true);
   const markdownFileInputRef = useRef<HTMLInputElement>(null);
@@ -311,7 +404,6 @@ export const TeacherExercisesView: React.FC = () => {
         templates: initialTemplates,
         testCases: detail.testCases || []
       }));
-      setEditorSubMode('form');
       setAssets(detail.assets || []);
       setVersionNumber(detail.versionNumber || 1);
       setMode('editor');
@@ -343,7 +435,6 @@ export const TeacherExercisesView: React.FC = () => {
     setAssets([]);
     setVersionNumber(1);
     setMarkdownText(CANONICAL_EXERCISE_EXAMPLE);
-    setEditorSubMode('form');
     setStatusMsg(null);
     setMode('editor');
   };
@@ -1041,6 +1132,11 @@ export const TeacherExercisesView: React.FC = () => {
       }
     }
 
+    if (!effectiveSlug.trim()) {
+      setStatusMsg({ type: 'error', text: 'El identificador (slug) es obligatorio.' });
+      return;
+    }
+
     setSaving(true);
     setStatusMsg(null);
 
@@ -1385,7 +1481,7 @@ export const TeacherExercisesView: React.FC = () => {
 
   // RENDER: SINGLE-SHEET EDITOR VIEW
   return (
-    <div className="app-container" style={{ maxWidth: 1300 }}>
+    <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '1rem 1.25rem' }}>
       {/* Top Bar with Navigation & Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1579,61 +1675,178 @@ export const TeacherExercisesView: React.FC = () => {
 
       {editorSubMode === 'markdown' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
-          {/* Quick syntax hint */}
-          <div style={{
-            fontSize: '0.8125rem',
-            color: '#475569',
-            backgroundColor: '#f1f5f9',
-            border: '1px solid #cbd5e1',
-            borderRadius: '0.5rem',
-            padding: '0.625rem 1rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '0.5rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Info size={16} color="#0284c7" />
-              <span>
-                Define todo el ejercicio: <code># Título</code>, enunciado libre, <code>## Plantillas</code> con bloques de código y <code>## Tests</code> con <code>### Test</code> (o <code>### Test private [peso]</code>).
-              </span>
-            </div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              Frontmatter YAML opcional para slug/tags.
-            </span>
-          </div>
+          {/* Editor & Preview Area with Resizable Splitter */}
+          <div
+            ref={splitContainerRef}
+            style={{
+              display: 'flex',
+              flexDirection: isSmallScreen ? 'column' : 'row',
+              gap: isSmallScreen ? '1.25rem' : 0,
+              alignItems: 'stretch',
+              width: '100%',
+              userSelect: isDraggingSplitter ? 'none' : 'auto',
+            }}
+          >
+            {/* Panel Izquierdo: Editor Markdown con Cabecera */}
+            <div
+              style={{
+                width: isSmallScreen || !markdownPreview ? '100%' : `calc(${splitRatio}% - 4px)`,
+                minWidth: isSmallScreen ? undefined : '280px',
+                maxWidth: isSmallScreen || !markdownPreview ? undefined : '80%',
+                display: 'flex',
+                flexDirection: 'column',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div
+                className="card"
+                style={{
+                  padding: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: isSmallScreen ? '560px' : 'calc(100vh - 240px)',
+                  minHeight: '600px',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Cabecera del Panel Editor */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.625rem 1rem',
+                    backgroundColor: '#f8fafc',
+                    borderBottom: '1px solid #e2e8f0',
+                    flexShrink: 0,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={17} color="#2563eb" />
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
+                      Editor Markdown
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', backgroundColor: '#e2e8f0', padding: '0.125rem 0.375rem', borderRadius: '0.25rem', fontFamily: 'monospace' }}>
+                      .md
+                    </span>
+                  </div>
 
-          {/* Editor & Preview Area */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: markdownPreview ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
-            gap: '1.25rem',
-            alignItems: 'start'
-          }}>
-            {/* Left: CodeEditor for Markdown */}
-            <div className="card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', height: '720px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.25rem' }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
-                  Documento Markdown (.md)
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  {markdownText.length} caracteres • {markdownText.split('\n').length} líneas
-                </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      {markdownText.length} caracteres • {markdownText.split('\n').length} líneas
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(markdownText);
+                        setStatusMsg({ type: 'info', text: 'Contenido Markdown copiado al portapapeles.' });
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Copiar contenido Markdown al portapapeles"
+                    >
+                      <Copy size={13} /> Copiar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Monaco Editor */}
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <CodeEditor
+                    value={markdownText}
+                    onChange={(val) => setMarkdownText(val)}
+                    language="markdown"
+                    height="100%"
+                  />
+                </div>
               </div>
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <CodeEditor
-                  value={markdownText}
-                  onChange={(val) => setMarkdownText(val)}
-                  language="markdown"
-                  height="100%"
+            </div>
+
+            {/* Separador de 8px (Splitter redimensionable estilo VS Code / ExerciseView) */}
+            {markdownPreview && !isSmallScreen && (
+              <div
+                onMouseDown={() => setIsDraggingSplitter(true)}
+                onTouchStart={() => setIsDraggingSplitter(true)}
+                style={{
+                  width: '8px',
+                  cursor: 'col-resize',
+                  flexShrink: 0,
+                  userSelect: 'none',
+                  background: isDraggingSplitter ? '#3b82f6' : 'transparent',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.15s ease',
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Arrastra para redimensionar paneles"
+              >
+                <div
+                  style={{
+                    width: '3px',
+                    height: '36px',
+                    borderRadius: '2px',
+                    backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
+                  }}
                 />
               </div>
-            </div>
+            )}
 
-            {/* Right: Live Preview & Inspection */}
+            {/* Panel Derecho: Vista Previa con Cabecera */}
             {markdownPreview && (
-              <div className="card" style={{ padding: '1rem', height: '720px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: isSmallScreen ? '100%' : `calc(${100 - splitRatio}% - 4px)`,
+                  minWidth: isSmallScreen ? undefined : '280px',
+                  maxWidth: isSmallScreen ? undefined : '80%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div
+                  className="card"
+                  style={{
+                    padding: 0,
+                    height: isSmallScreen ? 'auto' : 'calc(100vh - 240px)',
+                    minHeight: '600px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Cabecera del Panel Vista Previa */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.625rem 1rem',
+                      backgroundColor: '#f8fafc',
+                      borderBottom: '1px solid #e2e8f0',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Eye size={17} color="#059669" />
+                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
+                        Vista Previa
+                      </span>
+                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                        En vivo
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+                        {liveParsedMarkdown?.exercise.testCases.length || 0} tests ({liveParsedMarkdown?.exercise.testCases.reduce((acc, t) => acc + (t.weight || 1), 0) || 0} pts)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Contenido scrolleable de la vista previa */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
                 {/* Header summary of parsed exercise */}
                 <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
@@ -1687,9 +1900,7 @@ export const TeacherExercisesView: React.FC = () => {
                   )}
                 </div>
 
-                {/* Scrollable Preview Body */}
-                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
-                  {/* Statement Section */}
+                {/* Statement Section */}
                   <div style={{ marginBottom: '1.25rem' }}>
                     <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
                       Enunciado
@@ -1801,6 +2012,7 @@ export const TeacherExercisesView: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
             )}
           </div>
         </div>
