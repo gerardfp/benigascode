@@ -1,22 +1,17 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Exercise, TestCaseDTO, AssetDTO, TeacherCollectionDetail } from '../types';
+import { Exercise, AssetDTO, TeacherCollectionDetail } from '../types';
 import { renderMarkdown } from '../utils/markdown';
 import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
-  ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
-  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check,
-  Upload, FileText, Sparkles, Archive
+  Eye, Columns, CheckCircle, AlertCircle,
+  ChevronLeft, ChevronRight, X, Info,
+  Upload, FileText, Archive
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { CodeEditor } from '../components/CodeEditor';
-
-const TEMPLATE_LANGUAGES = [
-  { id: 'java', label: 'Java', icon: '☕', ext: '.java' },
-  { id: 'python', label: 'Python', icon: '🐍', ext: '.py' }
-];
 
 export const TeacherExercisesView: React.FC = () => {
   const navigate = useNavigate();
@@ -52,54 +47,16 @@ export const TeacherExercisesView: React.FC = () => {
   // Selected / Editing Exercise State
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-
-  // Form State
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [statement, setStatement] = useState('');
-  const [templates, setTemplates] = useState<Record<string, string>>({ java: '', python: '' });
-  const [activeTemplateLang, setActiveTemplateLang] = useState<string>('java');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [testCases, setTestCases] = useState<TestCaseDTO[]>([]);
-  const [assets, setAssets] = useState<AssetDTO[]>([]);
   const [versionNumber, setVersionNumber] = useState<number>(1);
+  const [assets, setAssets] = useState<AssetDTO[]>([]);
 
-  // Ordered template languages: defined templates first, followed by undefined languages
-  const orderedTemplateLangs = useMemo(() => {
-    const knownLangIds = TEMPLATE_LANGUAGES.map((l) => l.id);
-    const extraLangIds = Object.keys(templates).filter((k) => !knownLangIds.includes(k) && k.trim());
-    const allLangs = [
-      ...TEMPLATE_LANGUAGES,
-      ...extraLangIds.map((k) => ({
-        id: k,
-        label: k.charAt(0).toUpperCase() + k.slice(1),
-        icon: '📄',
-        ext: `.${k}`
-      }))
-    ];
+  // Markdown Editor State
+  const [markdownText, setMarkdownText] = useState<string>('');
+  const [markdownPreview, setMarkdownPreview] = useState<boolean>(true);
+  const [showAssetsDrawer, setShowAssetsDrawer] = useState<boolean>(false);
+  const [isDragOverEditor, setIsDragOverEditor] = useState<boolean>(false);
 
-    const defined = allLangs.filter((l) => Boolean(templates[l.id]?.trim()));
-    const undefinedLangs = allLangs.filter((l) => !templates[l.id]?.trim());
-    return [...defined, ...undefinedLangs];
-  }, [templates]);
-
-  // Editor UI State with LocalStorage persistence
-  const [editorSubMode, setEditorSubMode] = useState<'form' | 'markdown'>(() => {
-    try {
-      const saved = localStorage.getItem('benigascode_teacher_editor_mode');
-      if (saved === 'form' || saved === 'markdown') return saved;
-    } catch {}
-    return 'form';
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('benigascode_teacher_editor_mode', editorSubMode);
-    } catch {}
-  }, [editorSubMode]);
-
-  // Markdown / Preview split ratio with LocalStorage persistence
+  // Split ratio with LocalStorage persistence
   const [splitRatio, setSplitRatio] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('benigascode_teacher_markdown_split_ratio');
@@ -114,86 +71,17 @@ export const TeacherExercisesView: React.FC = () => {
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
 
-  useEffect(() => {
-    const handleWindowResize = () => {
-      setIsSmallScreen(window.innerWidth < 992);
-    };
-    window.addEventListener('resize', handleWindowResize);
-    return () => window.removeEventListener('resize', handleWindowResize);
-  }, []);
-
-  useEffect(() => {
-    if (!isDraggingSplitter) return;
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!splitContainerRef.current) return;
-      const rect = splitContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.clientX - rect.left) / rect.width) * 100;
-      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
-      setSplitRatio(clampedRatio);
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingSplitter(false);
-      setSplitRatio((currentRatio) => {
-        try {
-          localStorage.setItem('benigascode_teacher_markdown_split_ratio', currentRatio.toFixed(1));
-        } catch {}
-        return currentRatio;
-      });
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!splitContainerRef.current || e.touches.length === 0) return;
-      const rect = splitContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
-      const clampedRatio = Math.min(80, Math.max(20, rawRatio));
-      setSplitRatio(clampedRatio);
-    };
-
-    const handleTouchEnd = () => {
-      setIsDraggingSplitter(false);
-      setSplitRatio((currentRatio) => {
-        try {
-          localStorage.setItem('benigascode_teacher_markdown_split_ratio', currentRatio.toFixed(1));
-        } catch {}
-        return currentRatio;
-      });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('touchmove', handleTouchMove);
-    window.addEventListener('touchend', handleTouchEnd);
-
-    return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [isDraggingSplitter]);
-
-  const [markdownText, setMarkdownText] = useState<string>('');
-  const [markdownPreview, setMarkdownPreview] = useState<boolean>(true);
+  // Refs for Monaco & inputs
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
   const markdownFileInputRef = useRef<HTMLInputElement>(null);
   const listImportFileInputRef = useRef<HTMLInputElement>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Real-time parsed markdown for live preview and badge stats
-  const liveParsedMarkdown = useMemo(() => {
-    if (editorSubMode !== 'markdown') return null;
-    return parseExerciseMarkdown(markdownText);
-  }, [editorSubMode, markdownText]);
-
-  const [statementView, setStatementView] = useState<'split' | 'edit' | 'preview'>('split');
+  // Saving & Uploading status
   const [saving, setSaving] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [uploadingAsset, setUploadingAsset] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // Auto-dismiss status messages (except errors) after 4 seconds
   useEffect(() => {
@@ -203,38 +91,63 @@ export const TeacherExercisesView: React.FC = () => {
     }
   }, [statusMsg]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Split mode height tracking
-  const [textareaHeight, setTextareaHeight] = useState<number | null>(null);
-
-  // Drag & drop state for test cases
-  const [draggedTestCaseIndex, setDraggedTestCaseIndex] = useState<number | null>(null);
-  const [dragOverTestCaseIndex, setDragOverTestCaseIndex] = useState<number | null>(null);
-
-  // Drag & drop image state for textareas
-  const [statementDragOver, setStatementDragOver] = useState(false);
-  const [explanationDragOverIndex, setExplanationDragOverIndex] = useState<number | null>(null);
-
-  // ResizeObserver for Markdown textarea to synchronize preview height in split mode
+  // Window resize handler
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    const handleWindowResize = () => {
+      setIsSmallScreen(window.innerWidth < 992);
+    };
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, []);
 
-    setTextareaHeight(textarea.offsetHeight);
+  // Splitter drag event listeners
+  useEffect(() => {
+    if (!isDraggingSplitter) return;
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target === textarea) {
-          setTextareaHeight(textarea.offsetHeight);
-        }
-      }
-    });
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const newRatio = ((e.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(20, Math.min(80, newRatio));
+      setSplitRatio(clamped);
+      try {
+        localStorage.setItem('benigascode_teacher_markdown_split_ratio', clamped.toFixed(1));
+      } catch {}
+    };
 
-    observer.observe(textarea);
-    return () => observer.disconnect();
-  }, [statementView, mode]);
+    const handleMouseUp = () => {
+      setIsDraggingSplitter(false);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!splitContainerRef.current || !e.touches[0]) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const newRatio = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(20, Math.min(80, newRatio));
+      setSplitRatio(clamped);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingSplitter(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingSplitter]);
+
+  // Real-time parsed markdown for live preview
+  const liveParsedMarkdown = useMemo(() => {
+    return parseExerciseMarkdown(markdownText);
+  }, [markdownText]);
 
   // Load exercises list
   const loadExercises = async () => {
@@ -243,7 +156,6 @@ export const TeacherExercisesView: React.FC = () => {
       const data = await api.teacherGetExercises();
       setExercises(data);
     } catch (err: any) {
-      console.error('Error cargando ejercicios:', err);
       setStatusMsg({ type: 'error', text: err.message || 'Error al cargar ejercicios' });
     } finally {
       setLoading(false);
@@ -258,73 +170,72 @@ export const TeacherExercisesView: React.FC = () => {
   useEffect(() => {
     if (collectionIdParam) {
       api.teacherGetCollection(collectionIdParam)
-        .then((col) => {
-          setActiveCollection(col);
-        })
-        .catch((err) => {
-          console.error('Error cargando colección para navegación:', err);
-          setActiveCollection(null);
-        });
+        .then((col) => setActiveCollection(col))
+        .catch(() => setActiveCollection(null));
     } else {
       setActiveCollection(null);
     }
   }, [collectionIdParam]);
 
-  // Open exercise if exerciseIdParam is present
+  // Sync mode with URL param
   useEffect(() => {
-    if (exerciseIdParam && exerciseIdParam !== selectedId) {
-      handleOpenEdit(exerciseIdParam);
+    if (exerciseIdParam) {
+      if (selectedId !== exerciseIdParam) {
+        handleOpenEdit(exerciseIdParam);
+      }
+    } else if (mode === 'editor' && !selectedId) {
+      // creating new exercise
+    } else if (!exerciseIdParam && mode === 'editor') {
+      setMode('list');
+      setSelectedId(null);
     }
   }, [exerciseIdParam]);
 
-  // Filtered and sorted exercises
+  // Filter and sort exercises
   const filteredExercises = useMemo(() => {
     let result = exercises;
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = exercises.filter(
-        (ex) =>
-          ex.title.toLowerCase().includes(term) ||
-          ex.slug.toLowerCase().includes(term) ||
-          (ex.tags && ex.tags.some((t) => t.toLowerCase().includes(term))) ||
-          (ex.collections && ex.collections.some((c) => c.toLowerCase().includes(term)))
+      const q = searchTerm.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.title.toLowerCase().includes(q) ||
+          e.slug.toLowerCase().includes(q) ||
+          e.tags?.some((t) => t.toLowerCase().includes(q))
       );
     }
-
     return [...result].sort((a, b) => {
-      let cmp = 0;
+      let valA: string | number = '';
+      let valB: string | number = '';
       if (sortKey === 'title') {
-        cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+        valA = a.title.toLowerCase();
+        valB = b.title.toLowerCase();
       } else if (sortKey === 'slug') {
-        cmp = a.slug.localeCompare(b.slug, undefined, { sensitivity: 'base' });
+        valA = a.slug.toLowerCase();
+        valB = b.slug.toLowerCase();
       } else if (sortKey === 'collections') {
-        const colA = (a.collections || []).join(', ');
-        const colB = (b.collections || []).join(', ');
-        cmp = colA.localeCompare(colB, undefined, { sensitivity: 'base' });
+        valA = (a.collections || []).join(', ').toLowerCase();
+        valB = (b.collections || []).join(', ').toLowerCase();
       } else if (sortKey === 'createdAt') {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        cmp = timeA - timeB;
+        valA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        valB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       }
-      return sortDir === 'asc' ? cmp : -cmp;
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
     });
   }, [exercises, searchTerm, sortKey, sortDir]);
 
-  // Exercises sequence for navigation (either collection's exercises or catalog exercises)
+  // Exercises list for navigation
   const navigationExercises = useMemo(() => {
     if (activeCollection && activeCollection.exercises && activeCollection.exercises.length > 0) {
-      return activeCollection.exercises.map((e) => ({
-        id: e.exerciseId,
-        title: e.exerciseTitle,
-        slug: e.exerciseSlug
+      return activeCollection.exercises.map((item) => ({
+        id: item.exerciseId,
+        title: item.exerciseTitle,
+        slug: item.exerciseSlug
       }));
     }
-    return exercises.map((e) => ({
-      id: e.id,
-      title: e.title,
-      slug: e.slug
-    }));
-  }, [activeCollection, exercises]);
+    return filteredExercises;
+  }, [activeCollection, filteredExercises]);
 
   const currentExerciseIndex = useMemo(() => {
     if (!selectedId) return -1;
@@ -371,11 +282,8 @@ export const TeacherExercisesView: React.FC = () => {
       }
       const detail = await api.teacherGetExercise(id);
       setSelectedId(detail.id);
-      setTitle(detail.title || '');
-      setSlug(detail.slug || '');
-      setStatement(detail.statement || '');
 
-      // Load templates and clean empty keys
+      // Load templates
       const initialTemplates: Record<string, string> = { java: '', python: '' };
       if (detail.templates) {
         Object.entries(detail.templates).forEach(([k, v]) => {
@@ -388,30 +296,24 @@ export const TeacherExercisesView: React.FC = () => {
           }
         });
       }
-      // If no templates loaded, check legacy starterCode
       const hasAny = Object.values(initialTemplates).some((v) => Boolean(v?.trim()));
       if (!hasAny && detail.starterCode && detail.starterCode.trim()) {
         const rawLang = (detail.language || '').toLowerCase().trim();
         const normLang = (rawLang.startsWith('python') || rawLang === 'py') ? 'python' : 'java';
         initialTemplates[normLang] = detail.starterCode;
       }
-      setTemplates(initialTemplates);
 
-      // Select active tab: first defined language or 'java'
-      const firstDefined = Object.keys(initialTemplates).find((k) => Boolean(initialTemplates[k]?.trim()));
-      setActiveTemplateLang(firstDefined || 'java');
-
-      setTags(detail.tags || []);
-      setTagInput('');
-      setTestCases(detail.testCases || []);
-      setMarkdownText(serializeExerciseToMarkdown({
+      // Convert DB representation into markdown block
+      const serialized = serializeExerciseToMarkdown({
         title: detail.title || '',
         slug: detail.slug || '',
         tags: detail.tags || [],
         statement: detail.statement || '',
         templates: initialTemplates,
         testCases: detail.testCases || []
-      }));
+      });
+
+      setMarkdownText(serialized);
       setAssets(detail.assets || []);
       setVersionNumber(detail.versionNumber || 1);
       setMode('editor');
@@ -425,21 +327,7 @@ export const TeacherExercisesView: React.FC = () => {
   // Open Editor for a new exercise
   const handleOpenCreate = () => {
     setSelectedId(null);
-    setSearchParams({});
-    setTitle('');
-    setSlug('');
-    setStatement('# Nuevo Ejercicio\n\nDescripción del problema...');
-    setTemplates({
-      java: 'public class Solution {\n    public static void main(String[] args) {\n        // Tu código aquí\n    }\n}\n',
-      python: ''
-    });
-    setActiveTemplateLang('java');
-    setTags([]);
-    setTagInput('');
-    setTestCases([
-      { isPublic: true, orderIndex: 0, weight: 1, input: '', expectedOutput: '', explanation: '' },
-      { isPublic: false, orderIndex: 1, weight: 1, input: '', expectedOutput: '', explanation: '' }
-    ]);
+    setSearchParams(collectionIdParam ? { collectionId: collectionIdParam } : {});
     setAssets([]);
     setVersionNumber(1);
     setMarkdownText(CANONICAL_EXERCISE_EXAMPLE);
@@ -447,31 +335,7 @@ export const TeacherExercisesView: React.FC = () => {
     setMode('editor');
   };
 
-  // Handlers for switching between Structured Form and Markdown Block
-  const handleSwitchToMarkdown = () => {
-    const serialized = serializeExerciseToMarkdown({
-      title,
-      slug,
-      tags,
-      statement,
-      templates,
-      testCases
-    });
-    setMarkdownText(serialized);
-    setEditorSubMode('markdown');
-  };
-
-  const handleSwitchToForm = () => {
-    const parsed = parseExerciseMarkdown(markdownText);
-    if (parsed.exercise.title) setTitle(parsed.exercise.title);
-    if (parsed.exercise.slug) setSlug(parsed.exercise.slug);
-    setTags(parsed.exercise.tags || []);
-    setStatement(parsed.exercise.statement || '');
-    setTemplates(parsed.exercise.templates || {});
-    setTestCases(parsed.exercise.testCases || []);
-    setEditorSubMode('form');
-  };
-
+  // Load canonical example into editor
   const handleLoadMarkdownExample = () => {
     if (markdownText.trim().length > 0 && !confirm('¿Deseas reemplazar el contenido actual con la plantilla de ejemplo?')) {
       return;
@@ -480,21 +344,22 @@ export const TeacherExercisesView: React.FC = () => {
     setStatusMsg({ type: 'info', text: 'Plantilla canónica cargada en el editor.' });
   };
 
+  // Export current markdown as .md file
   const handleExportMarkdownFile = () => {
-    const contentToExport = editorSubMode === 'markdown'
-      ? markdownText
-      : serializeExerciseToMarkdown({ title, slug, tags, statement, templates, testCases });
-    const blob = new Blob([contentToExport], { type: 'text/markdown;charset=utf-8' });
+    const parsed = parseExerciseMarkdown(markdownText);
+    const filename = `${parsed.exercise.slug || 'ejercicio'}.md`;
+    const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${slug || 'ejercicio'}.md`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
+  // Import .md file into current editor
   const handleImportMarkdownFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -503,13 +368,6 @@ export const TeacherExercisesView: React.FC = () => {
       const content = event.target?.result as string;
       if (content) {
         setMarkdownText(content);
-        const parsed = parseExerciseMarkdown(content);
-        if (parsed.exercise.title) setTitle(parsed.exercise.title);
-        if (parsed.exercise.slug) setSlug(parsed.exercise.slug);
-        setTags(parsed.exercise.tags || []);
-        setStatement(parsed.exercise.statement || '');
-        setTemplates(parsed.exercise.templates || {});
-        setTestCases(parsed.exercise.testCases || []);
         setStatusMsg({ type: 'success', text: `Archivo "${file.name}" importado correctamente.` });
       }
     };
@@ -517,6 +375,7 @@ export const TeacherExercisesView: React.FC = () => {
     e.target.value = '';
   };
 
+  // Import .md file directly from List view
   const handleListImportMarkdown = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -525,259 +384,89 @@ export const TeacherExercisesView: React.FC = () => {
       const content = event.target?.result as string;
       if (content) {
         setSelectedId(null);
-        setSearchParams({});
+        setSearchParams(collectionIdParam ? { collectionId: collectionIdParam } : {});
         setMarkdownText(content);
-        const parsed = parseExerciseMarkdown(content);
-        setTitle(parsed.exercise.title);
-        setSlug(parsed.exercise.slug);
-        setTags(parsed.exercise.tags || []);
-        setStatement(parsed.exercise.statement || '');
-        setTemplates(parsed.exercise.templates || {});
-        setTestCases(parsed.exercise.testCases || []);
         setAssets([]);
         setVersionNumber(1);
-        setEditorSubMode('markdown');
         setMode('editor');
-        setStatusMsg({ type: 'success', text: `Ejercicio cargado desde "${file.name}". Revisa los datos y pulsa Guardar.` });
+        setStatusMsg({ type: 'success', text: `Ejercicio cargado desde "${file.name}". Revisa el contenido y pulsa Guardar.` });
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Slug generator helper
-  const handleTitleChange = (val: string) => {
-    setTitle(val);
-    if (!selectedId) {
-      // Auto-generate slug if it's a new exercise
-      const generated = val
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      setSlug(generated);
-    }
-  };
-
-  // Tags helpers & system suggestions
-  const systemTags = useMemo(() => {
-    const set = new Set<string>();
-    exercises.forEach((ex) => {
-      if (ex.tags && Array.isArray(ex.tags)) {
-        ex.tags.forEach((t) => {
-          const trimmed = t.trim();
-          if (trimmed) set.add(trimmed);
-        });
-      }
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [exercises]);
-
-  const unassignedSystemTags = useMemo(() => {
-    const currentLower = new Set(tags.map((t) => t.toLowerCase()));
-    return systemTags.filter((t) => !currentLower.has(t.toLowerCase()));
-  }, [systemTags, tags]);
-
-  const commonTagPresets = useMemo(() => ['bucles', 'condicionales', 'arrays', 'strings', 'funciones', 'poo', 'recursión', 'matemáticas'], []);
-  const unassignedPresets = useMemo(() => {
-    const currentLower = new Set(tags.map((t) => t.toLowerCase()));
-    const systemLower = new Set(systemTags.map((t) => t.toLowerCase()));
-    return commonTagPresets.filter((p) => !currentLower.has(p.toLowerCase()) && !systemLower.has(p.toLowerCase()));
-  }, [tags, systemTags, commonTagPresets]);
-
-  const addTag = (rawTag: string) => {
-    const clean = rawTag.trim();
-    if (!clean) return;
-    if (!tags.some((t) => t.toLowerCase() === clean.toLowerCase())) {
-      setTags((prev) => [...prev, clean]);
-    }
-  };
-
-  const addTagsFromText = (text: string) => {
-    const parts = text.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
-    if (parts.length === 0) return;
-    setTags((prev) => {
-      const existingLower = new Set(prev.map((t) => t.toLowerCase()));
-      const toAdd = parts.filter((p) => !existingLower.has(p.toLowerCase()));
-      return [...prev, ...toAdd];
-    });
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags((prev) => prev.filter((t) => t !== tagToRemove));
-  };
-
-  const handleClearAllTags = () => {
-    setTags([]);
-  };
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      addTagsFromText(tagInput);
-    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-      e.preventDefault();
-      setTags((prev) => prev.slice(0, -1));
-    }
-  };
-
-  // Adaptive rows helper for test case textareas:
-  // Dynamically adjusts to the number of lines up to a maximum initial of 12 lines
-  const getAdaptiveRows = (text: string | undefined, defaultMin: number = 3, maxInitial: number = 12) => {
-    if (!text) return defaultMin;
-    const lineCount = text.split('\n').length;
-    return Math.min(maxInitial, Math.max(defaultMin, lineCount));
-  };
-
-  // Test Cases operations
-  const handleAddTestCase = () => {
-    const nextIndex = testCases.length;
-    setTestCases([
-      ...testCases,
-      {
-        isPublic: testCases.filter(t => t.isPublic).length === 0, // Public if no public yet
-        orderIndex: nextIndex,
-        weight: 1,
-        input: '',
-        expectedOutput: '',
-        explanation: ''
-      }
-    ]);
-  };
-
-  const handleRemoveTestCase = (index: number) => {
-    const updated = testCases.filter((_, i) => i !== index).map((tc, idx) => ({ ...tc, orderIndex: idx }));
-    setTestCases(updated);
-  };
-
-  const handleUpdateTestCase = (index: number, fields: Partial<TestCaseDTO>) => {
-    const updated = [...testCases];
-    updated[index] = { ...updated[index], ...fields };
-    setTestCases(updated);
-  };
-
-  const handleMoveTestCase = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= testCases.length) return;
-    const updated = [...testCases];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    // Re-index
-    const reindexed = updated.map((tc, idx) => ({ ...tc, orderIndex: idx }));
-    setTestCases(reindexed);
-  };
-
-  const handleMoveTestCaseToPosition = (fromIndex: number, targetPosition: number) => {
-    if (isNaN(targetPosition) || targetPosition < 1) return;
-    const clampedTarget = Math.min(Math.max(1, targetPosition), testCases.length);
-    const toIndex = clampedTarget - 1;
-    if (fromIndex === toIndex) return;
-
-    const updated = [...testCases];
-    const [movedItem] = updated.splice(fromIndex, 1);
-    updated.splice(toIndex, 0, movedItem);
-    setTestCases(updated.map((tc, idx) => ({ ...tc, orderIndex: idx })));
-  };
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(index));
-    setDraggedTestCaseIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverTestCaseIndex !== index) {
-      setDragOverTestCaseIndex(index);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    const sourceIndex = draggedTestCaseIndex ?? Number(e.dataTransfer.getData('text/plain'));
-    if (sourceIndex !== null && !isNaN(sourceIndex) && sourceIndex !== dropIndex) {
-      const updated = [...testCases];
-      const [movedItem] = updated.splice(sourceIndex, 1);
-      updated.splice(dropIndex, 0, movedItem);
-      setTestCases(updated.map((tc, idx) => ({ ...tc, orderIndex: idx })));
-    }
-    setDraggedTestCaseIndex(null);
-    setDragOverTestCaseIndex(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedTestCaseIndex(null);
-    setDragOverTestCaseIndex(null);
-  };
-
-  // Markdown formatting helpers
-  const insertFormatting = (prefix: string, suffix: string = '') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    const replacement = prefix + (selectedText || 'texto') + suffix;
-    const newText = text.substring(0, start) + replacement + text.substring(end);
-    setStatement(newText);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, start + prefix.length + (selectedText ? selectedText.length : 5));
-    }, 10);
-  };
-
   // Helper to ensure exercise is saved before attaching assets
   const ensureExerciseSaved = async (): Promise<string | null> => {
-    let currentExId = selectedId;
-    if (!currentExId) {
-      if (!title.trim()) {
-        alert('Por favor, indica primero un título para el ejercicio antes de subir o pegar imágenes.');
-        return null;
-      }
-      try {
-        setSaving(true);
-        const cleanTemplates: Record<string, string> = {};
-        Object.entries(templates).forEach(([k, v]) => {
-          if (v && v.trim()) cleanTemplates[k] = v;
-        });
-        const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
-        const saved = await api.teacherSaveExercise({
-          title,
-          slug: slug || 'ejercicio-' + Date.now(),
-          statement,
-          starterCode: primaryStarter,
-          templates: cleanTemplates,
-          language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
-          runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
-          tags,
-          testCases
-        });
-        currentExId = saved.id;
-        setSelectedId(saved.id);
-        setSlug(saved.slug);
-        return saved.id;
-      } catch (err: any) {
-        alert('Error al guardar el ejercicio inicial: ' + (err.message || 'Error desconocido'));
-        return null;
-      } finally {
-        setSaving(false);
-      }
+    if (selectedId) return selectedId;
+
+    const parsed = parseExerciseMarkdown(markdownText);
+    const exTitle = parsed.exercise.title?.trim();
+    if (!exTitle) {
+      alert('Por favor, indica primero un título (# Título) para el ejercicio antes de subir o pegar imágenes.');
+      return null;
     }
-    return currentExId;
+
+    try {
+      setSaving(true);
+      const cleanTemplates: Record<string, string> = {};
+      Object.entries(parsed.exercise.templates || {}).forEach(([k, v]) => {
+        if (v && v.trim()) cleanTemplates[k] = v;
+      });
+      const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
+
+      const saved = await api.teacherSaveExercise({
+        title: exTitle,
+        slug: parsed.exercise.slug?.trim() || 'ejercicio-' + Date.now(),
+        statement: parsed.exercise.statement || '',
+        starterCode: primaryStarter,
+        templates: cleanTemplates,
+        language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
+        runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
+        tags: parsed.exercise.tags || [],
+        testCases: parsed.exercise.testCases || []
+      });
+
+      setSelectedId(saved.id);
+      setVersionNumber(saved.versionNumber || 1);
+      setSearchParams(collectionIdParam ? { exerciseId: saved.id, collectionId: collectionIdParam } : { exerciseId: saved.id });
+      return saved.id;
+    } catch (err: any) {
+      alert('Error al guardar el ejercicio inicial para asociar la imagen: ' + (err.message || 'Error desconocido'));
+      return null;
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Upload and insert an asset image into any target textarea
-  const handleUploadAndInsertImage = async (
-    file: File,
-    textarea: HTMLTextAreaElement | null,
-    currentText: string,
-    onUpdateText: (newText: string) => void
-  ) => {
+  // Insert markdown snippet at current cursor in Monaco Editor
+  const insertMarkdownAtCursor = (snippet: string) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (editor && monaco) {
+      const selection = editor.getSelection();
+      const position = editor.getPosition();
+      const range = selection && !selection.isEmpty()
+        ? selection
+        : position
+        ? new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column)
+        : new monaco.Range(1, 1, 1, 1);
+
+      editor.executeEdits('insert-image', [
+        {
+          range,
+          text: snippet,
+          forceMoveMarkers: true,
+        },
+      ]);
+      editor.focus();
+    } else {
+      setMarkdownText((prev) => prev + snippet);
+    }
+  };
+
+  // Upload and insert an asset image into the active exercise & editor
+  const handleUploadAndInsertImage = async (file: File) => {
     const currentExId = await ensureExerciseSaved();
     if (!currentExId) return;
 
@@ -794,353 +483,107 @@ export const TeacherExercisesView: React.FC = () => {
       const newAsset = await api.teacherUploadAsset(currentExId, fileToUpload);
       setAssets((prev) => [...prev.filter((a) => a.filename !== newAsset.filename), newAsset]);
 
-      // Insert markdown at cursor
       const imgMarkdown = `\n![${newAsset.filename}](${newAsset.filename})\n`;
-      if (textarea) {
-        const start = textarea.selectionStart ?? currentText.length;
-        const end = textarea.selectionEnd ?? currentText.length;
-        const text = textarea.value ?? currentText;
-        const newText = text.substring(0, start) + imgMarkdown + text.substring(end);
-        onUpdateText(newText);
-        setTimeout(() => {
-          textarea.focus();
-          const nextPos = start + imgMarkdown.length;
-          textarea.setSelectionRange(nextPos, nextPos);
-        }, 0);
-      } else {
-        onUpdateText(currentText + imgMarkdown);
-      }
+      insertMarkdownAtCursor(imgMarkdown);
 
       setStatusMsg({ type: 'success', text: `Imagen "${newAsset.filename}" subida e insertada.` });
     } catch (err: any) {
       alert('Error subiendo imagen: ' + (err.message || 'Error desconocido'));
     } finally {
       setUploadingAsset(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (imageFileInputRef.current) imageFileInputRef.current.value = '';
     }
   };
 
-  // Handle image upload from file picker button
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await handleUploadAndInsertImage(file, textareaRef.current, statement, setStatement);
-  };
-
-  // Statement Paste Image Handler
-  const handleStatementPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            e.stopPropagation();
-            await handleUploadAndInsertImage(file, e.currentTarget, statement, setStatement);
-            return;
-          }
-        }
-      }
-    }
-  };
-
-  // Statement Drag & Drop Image Handlers
-  const handleStatementDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = 'copy';
-      setStatementDragOver(true);
-    }
-  };
-
-  const handleStatementDragLeave = () => {
-    setStatementDragOver(false);
-  };
-
-  const handleStatementDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
-    setStatementDragOver(false);
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
-          e.preventDefault();
-          e.stopPropagation();
-          await handleUploadAndInsertImage(file, e.currentTarget, statement, setStatement);
-          return;
-        }
-      }
-    }
-  };
-
-  // Explanation Paste Image Handler
-  const handleExplanationPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>, index: number) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            e.stopPropagation();
-            await handleUploadAndInsertImage(
-              file,
-              e.currentTarget,
-              testCases[index].explanation || '',
-              (newText) => handleUpdateTestCase(index, { explanation: newText })
-            );
-            return;
-          }
-        }
-      }
-    }
-  };
-
-  // Explanation Drag & Drop Image Handlers
-  const handleExplanationDragOver = (e: React.DragEvent<HTMLTextAreaElement>, index: number) => {
-    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = 'copy';
-      setExplanationDragOverIndex(index);
-    }
-  };
-
-  const handleExplanationDragLeave = (index: number) => {
-    if (explanationDragOverIndex === index) {
-      setExplanationDragOverIndex(null);
-    }
-  };
-
-  const handleExplanationDrop = async (e: React.DragEvent<HTMLTextAreaElement>, index: number) => {
-    setExplanationDragOverIndex(null);
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name)) {
-          e.preventDefault();
-          e.stopPropagation();
-          await handleUploadAndInsertImage(
-            file,
-            e.currentTarget,
-            testCases[index].explanation || '',
-            (newText) => handleUpdateTestCase(index, { explanation: newText })
-          );
-          return;
-        }
-      }
-    }
-  };
-
-  // ==================== CLIPBOARD TOOLBAR ACTIONS ====================
-
-  const handleCopyAll = async (text: string) => {
-    if (!text) {
-      setStatusMsg({ type: 'info', text: 'El cuadro está vacío, nada que copiar.' });
-      return;
-    }
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      setStatusMsg({ type: 'success', text: 'Contenido copiado al portapapeles.' });
-    } catch (err: any) {
-      console.error('Error copying text:', err);
-      setStatusMsg({ type: 'error', text: 'No se pudo copiar al portapapeles.' });
-    }
-  };
-
-  const handleCutAll = async (text: string, onClear: () => void) => {
-    if (!text) {
-      setStatusMsg({ type: 'info', text: 'El cuadro está vacío, nada que cortar.' });
-      return;
-    }
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      onClear();
-      setStatusMsg({ type: 'success', text: 'Contenido cortado al portapapeles.' });
-    } catch (err: any) {
-      console.error('Error cutting text:', err);
-      setStatusMsg({ type: 'error', text: 'No se pudo cortar al portapapeles.' });
-    }
-  };
-
-  const handlePasteAll = async (onPaste: (text: string) => void) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const clipText = await navigator.clipboard.readText();
-        if (clipText) {
-          onPaste(clipText);
-          setStatusMsg({ type: 'success', text: 'Contenido pegado desde el portapapeles.' });
-        } else {
-          setStatusMsg({ type: 'info', text: 'El portapapeles está vacío.' });
-        }
-      } else {
-        alert('Tu navegador no permite la lectura directa del portapapeles. Usa Ctrl+V / Cmd+V dentro del cuadro.');
-      }
-    } catch (err: any) {
-      console.error('Error reading clipboard:', err);
-      alert('Permiso de portapapeles no concedido por el navegador. Usa Ctrl+V / Cmd+V dentro del cuadro.');
-    }
-  };
-
-  const renderClipboardButtons = (getValue: () => string, onSetValue: (v: string) => void) => (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-      <button
-        type="button"
-        onClick={() => handleCopyAll(getValue())}
-        className="btn-secondary"
-        style={{
-          padding: '0.125rem 0.375rem',
-          fontSize: '0.7rem',
-          height: '1.4rem',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.2rem',
-          borderRadius: '4px',
-          backgroundColor: '#ffffff',
-          borderColor: '#cbd5e1',
-          color: '#475569',
-          cursor: 'pointer'
-        }}
-        title="Copiar todo el contenido al portapapeles"
-      >
-        <Copy size={11} /> Copiar todo
-      </button>
-      <button
-        type="button"
-        onClick={() => handleCutAll(getValue(), () => onSetValue(''))}
-        className="btn-secondary"
-        style={{
-          padding: '0.125rem 0.375rem',
-          fontSize: '0.7rem',
-          height: '1.4rem',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.2rem',
-          borderRadius: '4px',
-          backgroundColor: '#ffffff',
-          borderColor: '#cbd5e1',
-          color: '#475569',
-          cursor: 'pointer'
-        }}
-        title="Cortar todo el contenido al portapapeles"
-      >
-        <Scissors size={11} /> Cortar todo
-      </button>
-      <button
-        type="button"
-        onClick={() => handlePasteAll((val) => onSetValue(val))}
-        className="btn-secondary"
-        style={{
-          padding: '0.125rem 0.375rem',
-          fontSize: '0.7rem',
-          height: '1.4rem',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.2rem',
-          borderRadius: '4px',
-          backgroundColor: '#ffffff',
-          borderColor: '#cbd5e1',
-          color: '#475569',
-          cursor: 'pointer'
-        }}
-        title="Reemplazar todo con el contenido del portapapeles"
-      >
-        <ClipboardPaste size={11} /> Pegar todo
-      </button>
-    </div>
-  );
-
-  // Delete an asset
+  // Delete an asset from the exercise
   const handleDeleteAsset = async (filename: string) => {
     if (!selectedId) return;
-    if (!confirm(`¿Eliminar la imagen "${filename}"?`)) return;
+    if (!confirm(`¿Seguro que deseas eliminar la imagen "${filename}" del servidor?`)) return;
     try {
       await api.teacherDeleteAsset(selectedId, filename);
       setAssets((prev) => prev.filter((a) => a.filename !== filename));
       setStatusMsg({ type: 'success', text: `Imagen "${filename}" eliminada.` });
     } catch (err: any) {
-      alert('Error eliminando imagen: ' + err.message);
+      alert('Error eliminando imagen: ' + (err.message || 'Error desconocido'));
     }
   };
 
-  // Render markdown with images and syntax highlighting
-  const renderedMarkdown = useMemo(() => {
-    if (!statement) return '';
-    return renderMarkdown(statement, selectedId);
-  }, [statement, selectedId]);
+  // Monaco Editor onMount handler: attach paste & drop listeners
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
 
-  // Save exercise
+    const domNode = editor.getDomNode();
+    if (!domNode) return;
+
+    // Paste event listener (intercept clipboard images with capture phase)
+    const onPaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            e.stopPropagation();
+            await handleUploadAndInsertImage(file);
+            return;
+          }
+        }
+      }
+    };
+
+    // Drag & drop event listeners on editor DOM
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        setIsDragOverEditor(true);
+      }
+    };
+
+    const onDragLeave = () => {
+      setIsDragOverEditor(false);
+    };
+
+    const onDrop = async (e: DragEvent) => {
+      setIsDragOverEditor(false);
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          if (files[i].type.startsWith('image/')) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Set cursor to mouse drop location in Monaco
+            const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+            if (target?.position) {
+              editor.setPosition(target.position);
+            }
+
+            await handleUploadAndInsertImage(files[i]);
+            return;
+          }
+        }
+      }
+    };
+
+    domNode.addEventListener('paste', onPaste, true);
+    domNode.addEventListener('dragover', onDragOver, true);
+    domNode.addEventListener('dragleave', onDragLeave, true);
+    domNode.addEventListener('drop', onDrop, true);
+  };
+
+  // Save exercise directly from Markdown text
   const handleSave = async () => {
-    let effectiveTitle = title;
-    let effectiveSlug = slug;
-    let effectiveStatement = statement;
-    let effectiveTemplates = templates;
-    let effectiveTags = [...tags];
-    let effectiveTestCases = testCases;
-
-    if (editorSubMode === 'markdown') {
-      const parsed = parseExerciseMarkdown(markdownText);
-      if (!parsed.exercise.title || !parsed.exercise.title.trim()) {
-        setStatusMsg({ type: 'error', text: 'El documento Markdown debe contener al menos un título (# Título del Ejercicio).' });
-        return;
-      }
-      effectiveTitle = parsed.exercise.title;
-      effectiveSlug = parsed.exercise.slug;
-      effectiveStatement = parsed.exercise.statement;
-      effectiveTemplates = parsed.exercise.templates;
-      effectiveTags = parsed.exercise.tags;
-      effectiveTestCases = parsed.exercise.testCases;
-
-      // Sync form states
-      setTitle(effectiveTitle);
-      setSlug(effectiveSlug);
-      setStatement(effectiveStatement);
-      setTemplates(effectiveTemplates);
-      setTags(effectiveTags);
-      setTestCases(effectiveTestCases);
-    } else {
-      if (!title.trim()) {
-        setStatusMsg({ type: 'error', text: 'El título es obligatorio.' });
-        return;
-      }
-      if (!slug.trim()) {
-        setStatusMsg({ type: 'error', text: 'El identificador (slug) es obligatorio.' });
-        return;
-      }
-
-      // If there's uncommitted text in tagInput, include it
-      if (tagInput.trim()) {
-        const pending = tagInput.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
-        const existingLower = new Set(effectiveTags.map((t) => t.toLowerCase()));
-        const toAdd = pending.filter((p) => !existingLower.has(p.toLowerCase()));
-        effectiveTags = [...effectiveTags, ...toAdd];
-        setTags(effectiveTags);
-        setTagInput('');
-      }
+    const parsed = parseExerciseMarkdown(markdownText);
+    if (!parsed.exercise.title || !parsed.exercise.title.trim()) {
+      setStatusMsg({ type: 'error', text: 'El documento Markdown debe contener al menos un título (# Título del Ejercicio).' });
+      return;
     }
-
-    if (!effectiveSlug.trim()) {
+    if (!parsed.exercise.slug || !parsed.exercise.slug.trim()) {
       setStatusMsg({ type: 'error', text: 'El identificador (slug) es obligatorio.' });
       return;
     }
@@ -1150,45 +593,33 @@ export const TeacherExercisesView: React.FC = () => {
 
     try {
       const cleanTemplates: Record<string, string> = {};
-      Object.entries(effectiveTemplates).forEach(([k, v]) => {
+      Object.entries(parsed.exercise.templates || {}).forEach(([k, v]) => {
         if (v && v.trim()) cleanTemplates[k] = v;
       });
       const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
 
       const payload = {
-        title: effectiveTitle.trim(),
-        slug: effectiveSlug.trim(),
-        statement: effectiveStatement.trim(),
+        title: parsed.exercise.title.trim(),
+        slug: parsed.exercise.slug.trim(),
+        statement: parsed.exercise.statement,
         starterCode: primaryStarter,
         templates: cleanTemplates,
         language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
         runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
-        tags: effectiveTags,
-        testCases: effectiveTestCases.map((tc, idx) => ({
-          ...tc,
-          orderIndex: idx,
-          weight: Number(tc.weight) || 1
-        }))
+        tags: parsed.exercise.tags || [],
+        testCases: parsed.exercise.testCases || []
       };
 
       const result = await api.teacherSaveExercise(payload, selectedId || undefined);
-      setSelectedId(result.id);
-      setSlug(result.slug);
-      setVersionNumber(result.versionNumber);
+      if (!selectedId) {
+        setSelectedId(result.id);
+        setSearchParams(collectionIdParam ? { exerciseId: result.id, collectionId: collectionIdParam } : { exerciseId: result.id });
+      }
+
+      setVersionNumber(result.versionNumber || 1);
       setAssets(result.assets || []);
-      setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" guardado correctamente (v${result.versionNumber}).` });
+      setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" guardado correctamente (v${result.versionNumber || 1}).` });
 
-      // Keep markdownText in sync with saved result
-      setMarkdownText(serializeExerciseToMarkdown({
-        title: result.title,
-        slug: result.slug,
-        statement: result.statement,
-        templates: result.templates || cleanTemplates,
-        tags: result.tags || effectiveTags,
-        testCases: result.testCases || effectiveTestCases
-      }));
-
-      // Refresh exercise list
       loadExercises();
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: err.message || 'Error al guardar el ejercicio.' });
@@ -1239,9 +670,13 @@ export const TeacherExercisesView: React.FC = () => {
               style={{ padding: '0.625rem 1.25rem' }}
               title="Importar ejercicio desde archivo .md"
             >
-              <Upload size={18} /> Importar .md
+              <Upload size={18} /> Cargar .md
             </button>
-            <button onClick={handleOpenCreate} className="btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
+            <button
+              onClick={handleOpenCreate}
+              className="btn-primary"
+              style={{ padding: '0.625rem 1.25rem' }}
+            >
               <Plus size={18} /> Nuevo Ejercicio
             </button>
           </div>
@@ -1329,55 +764,46 @@ export const TeacherExercisesView: React.FC = () => {
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                      <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', color: '#64748b' }}>
                         {ex.slug}
                       </td>
-                      <td style={{ padding: '0.875rem 1.25rem' }}>
+                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b' }}>
                         {ex.collections && ex.collections.length > 0 ? (
-                          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                             {ex.collections.map((col, idx) => (
                               <span
                                 key={idx}
-                                className="badge badge-info"
-                                style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem' }}
+                                className="badge badge-secondary"
+                                style={{ fontSize: '0.75rem' }}
                               >
-                                {col}
+                                📚 {col}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>Sin colección</span>
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>Ninguna</span>
                         )}
                       </td>
-                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
-                        {ex.createdAt ? new Date(ex.createdAt).toLocaleDateString() : '—'}
+                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontSize: '0.8125rem' }}>
+                        {ex.createdAt ? new Date(ex.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                       </td>
                       <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                           <button
                             onClick={() => handleOpenEdit(ex.id)}
                             className="btn-secondary"
-                            style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem' }}
+                            style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem' }}
                             title="Editar ejercicio"
                           >
-                            <Edit3 size={14} /> Editar
+                            Editar
                           </button>
-                          <a
-                            href={api.teacherExportExerciseZipUrl(ex.id)}
-                            download
-                            className="btn-secondary"
-                            style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem', textDecoration: 'none' }}
-                            title="Exportar ZIP"
-                          >
-                            <Download size={14} /> ZIP
-                          </a>
                           <button
                             onClick={() => handleDeleteExercise(ex.id, ex.title)}
                             className="btn-secondary"
-                            style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem', color: '#dc2626' }}
+                            style={{ padding: '0.375rem 0.5rem', color: '#ef4444', borderColor: '#fecaca' }}
                             title="Eliminar ejercicio"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </td>
@@ -1387,9 +813,9 @@ export const TeacherExercisesView: React.FC = () => {
               </table>
 
               {/* Pagination */}
-              <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
-                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                  Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, filteredExercises.length)} de {filteredExercises.length} ejercicios
+              <div style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                <span style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                  Mostrando {filteredExercises.length > 0 ? (page - 1) * pageSize + 1 : 0} a {Math.min(page * pageSize, filteredExercises.length)} de {filteredExercises.length} ejercicios
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
@@ -1492,28 +918,315 @@ export const TeacherExercisesView: React.FC = () => {
         onChange={handleImportMarkdownFile}
       />
 
-      {editorSubMode === 'markdown' ? (
+      {/* Hidden file input for uploading images */}
+      <input
+        type="file"
+        ref={imageFileInputRef}
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            await handleUploadAndInsertImage(file);
+          }
+        }}
+      />
+
+      <div
+        ref={splitContainerRef}
+        style={{
+          display: 'flex',
+          flexDirection: isSmallScreen ? 'column' : 'row',
+          gap: isSmallScreen ? '0.75rem' : 0,
+          alignItems: 'stretch',
+          width: '100%',
+          userSelect: isDraggingSplitter ? 'none' : 'auto',
+          flex: isSmallScreen ? 'none' : 1,
+          minHeight: 0,
+          height: isSmallScreen ? 'auto' : '100%',
+          overflow: isSmallScreen ? 'visible' : 'hidden',
+        }}
+      >
+        {/* Panel Izquierdo: Editor Markdown con Cabecera */}
         <div
-          ref={splitContainerRef}
           style={{
+            width: isSmallScreen || !markdownPreview ? '100%' : `calc(${splitRatio}% - 4px)`,
+            minWidth: isSmallScreen ? undefined : '280px',
+            maxWidth: isSmallScreen || !markdownPreview ? undefined : '80%',
             display: 'flex',
-            flexDirection: isSmallScreen ? 'column' : 'row',
-            gap: isSmallScreen ? '0.75rem' : 0,
-            alignItems: 'stretch',
-            width: '100%',
-            userSelect: isDraggingSplitter ? 'none' : 'auto',
-            flex: isSmallScreen ? 'none' : 1,
-            minHeight: 0,
+            flexDirection: 'column',
+            boxSizing: 'border-box',
             height: isSmallScreen ? 'auto' : '100%',
             overflow: isSmallScreen ? 'visible' : 'hidden',
           }}
         >
-          {/* Panel Izquierdo: Editor Markdown con Cabecera */}
+          <div
+            className="card"
+            style={{
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              height: isSmallScreen ? '560px' : '100%',
+              minHeight: 0,
+              overflow: 'hidden',
+              position: 'relative',
+              outline: isDragOverEditor ? '2px dashed #3b82f6' : 'none',
+              outlineOffset: '-2px',
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                setIsDragOverEditor(true);
+              }
+            }}
+            onDragLeave={() => setIsDragOverEditor(false)}
+            onDrop={async (e) => {
+              setIsDragOverEditor(false);
+              const files = e.dataTransfer?.files;
+              if (files && files.length > 0) {
+                for (let i = 0; i < files.length; i++) {
+                  if (files[i].type.startsWith('image/')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    await handleUploadAndInsertImage(files[i]);
+                    return;
+                  }
+                }
+              }
+            }}
+          >
+            {/* Cabecera del Panel Editor */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.35rem 0.5rem',
+                backgroundColor: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+                flexShrink: 0,
+                minHeight: '40px',
+                boxSizing: 'border-box',
+                gap: '0.375rem',
+                flexWrap: 'wrap'
+              }}
+            >
+              {/* Izquierda: Volver, Anterior, Siguiente, Versión corta, Colección */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="btn-secondary"
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
+                >
+                  <ArrowLeft size={16} />
+                </button>
+
+                {navigationExercises.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateExercise('prev')}
+                      disabled={!hasPrevExercise}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.3rem 0.5rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: !hasPrevExercise ? 0.35 : 1,
+                        cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
+                      }}
+                      title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateExercise('next')}
+                      disabled={!hasNextExercise}
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.3rem 0.5rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: !hasNextExercise ? 0.35 : 1,
+                        cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
+                      }}
+                      title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
+
+                {selectedId && (
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '0.15rem 0.4rem',
+                      fontWeight: 600,
+                      backgroundColor: '#e2e8f0',
+                      color: '#475569',
+                      borderRadius: '0.25rem'
+                    }}
+                    title={`Versión actual: v${versionNumber}`}
+                  >
+                    v{versionNumber}
+                  </span>
+                )}
+
+                {activeCollection && (
+                  <span
+                    className="badge badge-info"
+                    style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem' }}
+                    title={`Colección: ${activeCollection.title}`}
+                  >
+                    📚 {activeCollection.title}
+                  </span>
+                )}
+              </div>
+
+              {/* Derecha: Subir imagen, Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => imageFileInputRef.current?.click()}
+                  disabled={uploadingAsset}
+                  className="btn-secondary"
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={uploadingAsset ? 'Subiendo imagen...' : 'Subir e insertar imagen (o arrastrar / pegar)'}
+                >
+                  <ImageIcon size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadMarkdownExample}
+                  className="btn-secondary"
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Cargar plantilla de ejemplo para ver la sintaxis"
+                >
+                  <FileText size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markdownFileInputRef.current?.click()}
+                  className="btn-secondary"
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Cargar archivo .md desde tu ordenador"
+                >
+                  <Upload size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportMarkdownFile}
+                  className="btn-secondary"
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Descargar este ejercicio como archivo .md"
+                >
+                  <Download size={16} />
+                </button>
+                {selectedId && (
+                  <a
+                    href={api.teacherExportExerciseZipUrl(selectedId)}
+                    download
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.3rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none'
+                    }}
+                    title="Exportar ejercicio completo (paquete ZIP)"
+                  >
+                    <Archive size={16} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMarkdownPreview(!markdownPreview)}
+                  className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title={markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
+                >
+                  <Columns size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="btn-primary"
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: saving ? 0.6 : 1,
+                    cursor: saving ? 'not-allowed' : 'pointer'
+                  }}
+                  title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
+                >
+                  <Save size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Monaco Editor */}
+            <div style={{ flex: 1, minHeight: 0 }}>
+              <CodeEditor
+                value={markdownText}
+                onChange={(val) => setMarkdownText(val)}
+                language="markdown"
+                height="100%"
+                onMount={handleEditorDidMount}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Separador de 8px (Splitter redimensionable estilo VS Code / ExerciseView) */}
+        {markdownPreview && !isSmallScreen && (
+          <div
+            onMouseDown={() => setIsDraggingSplitter(true)}
+            onTouchStart={() => setIsDraggingSplitter(true)}
+            style={{
+              width: '8px',
+              cursor: 'col-resize',
+              flexShrink: 0,
+              userSelect: 'none',
+              background: isDraggingSplitter ? '#3b82f6' : 'transparent',
+              borderRadius: '4px',
+              transition: 'background-color 0.15s ease',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title="Arrastra para redimensionar paneles"
+          >
+            <div
+              style={{
+                width: '3px',
+                height: '36px',
+                borderRadius: '2px',
+                backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
+              }}
+            />
+          </div>
+        )}
+
+        {/* Panel Derecho: Vista Previa con estilo idéntico al Alumno */}
+        {markdownPreview && (
           <div
             style={{
-              width: isSmallScreen || !markdownPreview ? '100%' : `calc(${splitRatio}% - 4px)`,
+              width: isSmallScreen ? '100%' : `calc(${100 - splitRatio}% - 4px)`,
               minWidth: isSmallScreen ? undefined : '280px',
-              maxWidth: isSmallScreen || !markdownPreview ? undefined : '80%',
+              maxWidth: isSmallScreen ? undefined : '80%',
               display: 'flex',
               flexDirection: 'column',
               boxSizing: 'border-box',
@@ -1525,1542 +1238,255 @@ export const TeacherExercisesView: React.FC = () => {
               className="card"
               style={{
                 padding: 0,
+                height: isSmallScreen ? 'auto' : '100%',
+                minHeight: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                height: isSmallScreen ? '560px' : '100%',
-                minHeight: 0,
                 overflow: 'hidden',
               }}
             >
-              {/* Cabecera del Panel Editor */}
+              {/* Cabecera del Panel Vista Previa */}
               <div
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '0.35rem 0.5rem',
+                  justifyContent: 'space-between',
+                  padding: '0.35rem 0.75rem',
                   backgroundColor: '#f8fafc',
                   borderBottom: '1px solid #e2e8f0',
                   flexShrink: 0,
                   minHeight: '40px',
                   boxSizing: 'border-box',
-                  gap: '0.375rem',
-                  flexWrap: 'wrap'
                 }}
               >
-                {/* Izquierda: Volver, Anterior, Siguiente, Selector Form/Markdown, Versión corta, Colección */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleBack}
-                    className="btn-secondary"
-                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    title={collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
-                  >
-                    <ArrowLeft size={16} />
-                  </button>
-
-                  {navigationExercises.length > 1 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleNavigateExercise('prev')}
-                        disabled={!hasPrevExercise}
-                        className="btn-secondary"
-                        style={{
-                          padding: '0.3rem 0.5rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: !hasPrevExercise ? 0.35 : 1,
-                          cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
-                        }}
-                        title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
-                      >
-                        <ChevronLeft size={16} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleNavigateExercise('next')}
-                        disabled={!hasNextExercise}
-                        className="btn-secondary"
-                        style={{
-                          padding: '0.3rem 0.5rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          opacity: !hasNextExercise ? 0.35 : 1,
-                          cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
-                        }}
-                        title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
-                      >
-                        <ChevronRight size={16} />
-                      </button>
-                    </>
-                  )}
-
-                  {/* Selector Formulario / Markdown */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
-                    <button
-                      type="button"
-                      onClick={handleSwitchToForm}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        border: 'none',
-                        cursor: 'pointer',
-                        backgroundColor: 'transparent',
-                        color: '#64748b',
-                        boxShadow: 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title="Cambiar a formulario estructurado"
-                    >
-                      <Layers size={13} /> Formulario
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSwitchToMarkdown}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        backgroundColor: '#ffffff',
-                        color: '#0f172a',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                        transition: 'all 0.15s ease'
-                      }}
-                      title="Diseñar ejercicio en bloque Markdown único"
-                    >
-                      <Sparkles size={13} color="#6366f1" /> Markdown
-                    </button>
-                  </div>
-
-                  {selectedId && (
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        padding: '0.15rem 0.4rem',
-                        fontWeight: 600,
-                        backgroundColor: '#e2e8f0',
-                        color: '#475569',
-                        borderRadius: '0.25rem'
-                      }}
-                      title={`Versión actual: v${versionNumber}`}
-                    >
-                      v{versionNumber}
-                    </span>
-                  )}
-
-                  {activeCollection && (
-                    <span
-                      className="badge badge-info"
-                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem' }}
-                      title={`Colección: ${activeCollection.title}`}
-                    >
-                      📚 {activeCollection.title}
-                    </span>
-                  )}
-                </div>
-
-                {/* Derecha: Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleLoadMarkdownExample}
-                    className="btn-secondary"
-                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Cargar plantilla de ejemplo para ver la sintaxis"
-                  >
-                    <FileText size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => markdownFileInputRef.current?.click()}
-                    className="btn-secondary"
-                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Cargar archivo .md desde tu ordenador"
-                  >
-                    <Upload size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportMarkdownFile}
-                    className="btn-secondary"
-                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Descargar este ejercicio como archivo .md"
-                  >
-                    <Download size={16} />
-                  </button>
-                  {selectedId && (
-                    <a
-                      href={api.teacherExportExerciseZipUrl(selectedId)}
-                      download
-                      className="btn-secondary"
-                      style={{
-                        padding: '0.3rem 0.5rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textDecoration: 'none'
-                      }}
-                      title="Exportar ejercicio completo (paquete ZIP)"
-                    >
-                      <Archive size={16} />
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setMarkdownPreview(!markdownPreview)}
-                    className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
-                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                    title={markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
-                  >
-                    <Columns size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="btn-primary"
-                    style={{
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: saving ? 0.6 : 1,
-                      cursor: saving ? 'not-allowed' : 'pointer'
-                    }}
-                    title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
-                  >
-                    <Save size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Monaco Editor */}
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <CodeEditor
-                  value={markdownText}
-                  onChange={(val) => setMarkdownText(val)}
-                  language="markdown"
-                  height="100%"
-                />
-              </div>
-            </div>
-          </div>
-
-            {/* Separador de 8px (Splitter redimensionable estilo VS Code / ExerciseView) */}
-            {markdownPreview && !isSmallScreen && (
-              <div
-                onMouseDown={() => setIsDraggingSplitter(true)}
-                onTouchStart={() => setIsDraggingSplitter(true)}
-                style={{
-                  width: '8px',
-                  cursor: 'col-resize',
-                  flexShrink: 0,
-                  userSelect: 'none',
-                  background: isDraggingSplitter ? '#3b82f6' : 'transparent',
-                  borderRadius: '4px',
-                  transition: 'background-color 0.15s ease',
-                  zIndex: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Arrastra para redimensionar paneles"
-              >
-                <div
-                  style={{
-                    width: '3px',
-                    height: '36px',
-                    borderRadius: '2px',
-                    backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Panel Derecho: Vista Previa con Cabecera */}
-            {markdownPreview && (
-              <div
-                style={{
-                  width: isSmallScreen ? '100%' : `calc(${100 - splitRatio}% - 4px)`,
-                  minWidth: isSmallScreen ? undefined : '280px',
-                  maxWidth: isSmallScreen ? undefined : '80%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  boxSizing: 'border-box',
-                  height: isSmallScreen ? 'auto' : '100%',
-                  overflow: isSmallScreen ? 'visible' : 'hidden',
-                }}
-              >
-                <div
-                  className="card"
-                  style={{
-                    padding: 0,
-                    height: isSmallScreen ? 'auto' : '100%',
-                    minHeight: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Cabecera del Panel Vista Previa */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '0.35rem 0.5rem',
-                      backgroundColor: '#f8fafc',
-                      borderBottom: '1px solid #e2e8f0',
-                      flexShrink: 0,
-                      minHeight: '40px',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Eye size={17} color="#059669" />
-                      <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-                        Vista Previa
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Contenido scrolleable de la vista previa */}
-                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1rem' }}>
-                    {/* Warnings / Errors si los hay */}
-                    {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
-                      <div style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
-                        <strong>Atención:</strong>
-                        <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                          {liveParsedMarkdown.errors.map((err, idx) => (
-                            <li key={idx}>{err}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {liveParsedMarkdown?.warnings && liveParsedMarkdown.warnings.length > 0 && (
-                      <div style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
-                        <strong>Aviso:</strong>
-                        <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                          {liveParsedMarkdown.warnings.map((w, idx) => (
-                            <li key={idx}>{w}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                {/* Statement Section */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
-                      Enunciado
-                    </h4>
-                    {liveParsedMarkdown?.exercise.statement ? (
-                      <div
-                        className="markdown-body"
-                        style={{
-                          fontSize: '0.875rem',
-                          backgroundColor: '#f8fafc',
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.375rem',
-                          border: '1px solid #e2e8f0'
-                        }}
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(liveParsedMarkdown.exercise.statement) }}
-                      />
-                    ) : (
-                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
-                        Sin enunciado redactado.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Templates Section */}
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
-                      Plantillas ({Object.keys(liveParsedMarkdown?.exercise.templates || {}).length})
-                    </h4>
-                    {Object.keys(liveParsedMarkdown?.exercise.templates || {}).length === 0 ? (
-                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
-                        No se han definido plantillas (sección opcional).
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {Object.entries(liveParsedMarkdown?.exercise.templates || {}).map(([lang, code]) => (
-                          <div key={lang} style={{ border: '1px solid #e2e8f0', borderRadius: '0.375rem', overflow: 'hidden' }}>
-                            <div style={{ backgroundColor: '#f1f5f9', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>
-                              {lang.toUpperCase()}
-                            </div>
-                            <pre style={{ margin: 0, padding: '0.5rem', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.75rem', overflowX: 'auto', maxHeight: '120px' }}>
-                              <code>{code}</code>
-                            </pre>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Test Cases Section */}
-                  <div>
-                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
-                      Casos de Prueba ({liveParsedMarkdown?.exercise.testCases.length || 0})
-                    </h4>
-                    {(!liveParsedMarkdown?.exercise.testCases || liveParsedMarkdown.exercise.testCases.length === 0) ? (
-                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
-                        No se han detectado casos de prueba en la sección ## Tests.
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {liveParsedMarkdown.exercise.testCases.map((tc, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '0.375rem',
-                              padding: '0.5rem 0.75rem',
-                              backgroundColor: '#ffffff'
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
-                              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>
-                                #{idx + 1}
-                              </span>
-                              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
-                                <span
-                                  className={tc.isPublic ? 'badge badge-success' : 'badge badge-warning'}
-                                  style={{ fontSize: '0.7rem' }}
-                                >
-                                  {tc.isPublic ? 'Público' : 'Privado'}
-                                </span>
-                                <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
-                                  Peso: {tc.weight || 1}
-                                </span>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem' }}>
-                              <div>
-                                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Entrada:</span>
-                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '90px', overflowY: 'auto' }}>
-                                  {tc.input || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
-                                </pre>
-                              </div>
-                              <div>
-                                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Salida esperada:</span>
-                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '90px', overflowY: 'auto' }}>
-                                  {tc.expectedOutput || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
-                                </pre>
-                              </div>
-                            </div>
-                            {tc.explanation && (
-                              <div style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
-                                Explicación: {tc.explanation}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }}>
-          {/* Header Bar for Form Mode */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0.35rem 0.5rem',
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '0.5rem',
-              marginBottom: '0.5rem',
-              flexShrink: 0,
-              minHeight: '40px',
-              boxSizing: 'border-box',
-              gap: '0.375rem',
-              flexWrap: 'wrap'
-            }}
-          >
-            {/* Izquierda: Volver, Anterior, Siguiente, Selector Form/Markdown, Versión corta, Colección */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleBack}
-                className="btn-secondary"
-                style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                title={collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
-              >
-                <ArrowLeft size={16} />
-              </button>
-
-              {navigationExercises.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateExercise('prev')}
-                    disabled={!hasPrevExercise}
-                    className="btn-secondary"
-                    style={{
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: !hasPrevExercise ? 0.35 : 1,
-                      cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
-                    }}
-                    title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateExercise('next')}
-                    disabled={!hasNextExercise}
-                    className="btn-secondary"
-                    style={{
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: !hasNextExercise ? 0.35 : 1,
-                      cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
-                    }}
-                    title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </>
-              )}
-
-              {/* Selector Formulario / Markdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
-                <button
-                  type="button"
-                  onClick={handleSwitchToForm}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '0.25rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: '#ffffff',
-                    color: '#0f172a',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Cambiar a formulario estructurado"
-                >
-                  <Layers size={13} /> Formulario
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSwitchToMarkdown}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '0.25rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: 'transparent',
-                    color: '#64748b',
-                    boxShadow: 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title="Diseñar ejercicio en bloque Markdown único"
-                >
-                  <Sparkles size={13} color="#64748b" /> Markdown
-                </button>
-              </div>
-
-              {selectedId && (
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    padding: '0.15rem 0.4rem',
-                    fontWeight: 600,
-                    backgroundColor: '#e2e8f0',
-                    color: '#475569',
-                    borderRadius: '0.25rem'
-                  }}
-                  title={`Versión actual: v${versionNumber}`}
-                >
-                  v{versionNumber}
-                </span>
-              )}
-
-              {activeCollection && (
-                <span
-                  className="badge badge-info"
-                  style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem' }}
-                  title={`Colección: ${activeCollection.title}`}
-                >
-                  📚 {activeCollection.title}
-                </span>
-              )}
-            </div>
-
-            {/* Derecha: Descargar .md, Exportar ZIP, Guardar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleExportMarkdownFile}
-                className="btn-secondary"
-                style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                title="Descargar este ejercicio como archivo .md"
-              >
-                <Download size={16} />
-              </button>
-
-              {selectedId && (
-                <a
-                  href={api.teacherExportExerciseZipUrl(selectedId)}
-                  download
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.3rem 0.5rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textDecoration: 'none'
-                  }}
-                  title="Exportar ejercicio completo (paquete ZIP)"
-                >
-                  <Archive size={16} />
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-primary"
-                style={{
-                  padding: '0.3rem 0.5rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: saving ? 0.6 : 1,
-                  cursor: saving ? 'not-allowed' : 'pointer'
-                }}
-                title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
-              >
-                <Save size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Contenido desplazable del formulario */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
-
-          {/* SECTION 1: METADATA & PARAMETERS */}
-          <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Layers size={18} color="#2563eb" /> Parámetros del Ejercicio
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Título del Ejercicio *
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Ej: Suma de dos números"
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Identificador (Slug) *
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="Ej: suma-dos-numeros"
-              style={{ fontFamily: 'monospace' }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 2: ENUNCIADO (STATEMENT) CON MARKDOWN, TOOLBAR E IMÁGENES */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Edit3 size={18} color="#2563eb" /> Enunciado del Ejercicio (Markdown)
-          </h2>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ display: 'flex', border: '1px solid #e2e8f0', borderRadius: '0.375rem', overflow: 'hidden' }}>
-              <button
-                type="button"
-                onClick={() => setStatementView('edit')}
-                style={{
-                  padding: '0.375rem 0.625rem',
-                  border: 'none',
-                  backgroundColor: statementView === 'edit' ? '#2563eb' : '#ffffff',
-                  color: statementView === 'edit' ? '#ffffff' : '#475569',
-                  cursor: 'pointer',
-                  fontSize: '0.8125rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <Edit3 size={14} /> Solo Editor
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatementView('split')}
-                style={{
-                  padding: '0.375rem 0.625rem',
-                  border: 'none',
-                  borderLeft: '1px solid #e2e8f0',
-                  borderRight: '1px solid #e2e8f0',
-                  backgroundColor: statementView === 'split' ? '#2563eb' : '#ffffff',
-                  color: statementView === 'split' ? '#ffffff' : '#475569',
-                  cursor: 'pointer',
-                  fontSize: '0.8125rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <Columns size={14} /> Dividido
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatementView('preview')}
-                style={{
-                  padding: '0.375rem 0.625rem',
-                  border: 'none',
-                  backgroundColor: statementView === 'preview' ? '#2563eb' : '#ffffff',
-                  color: statementView === 'preview' ? '#ffffff' : '#475569',
-                  cursor: 'pointer',
-                  fontSize: '0.8125rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <Eye size={14} /> Vista Previa
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem 0.375rem 0 0', borderBottom: 'none' }}>
-          {/* Clipboard actions (upper-left of textarea) */}
-          {renderClipboardButtons(() => statement, setStatement)}
-
-          <div style={{ height: 18, width: 1, backgroundColor: '#cbd5e1', margin: '0 0.25rem' }} />
-
-          <button type="button" onClick={() => insertFormatting('**', '**')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>
-            B
-          </button>
-          <button type="button" onClick={() => insertFormatting('*', '*')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontStyle: 'italic' }}>
-            I
-          </button>
-          <button type="button" onClick={() => insertFormatting('# ')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            H1
-          </button>
-          <button type="button" onClick={() => insertFormatting('## ')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            H2
-          </button>
-          <button type="button" onClick={() => insertFormatting('`', '`')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-            Código
-          </button>
-          <button type="button" onClick={() => insertFormatting('\n```java\n', '\n```\n')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            Bloque Java
-          </button>
-          <button type="button" onClick={() => insertFormatting('- ')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            Lista
-          </button>
-          <button type="button" onClick={() => insertFormatting('\n| Columna 1 | Columna 2 |\n|---|---|\n| Valor 1 | Valor 2 |\n')} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-            Tabla
-          </button>
-
-          <div style={{ height: 18, width: 1, backgroundColor: '#cbd5e1', margin: '0 0.25rem' }} />
-
-          {/* Hidden File Input for Image Upload */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            style={{ display: 'none' }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingAsset}
-            className="btn-secondary"
-            style={{ padding: '0.25rem 0.625rem', fontSize: '0.75rem', color: '#2563eb', fontWeight: 600 }}
-          >
-            <ImageIcon size={14} /> {uploadingAsset ? 'Subiendo imagen...' : 'Subir e Insertar Imagen'}
-          </button>
-        </div>
-
-        {/* Editor Area (Edit, Split, or Preview) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: statementView === 'split' ? '1fr 1fr' : '1fr',
-          gap: statementView === 'split' ? '1rem' : 0,
-          alignItems: 'start'
-        }}>
-          {/* Edit Area */}
-          {(statementView === 'edit' || statementView === 'split') && (
-            <div>
-              <textarea
-                ref={textareaRef}
-                className="input-field"
-                value={statement}
-                onChange={(e) => setStatement(e.target.value)}
-                onPaste={handleStatementPaste}
-                onDragOver={handleStatementDragOver}
-                onDragLeave={handleStatementDragLeave}
-                onDrop={handleStatementDrop}
-                rows={23}
-                style={{
-                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                  fontSize: '0.875rem',
-                  lineHeight: 1.5,
-                  borderRadius: statementView === 'split' ? '0 0 0 0.375rem' : '0 0 0.375rem 0.375rem',
-                  borderTop: 'none',
-                  border: statementDragOver ? '2px dashed #2563eb' : undefined,
-                  backgroundColor: statementDragOver ? '#eff6ff' : undefined,
-                  resize: 'vertical',
-                  minHeight: '475px',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  transition: 'background-color 0.2s, border-color 0.2s'
-                }}
-                placeholder="Escribe el enunciado en Markdown aquí... (Puedes pegar o arrastrar imágenes directamente)"
-              />
-              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <ImageIcon size={12} color="#2563eb" /> Puedes pegar imágenes desde el portapapeles (<kbd style={{ padding: '0.1rem 0.25rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Ctrl+V</kbd>) o arrastrarlas desde el explorador de archivos.
-              </div>
-            </div>
-          )}
-
-          {/* Preview Area */}
-          {(statementView === 'preview' || statementView === 'split') && (
-            <div
-              className="markdown-statement"
-              style={{
-                border: '1px solid #e2e8f0',
-                borderRadius: statementView === 'split' ? '0 0 0.375rem 0' : '0 0 0.375rem 0.375rem',
-                padding: '1rem 1.25rem',
-                backgroundColor: '#ffffff',
-                overflowY: 'auto',
-                height: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : undefined,
-                minHeight: '475px',
-                maxHeight: statementView === 'split' && textareaHeight ? `${textareaHeight}px` : (statementView === 'preview' ? '875px' : undefined),
-                borderTop: statementView === 'split' ? '1px solid #e2e8f0' : 'none',
-                boxSizing: 'border-box'
-              }}
-              dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
-            />
-          )}
-        </div>
-
-        {/* Assets list drawer */}
-        {assets.length > 0 && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem' }}>
-              Imágenes vinculadas a este ejercicio ({assets.length}):
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {assets.map((asset) => (
-                <div
-                  key={asset.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    backgroundColor: '#f1f5f9',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    padding: '0.25rem 0.5rem',
-                    fontSize: '0.75rem'
-                  }}
-                >
-                  <ImageIcon size={12} color="#64748b" />
-                  <span style={{ fontFamily: 'monospace' }}>{asset.filename}</span>
-                  <span style={{ color: '#94a3b8' }}>({(asset.sizeBytes / 1024).toFixed(1)} KB)</span>
-                  <button
-                    type="button"
-                    onClick={() => insertFormatting(`![${asset.filename}](${asset.filename})`)}
-                    style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}
-                    title="Insertar en el texto"
-                  >
-                    Insertar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAsset(asset.filename)}
-                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 0 }}
-                    title="Eliminar imagen"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 3: ETIQUETAS (TAGS) */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Tag size={18} color="#2563eb" /> Etiquetas del Ejercicio {tags.length > 0 && `(${tags.length})`}
-            </h2>
-            <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: '0.25rem 0 0 0' }}>
-              Organiza y clasifica este ejercicio para facilitar su búsqueda, filtrado y organización.
-            </p>
-          </div>
-
-          {tags.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAllTags}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: '#dc2626' }}
-              title="Quitar todas las etiquetas asignadas"
-            >
-              <Trash2 size={13} /> Limpiar todas
-            </button>
-          )}
-        </div>
-
-        {/* Active Tags Chips Area */}
-        <div style={{
-          minHeight: '44px',
-          padding: '0.5rem 0.75rem',
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '0.375rem',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginBottom: '0.75rem'
-        }}>
-          {tags.length === 0 ? (
-            <span style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic' }}>
-              Sin etiquetas asignadas. Escribe etiquetas abajo o selecciona de las sugerencias.
-            </span>
-          ) : (
-            tags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.25rem 0.6rem',
-                  backgroundColor: '#dbeafe',
-                  color: '#1e40af',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: '9999px',
-                  fontSize: '0.8125rem',
-                  fontWeight: 500,
-                }}
-              >
-                <span>#{tag}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveTag(tag)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '0 0.1rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    color: '#1e40af',
-                    opacity: 0.75,
-                    borderRadius: '50%'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.75')}
-                  title={`Eliminar etiqueta "${tag}"`}
-                >
-                  <X size={14} />
-                </button>
-              </span>
-            ))
-          )}
-        </div>
-
-        {/* Tag Input Field with Datalist & Quick Add Button */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <input
-              type="text"
-              list="system-tags-datalist"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={handleTagInputKeyDown}
-              onBlur={() => {
-                if (tagInput.trim()) {
-                  addTagsFromText(tagInput);
-                }
-              }}
-              placeholder="Escribe una o varias etiquetas (separadas por coma) y pulsa Enter..."
-              className="input-field"
-              style={{ fontSize: '0.875rem' }}
-            />
-            <datalist id="system-tags-datalist">
-              {systemTags.map((st) => (
-                <option key={st} value={st} />
-              ))}
-            </datalist>
-          </div>
-          <button
-            type="button"
-            onClick={() => addTagsFromText(tagInput)}
-            disabled={!tagInput.trim()}
-            className="btn-secondary"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.8125rem', fontWeight: 600 }}
-          >
-            <Plus size={15} /> Añadir
-          </button>
-        </div>
-        <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
-          💡 Puedes escribir varias etiquetas separadas por comas (ej: <code>bucles, matrices, strings</code>). Pulsa <kbd style={{ padding: '0.1rem 0.3rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Enter</kbd> para añadir o <kbd style={{ padding: '0.1rem 0.3rem', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px' }}>Retroceso</kbd> con el campo vacío para borrar la última.
-        </div>
-
-        {/* Existing System Tags Quick Selection */}
-        {unassignedSystemTags.length > 0 && (
-          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.35rem' }}>
-              Etiquetas existentes en el sistema (haz clic para añadir):
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-              {unassignedSystemTags.map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => addTag(st)}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    fontSize: '0.75rem',
-                    backgroundColor: '#ffffff',
-                    borderColor: '#cbd5e1',
-                    borderRadius: '9999px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
-                  }}
-                  title={`Añadir etiqueta "${st}"`}
-                >
-                  <Plus size={12} color="#2563eb" /> {st}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Common Presets (if unassigned) */}
-        {unassignedPresets.length > 0 && (
-          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: unassignedSystemTags.length > 0 ? 'none' : '1px dashed #e2e8f0' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.35rem' }}>
-              Sugerencias temáticas:
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-              {unassignedPresets.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => addTag(preset)}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.15rem 0.45rem',
-                    fontSize: '0.75rem',
-                    backgroundColor: '#f8fafc',
-                    borderColor: '#e2e8f0',
-                    color: '#64748b',
-                    borderRadius: '9999px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
-                  }}
-                  title={`Añadir sugerencia "${preset}"`}
-                >
-                  + {preset}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 4: CASOS DE PRUEBA (TEST CASES) */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <CheckCircle size={18} color="#2563eb" /> Casos de Prueba ({testCases.length})
-            </h2>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-              {testCases.filter((t) => t.isPublic).length} públicos • {testCases.filter((t) => !t.isPublic).length} privados
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAddTestCase}
-            className="btn-primary"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-          >
-            <Plus size={16} /> Añadir Caso de Prueba
-          </button>
-        </div>
-
-        {testCases.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '0.5rem', color: '#64748b' }}>
-            No hay casos de prueba definidos. Pulsa en "+ Añadir Caso de Prueba" para crear el primero.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {testCases.map((tc, index) => (
-              <div
-                key={tc.id || index}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
-                style={{
-                  border: dragOverTestCaseIndex === index
-                    ? '2px dashed #2563eb'
-                    : `1px solid ${tc.isPublic ? '#bae6fd' : '#e2e8f0'}`,
-                  backgroundColor: dragOverTestCaseIndex === index
-                    ? '#eff6ff'
-                    : (tc.isPublic ? '#f0f9ff' : '#ffffff'),
-                  borderRadius: '0.5rem',
-                  padding: '1rem',
-                  opacity: draggedTestCaseIndex === index ? 0.4 : 1,
-                  transition: 'background-color 0.15s ease, border-color 0.15s ease'
-                }}
-              >
-                {/* Header of Test Case */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    {/* Move Drag Handle */}
-                    <div
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragEnd={handleDragEnd}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.5rem',
-                        backgroundColor: '#f1f5f9',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '0.375rem',
-                        cursor: 'grab',
-                        fontSize: '0.8125rem',
-                        fontWeight: 600,
-                        color: '#475569',
-                        userSelect: 'none'
-                      }}
-                      title="Arrastrar para mover este caso de prueba"
-                    >
-                      <GripVertical size={15} />
-                      <span>Mover</span>
-                    </div>
-
-                    <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#1e293b' }}>
-                      Test #{index + 1}
-                    </span>
-
-                    {/* Public / Private Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateTestCase(index, { isPublic: !tc.isPublic })}
-                      className={`badge ${tc.isPublic ? 'badge-info' : 'badge-neutral'}`}
-                      style={{ cursor: 'pointer', border: 'none' }}
-                      title="Clic para alternar entre Público y Privado"
-                    >
-                      {tc.isPublic ? '🌐 Público (Visible)' : '🔒 Privado (Oculto)'}
-                    </button>
-
-                    {/* Weight Input */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8125rem' }}>
-                      <span style={{ color: '#64748b', fontWeight: 500 }}>Peso:</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={tc.weight}
-                        onChange={(e) => handleUpdateTestCase(index, { weight: Number(e.target.value) || 0 })}
-                        className="input-field"
-                        style={{ width: '60px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem' }}
-                      />
-                    </div>
-
-                    {/* Target Position Input */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8125rem' }}>
-                      <span style={{ color: '#64748b', fontWeight: 500 }}>Posición:</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={testCases.length}
-                        value={index + 1}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val)) {
-                            handleMoveTestCaseToPosition(index, val);
-                          }
-                        }}
-                        className="input-field"
-                        style={{ width: '55px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem', textAlign: 'center' }}
-                        title={`Cambiar de posición (1 a ${testCases.length})`}
-                      />
-                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>/ {testCases.length}</span>
-                    </div>
-                  </div>
-
-                  {/* Actions: Move Up / Down / Delete */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveTestCase(index, 'up')}
-                      disabled={index === 0}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.4rem', opacity: index === 0 ? 0.3 : 1 }}
-                      title="Subir posición"
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveTestCase(index, 'down')}
-                      disabled={index === testCases.length - 1}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.4rem', opacity: index === testCases.length - 1 ? 0.3 : 1 }}
-                      title="Bajar posición"
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTestCase(index)}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.5rem', color: '#dc2626' }}
-                      title="Eliminar este caso de prueba"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Body: Input, Expected Output, Explanation (vertical stack, 100% width each) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                  <div style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                        Entrada (Input / stdin)
-                      </label>
-                      {renderClipboardButtons(() => tc.input || '', (val) => handleUpdateTestCase(index, { input: val }))}
-                    </div>
-                    <textarea
-                      className="input-field"
-                      rows={getAdaptiveRows(tc.input, 3, 12)}
-                      value={tc.input || ''}
-                      onChange={(e) => handleUpdateTestCase(index, { input: e.target.value })}
-                      placeholder="Ej: 5 10"
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                        fontSize: '0.8125rem',
-                        resize: 'vertical',
-                        lineHeight: 1.4
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                        Salida Esperada (Expected stdout)
-                      </label>
-                      {renderClipboardButtons(() => tc.expectedOutput || '', (val) => handleUpdateTestCase(index, { expectedOutput: val }))}
-                    </div>
-                    <textarea
-                      className="input-field"
-                      rows={getAdaptiveRows(tc.expectedOutput, 3, 12)}
-                      value={tc.expectedOutput || ''}
-                      onChange={(e) => handleUpdateTestCase(index, { expectedOutput: e.target.value })}
-                      placeholder="Ej: 15"
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                        fontSize: '0.8125rem',
-                        resize: 'vertical',
-                        lineHeight: 1.4
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ width: '100%' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                        Explicación (Opcional)
-                      </label>
-                      {renderClipboardButtons(() => tc.explanation || '', (val) => handleUpdateTestCase(index, { explanation: val }))}
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 'auto' }}>
-                        📸 Soporta imágenes (Ctrl+V o arrastrar)
-                      </span>
-                    </div>
-                    <textarea
-                      className="input-field"
-                      rows={getAdaptiveRows(tc.explanation, 2, 8)}
-                      value={tc.explanation || ''}
-                      onChange={(e) => handleUpdateTestCase(index, { explanation: e.target.value })}
-                      onPaste={(e) => handleExplanationPaste(e, index)}
-                      onDragOver={(e) => handleExplanationDragOver(e, index)}
-                      onDragLeave={() => handleExplanationDragLeave(index)}
-                      onDrop={(e) => handleExplanationDrop(e, index)}
-                      placeholder="Explicación mostrada al estudiante sobre este caso... (Puedes pegar o arrastrar imágenes aquí)"
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        fontSize: '0.8125rem',
-                        resize: 'vertical',
-                        lineHeight: 1.4,
-                        border: explanationDragOverIndex === index ? '2px dashed #2563eb' : undefined,
-                        backgroundColor: explanationDragOverIndex === index ? '#eff6ff' : undefined,
-                        transition: 'background-color 0.2s, border-color 0.2s'
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* Bottom Add Test Case Button */}
-            {testCases.length > 0 && (
-              <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
-                <button
-                  type="button"
-                  onClick={handleAddTestCase}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.625rem 1.25rem',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    width: '100%',
-                    justifyContent: 'center',
-                    border: '1px dashed #2563eb',
-                    backgroundColor: '#eff6ff',
-                    color: '#2563eb',
-                    borderRadius: '0.5rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Plus size={16} /> Añadir Caso de Prueba
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 5: CÓDIGO INICIAL PARA EL ALUMNO (STARTER CODE) */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <FileCode size={18} color="#2563eb" /> Código Inicial para el Alumno (Starter Code)
-            </h2>
-            <p style={{ color: '#64748b', fontSize: '0.8125rem', margin: 0 }}>
-              Configura el código base según el lenguaje. Las plantillas con código definido aparecerán primero.
-            </p>
-          </div>
-        </div>
-
-        {/* Language Tabs */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          flexWrap: 'wrap',
-          paddingBottom: '0.75rem',
-          borderBottom: '1px solid #e2e8f0',
-          marginBottom: '0.75rem'
-        }}>
-          {orderedTemplateLangs.map((lang) => {
-            const isDefined = Boolean(templates[lang.id]?.trim());
-            const isActive = activeTemplateLang === lang.id;
-            return (
-              <button
-                key={lang.id}
-                type="button"
-                onClick={() => setActiveTemplateLang(lang.id)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.45rem 0.85rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem',
-                  fontWeight: isActive ? 600 : 500,
-                  cursor: 'pointer',
-                  border: isActive ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                  backgroundColor: isActive ? '#eff6ff' : '#ffffff',
-                  color: isActive ? '#1d4ed8' : '#475569',
-                  boxShadow: isActive ? '0 1px 2px rgba(37,99,235,0.1)' : 'none',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <span>{lang.icon}</span>
-                <span>{lang.label}</span>
-                {isDefined && (
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      lineHeight: 1
-                    }}
-                    title="Plantilla definida"
-                  >
-                    ✓
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Eye size={17} color="#059669" />
+                  <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
+                    Vista Previa
                   </span>
+                </div>
+
+                {assets.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAssetsDrawer(!showAssetsDrawer)}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.75rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      borderRadius: '0.375rem'
+                    }}
+                    title="Ver y gestionar imágenes vinculadas al ejercicio"
+                  >
+                    <ImageIcon size={13} color="#2563eb" />
+                    <span>{assets.length} {assets.length === 1 ? 'imagen' : 'imágenes'}</span>
+                  </button>
                 )}
-              </button>
-            );
-          })}
-        </div>
+              </div>
 
-        {/* Toolbar & Status Bar */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.5rem',
-          marginBottom: '0.5rem'
-        }}>
-          <div style={{ fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            {Boolean(templates[activeTemplateLang]?.trim()) ? (
-              <span style={{ color: '#16a34a', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                <Check size={14} /> Plantilla activa para {orderedTemplateLangs.find((l) => l.id === activeTemplateLang)?.label || activeTemplateLang}
-              </span>
-            ) : (
-              <span style={{ color: '#94a3b8' }}>
-                Sin plantilla para {orderedTemplateLangs.find((l) => l.id === activeTemplateLang)?.label || activeTemplateLang} (se guardará vacía)
-              </span>
-            )}
+              {/* Drawer de imágenes adjuntas si está abierto */}
+              {showAssetsDrawer && assets.length > 0 && (
+                <div
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: '#eff6ff',
+                    borderBottom: '1px solid #bfdbfe',
+                    fontSize: '0.75rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#1e40af' }}>Imágenes vinculadas:</span>
+                  {assets.map((asset) => (
+                    <div
+                      key={asset.id}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '0.25rem',
+                        padding: '0.15rem 0.4rem',
+                      }}
+                    >
+                      <span style={{ fontFamily: 'monospace', color: '#0f172a' }}>{asset.filename}</span>
+                      <span style={{ color: '#94a3b8' }}>({(asset.sizeBytes / 1024).toFixed(1)} KB)</span>
+                      <button
+                        type="button"
+                        onClick={() => insertMarkdownAtCursor(`\n![${asset.filename}](${asset.filename})\n`)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: '0 2px', fontWeight: 500 }}
+                        title="Insertar etiqueta Markdown en el cursor"
+                      >
+                        Insertar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAsset(asset.filename)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '0 2px' }}
+                        title="Eliminar imagen del servidor"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Contenido scrolleable de la vista previa: EXACTAMENTE COMO LO VE UN ALUMNO */}
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.25rem' }}>
+                {/* Warnings / Errors si los hay */}
+                {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
+                  <div style={{ marginBottom: '1.25rem', padding: '0.5rem 0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
+                    <strong>Atención:</strong>
+                    <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                      {liveParsedMarkdown.errors.map((err, idx) => (
+                        <li key={idx}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {liveParsedMarkdown?.warnings && liveParsedMarkdown.warnings.length > 0 && (
+                  <div style={{ marginBottom: '1.25rem', padding: '0.5rem 0.75rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
+                    <strong>Aviso:</strong>
+                    <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                      {liveParsedMarkdown.warnings.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Etiquetas (tags) si están presentes */}
+                {liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1rem' }}>
+                    {liveParsedMarkdown.exercise.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="badge badge-secondary"
+                        style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: '#f1f5f9',
+                          color: '#475569',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '0.25rem',
+                          padding: '0.2rem 0.5rem',
+                          fontWeight: 500
+                        }}
+                      >
+                        🏷️ {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Enunciado del Ejercicio (sin rótulo ENUNCIADO, exactamente como el alumno) */}
+                {liveParsedMarkdown?.exercise.statement ? (
+                  <div
+                    className="markdown-statement"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(liveParsedMarkdown.exercise.statement, selectedId) }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '0.875rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                    Sin enunciado redactado. Escribe un título (# Título) y la descripción del problema en el editor.
+                  </div>
+                )}
+
+                {/* Casos de prueba (sin rótulo CASOS DE PRUEBA, exactamente como el alumno) */}
+                {liveParsedMarkdown?.exercise.testCases && liveParsedMarkdown.exercise.testCases.length > 0 && (
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 1rem', color: '#0f172a' }}>
+                      Casos de prueba
+                    </h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {liveParsedMarkdown.exercise.testCases.map((tc, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none',
+                            paddingTop: idx > 0 ? '1.25rem' : 0
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d' }}>
+                              Test {idx + 1}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                              <span
+                                className={tc.isPublic ? 'badge badge-success' : 'badge badge-warning'}
+                                style={{ fontSize: '0.7rem' }}
+                              >
+                                {tc.isPublic ? 'Público' : 'Privado'}
+                              </span>
+                              {tc.weight !== undefined && tc.weight !== 1 && (
+                                <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                  Peso: {tc.weight}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
+                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>
+                                {tc.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}
+                              </pre>
+                            </div>
+                            <div>
+                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
+                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>
+                                {tc.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}
+                              </pre>
+                            </div>
+                          </div>
+                          {tc.explanation && (
+                            <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
+                              <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                              <div
+                                className="markdown-statement"
+                                style={{ marginTop: '0.25rem' }}
+                                dangerouslySetInnerHTML={{ __html: renderMarkdown(tc.explanation, selectedId) }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Plantillas de código inicial: debajo al final */}
+                {liveParsedMarkdown?.exercise.templates && Object.keys(liveParsedMarkdown.exercise.templates).length > 0 && (
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 1rem', color: '#0f172a' }}>
+                      Plantillas de código inicial
+                    </h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {Object.entries(liveParsedMarkdown.exercise.templates).map(([lang, code]) => (
+                        <div key={lang} style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden' }}>
+                          <div style={{ backgroundColor: '#f8fafc', padding: '0.375rem 0.75rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
+                              {lang.toLowerCase() === 'python' ? '🐍 Python' : lang.toLowerCase() === 'java' ? '☕ Java' : lang}
+                            </span>
+                          </div>
+                          <pre style={{ margin: 0, padding: '0.75rem 1rem', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.8125rem', fontFamily: 'Consolas, Monaco, monospace', overflowX: 'auto', lineHeight: 1.5 }}>
+                            <code>{code}</code>
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {renderClipboardButtons(
-              () => templates[activeTemplateLang] || '',
-              (newVal) => setTemplates((prev) => ({ ...prev, [activeTemplateLang]: newVal }))
-            )}
-            {Boolean(templates[activeTemplateLang]?.trim()) && (
-              <button
-                type="button"
-                onClick={() => setTemplates((prev) => ({ ...prev, [activeTemplateLang]: '' }))}
-                className="btn-secondary"
-                style={{
-                  padding: '0.25rem 0.6rem',
-                  fontSize: '0.75rem',
-                  color: '#dc2626',
-                  border: '1px solid #fecaca',
-                  backgroundColor: '#fef2f2',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  borderRadius: '0.25rem',
-                  cursor: 'pointer'
-                }}
-                title="Borrar plantilla para este lenguaje (dejar vacía)"
-              >
-                <Trash2 size={12} /> Borrar plantilla
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Editor Textarea */}
-        <textarea
-          className="input-field"
-          value={templates[activeTemplateLang] || ''}
-          onChange={(e) => {
-            const val = e.target.value;
-            setTemplates((prev) => ({ ...prev, [activeTemplateLang]: val }));
-          }}
-          rows={10}
-          style={{
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '0.875rem',
-            lineHeight: 1.5,
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            borderRadius: '0.375rem',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}
-          placeholder={
-            activeTemplateLang === 'python'
-              ? '# Escribe aquí la plantilla inicial en Python (o déjala vacía si no aplica)...'
-              : '// Escribe aquí la plantilla inicial en Java (o déjala vacía si no aplica)...'
-          }
-        />
+        )}
       </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { OnMount } from '@monaco-editor/react';
 
 interface CodeEditorProps {
   value: string;
@@ -7,6 +7,7 @@ interface CodeEditorProps {
   language?: string;
   disabled?: boolean;
   height?: string;
+  onMount?: OnMount;
 }
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -15,6 +16,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   language = 'java',
   disabled = false,
   height = '100%',
+  onMount,
 }) => {
   const langLower = language?.toLowerCase().trim() || 'java';
   let normalizedLanguage = 'java';
@@ -49,6 +51,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         value={value}
         theme="vs-dark"
         onChange={(val) => onChange(val ?? '')}
+        onMount={onMount}
         loading={
           <div
             style={{
