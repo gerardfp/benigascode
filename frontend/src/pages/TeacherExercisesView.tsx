@@ -1259,14 +1259,12 @@ export const TeacherExercisesView: React.FC = () => {
             </div>
 
             {/* Monaco Editor */}
-            <div style={{ flex: 1, minHeight: 0 }}>
             <div
               ref={editorContainerRef}
               style={{ flex: 1, minHeight: 0 }}
             >
               <CodeEditor
                 value={markdownText}
-                onChange={(val) => setMarkdownText(val)}
                 onChange={(val) => {
                   setMarkdownText(val);
                   markdownTextRef.current = val;
