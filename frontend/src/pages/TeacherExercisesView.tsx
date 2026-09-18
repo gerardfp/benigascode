@@ -8,7 +8,7 @@ import {
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
   GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check,
-  Upload, FileText, Sparkles
+  Upload, FileText, Sparkles, Archive
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { CodeEditor } from '../components/CodeEditor';
@@ -194,6 +194,14 @@ export const TeacherExercisesView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [uploadingAsset, setUploadingAsset] = useState(false);
+
+  // Auto-dismiss status messages (except errors) after 4 seconds
+  useEffect(() => {
+    if (statusMsg && statusMsg.type !== 'error') {
+      const timer = setTimeout(() => setStatusMsg(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusMsg]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1420,134 +1428,58 @@ export const TeacherExercisesView: React.FC = () => {
     );
   }
 
-  // Render navigation buttons helper
-  const renderNavigationButtons = (isTop: boolean) => {
-    if (mode !== 'editor' || navigationExercises.length <= 1) return null;
-
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-        <button
-          type="button"
-          onClick={() => handleNavigateExercise('prev')}
-          disabled={!hasPrevExercise}
-          className="btn-secondary"
-          style={{
-            padding: isTop ? '0.375rem 0.625rem' : '0.5rem 0.875rem',
-            fontSize: '0.8125rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            opacity: !hasPrevExercise ? 0.35 : 1,
-            cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
-          }}
-          title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
-        >
-          <ChevronLeft size={16} /> Anterior
-        </button>
-
-        <span
-          style={{
-            fontSize: '0.8125rem',
-            color: '#475569',
-            fontWeight: 600,
-            padding: '0 0.375rem',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {currentExerciseIndex >= 0 ? `${currentExerciseIndex + 1} de ${navigationExercises.length}` : ''}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => handleNavigateExercise('next')}
-          disabled={!hasNextExercise}
-          className="btn-secondary"
-          style={{
-            padding: isTop ? '0.375rem 0.625rem' : '0.5rem 0.875rem',
-            fontSize: '0.8125rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            opacity: !hasNextExercise ? 0.35 : 1,
-            cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
-          }}
-          title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
-        >
-          Siguiente <ChevronRight size={16} />
-        </button>
-      </div>
-    );
-  };
-
   // RENDER: SINGLE-SHEET EDITOR VIEW
   return (
-    <div style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '1rem 1.25rem' }}>
-      {/* Top Bar with Navigation & Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={handleBack} className="btn-secondary">
-            <ArrowLeft size={16} /> {collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
-                {selectedId ? `Editar: ${title || 'Sin título'}` : 'Nuevo Ejercicio'}
-              </h1>
-              {activeCollection && (
-                <span className="badge badge-info" style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                  📚 Colección: {activeCollection.title}
-                </span>
-              )}
-            </div>
-            {selectedId && (
-              <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                Versión actual: v{versionNumber} • ID: {selectedId}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {renderNavigationButtons(true)}
-
-          {selectedId && (
-            <a
-              href={api.teacherExportExerciseZipUrl(selectedId)}
-              download
-              className="btn-secondary"
-              style={{ textDecoration: 'none' }}
-            >
-              <Download size={16} /> Exportar ZIP
-            </a>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary"
-            style={{ padding: '0.625rem 1.25rem' }}
-          >
-            <Save size={16} /> {saving ? 'Guardando...' : 'Guardar Ejercicio'}
-          </button>
-        </div>
-      </div>
-
-      {/* Status / Alert Banner */}
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        height: isSmallScreen ? 'auto' : 'calc(100vh - 65px)',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        padding: '6px',
+      }}
+    >
+      {/* Toast Notification */}
       {statusMsg && (
         <div
           style={{
-            padding: '0.75rem 1rem',
-            borderRadius: '0.375rem',
-            marginBottom: '1.25rem',
+            position: 'fixed',
+            top: '75px',
+            right: '20px',
+            zIndex: 9999,
+            padding: '0.625rem 1rem',
+            borderRadius: '0.5rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.625rem',
+            maxWidth: '480px',
             backgroundColor: statusMsg.type === 'success' ? '#f0fdf4' : (statusMsg.type === 'info' ? '#eff6ff' : '#fef2f2'),
             color: statusMsg.type === 'success' ? '#166534' : (statusMsg.type === 'info' ? '#1e40af' : '#991b1b'),
             border: `1px solid ${statusMsg.type === 'success' ? '#bbf7d0' : (statusMsg.type === 'info' ? '#bfdbfe' : '#fecaca')}`
           }}
         >
           {statusMsg.type === 'success' ? <CheckCircle size={18} /> : (statusMsg.type === 'info' ? <Info size={18} /> : <AlertCircle size={18} />)}
-          <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{statusMsg.text}</span>
+          <span style={{ fontSize: '0.875rem', fontWeight: 500, flex: 1 }}>{statusMsg.text}</span>
+          <button
+            type="button"
+            onClick={() => setStatusMsg(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+              color: 'inherit',
+              opacity: 0.7
+            }}
+            title="Cerrar"
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -1560,60 +1492,114 @@ export const TeacherExercisesView: React.FC = () => {
         onChange={handleImportMarkdownFile}
       />
 
-
-
       {editorSubMode === 'markdown' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
-          {/* Editor & Preview Area with Resizable Splitter */}
+        <div
+          ref={splitContainerRef}
+          style={{
+            display: 'flex',
+            flexDirection: isSmallScreen ? 'column' : 'row',
+            gap: isSmallScreen ? '0.75rem' : 0,
+            alignItems: 'stretch',
+            width: '100%',
+            userSelect: isDraggingSplitter ? 'none' : 'auto',
+            flex: isSmallScreen ? 'none' : 1,
+            minHeight: 0,
+            height: isSmallScreen ? 'auto' : '100%',
+            overflow: isSmallScreen ? 'visible' : 'hidden',
+          }}
+        >
+          {/* Panel Izquierdo: Editor Markdown con Cabecera */}
           <div
-            ref={splitContainerRef}
             style={{
+              width: isSmallScreen || !markdownPreview ? '100%' : `calc(${splitRatio}% - 4px)`,
+              minWidth: isSmallScreen ? undefined : '280px',
+              maxWidth: isSmallScreen || !markdownPreview ? undefined : '80%',
               display: 'flex',
-              flexDirection: isSmallScreen ? 'column' : 'row',
-              gap: isSmallScreen ? '1.25rem' : 0,
-              alignItems: 'stretch',
-              width: '100%',
-              userSelect: isDraggingSplitter ? 'none' : 'auto',
+              flexDirection: 'column',
+              boxSizing: 'border-box',
+              height: isSmallScreen ? 'auto' : '100%',
+              overflow: isSmallScreen ? 'visible' : 'hidden',
             }}
           >
-            {/* Panel Izquierdo: Editor Markdown con Cabecera */}
             <div
+              className="card"
               style={{
-                width: isSmallScreen || !markdownPreview ? '100%' : `calc(${splitRatio}% - 4px)`,
-                minWidth: isSmallScreen ? undefined : '280px',
-                maxWidth: isSmallScreen || !markdownPreview ? undefined : '80%',
+                padding: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                boxSizing: 'border-box',
+                height: isSmallScreen ? '560px' : '100%',
+                minHeight: 0,
+                overflow: 'hidden',
               }}
             >
+              {/* Cabecera del Panel Editor */}
               <div
-                className="card"
                 style={{
-                  padding: 0,
                   display: 'flex',
-                  flexDirection: 'column',
-                  height: isSmallScreen ? '560px' : 'calc(100vh - 240px)',
-                  minHeight: '600px',
-                  overflow: 'hidden',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.35rem 0.5rem',
+                  backgroundColor: '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                  flexShrink: 0,
+                  minHeight: '40px',
+                  boxSizing: 'border-box',
+                  gap: '0.375rem',
+                  flexWrap: 'wrap'
                 }}
               >
-                {/* Cabecera del Panel Editor */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.4rem 0.75rem',
-                    backgroundColor: '#f8fafc',
-                    borderBottom: '1px solid #e2e8f0',
-                    flexShrink: 0,
-                    minHeight: '43px',
-                    boxSizing: 'border-box',
-                    gap: '0.5rem',
-                    flexWrap: 'wrap'
-                  }}
-                >
+                {/* Izquierda: Volver, Anterior, Siguiente, Selector Form/Markdown, Versión corta, Colección */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    title={collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+
+                  {navigationExercises.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleNavigateExercise('prev')}
+                        disabled={!hasPrevExercise}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.3rem 0.5rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: !hasPrevExercise ? 0.35 : 1,
+                          cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
+                        }}
+                        title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleNavigateExercise('next')}
+                        disabled={!hasNextExercise}
+                        className="btn-secondary"
+                        style={{
+                          padding: '0.3rem 0.5rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: !hasNextExercise ? 0.35 : 1,
+                          cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
+                        }}
+                        title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </>
+                  )}
+
                   {/* Selector Formulario / Markdown */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
                     <button
@@ -1662,70 +1648,119 @@ export const TeacherExercisesView: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Botones de acción del editor */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleLoadMarkdownExample}
-                      className="btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      title="Cargar ejemplo canónico para ver la sintaxis"
-                    >
-                      <FileText size={13} /> Plantilla ejemplo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => markdownFileInputRef.current?.click()}
-                      className="btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      title="Cargar archivo .md desde tu ordenador"
-                    >
-                      <Upload size={13} /> Cargar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExportMarkdownFile}
-                      className="btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      title="Descargar este ejercicio como archivo .md"
-                    >
-                      <Download size={13} /> Descargar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMarkdownPreview(!markdownPreview)}
-                      className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      title={markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
-                    >
-                      <Columns size={13} /> {markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(markdownText);
-                        setStatusMsg({ type: 'info', text: 'Contenido Markdown copiado al portapapeles.' });
+                  {selectedId && (
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '0.15rem 0.4rem',
+                        fontWeight: 600,
+                        backgroundColor: '#e2e8f0',
+                        color: '#475569',
+                        borderRadius: '0.25rem'
                       }}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      title="Copiar contenido Markdown al portapapeles"
+                      title={`Versión actual: v${versionNumber}`}
                     >
-                      <Copy size={13} /> Copiar
-                    </button>
-                  </div>
+                      v{versionNumber}
+                    </span>
+                  )}
+
+                  {activeCollection && (
+                    <span
+                      className="badge badge-info"
+                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem' }}
+                      title={`Colección: ${activeCollection.title}`}
+                    >
+                      📚 {activeCollection.title}
+                    </span>
+                  )}
                 </div>
 
-                {/* Monaco Editor */}
-                <div style={{ flex: 1, minHeight: 0 }}>
-                  <CodeEditor
-                    value={markdownText}
-                    onChange={(val) => setMarkdownText(val)}
-                    language="markdown"
-                    height="100%"
-                  />
+                {/* Derecha: Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleLoadMarkdownExample}
+                    className="btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Cargar plantilla de ejemplo para ver la sintaxis"
+                  >
+                    <FileText size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markdownFileInputRef.current?.click()}
+                    className="btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Cargar archivo .md desde tu ordenador"
+                  >
+                    <Upload size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportMarkdownFile}
+                    className="btn-secondary"
+                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Descargar este ejercicio como archivo .md"
+                  >
+                    <Download size={16} />
+                  </button>
+                  {selectedId && (
+                    <a
+                      href={api.teacherExportExerciseZipUrl(selectedId)}
+                      download
+                      className="btn-secondary"
+                      style={{
+                        padding: '0.3rem 0.5rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textDecoration: 'none'
+                      }}
+                      title="Exportar ejercicio completo (paquete ZIP)"
+                    >
+                      <Archive size={16} />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setMarkdownPreview(!markdownPreview)}
+                    className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    title={markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
+                  >
+                    <Columns size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="btn-primary"
+                    style={{
+                      padding: '0.3rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: saving ? 0.6 : 1,
+                      cursor: saving ? 'not-allowed' : 'pointer'
+                    }}
+                    title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
+                  >
+                    <Save size={16} />
+                  </button>
                 </div>
               </div>
+
+              {/* Monaco Editor */}
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <CodeEditor
+                  value={markdownText}
+                  onChange={(val) => setMarkdownText(val)}
+                  language="markdown"
+                  height="100%"
+                />
+              </div>
             </div>
+          </div>
 
             {/* Separador de 8px (Splitter redimensionable estilo VS Code / ExerciseView) */}
             {markdownPreview && !isSmallScreen && (
@@ -1768,14 +1803,16 @@ export const TeacherExercisesView: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   boxSizing: 'border-box',
+                  height: isSmallScreen ? 'auto' : '100%',
+                  overflow: isSmallScreen ? 'visible' : 'hidden',
                 }}
               >
                 <div
                   className="card"
                   style={{
                     padding: 0,
-                    height: isSmallScreen ? 'auto' : 'calc(100vh - 240px)',
-                    minHeight: '600px',
+                    height: isSmallScreen ? 'auto' : '100%',
+                    minHeight: 0,
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
@@ -1786,11 +1823,11 @@ export const TeacherExercisesView: React.FC = () => {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      padding: '0.4rem 0.75rem',
+                      padding: '0.35rem 0.5rem',
                       backgroundColor: '#f8fafc',
                       borderBottom: '1px solid #e2e8f0',
                       flexShrink: 0,
-                      minHeight: '43px',
+                      minHeight: '40px',
                       boxSizing: 'border-box',
                     }}
                   >
@@ -1803,7 +1840,7 @@ export const TeacherExercisesView: React.FC = () => {
                   </div>
 
                   {/* Contenido scrolleable de la vista previa */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1rem' }}>
                     {/* Warnings / Errors si los hay */}
                     {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
                       <div style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
@@ -1939,68 +1976,207 @@ export const TeacherExercisesView: React.FC = () => {
                 </div>
               </div>
             </div>
-            )}
-          </div>
+          )}
         </div>
       ) : (
-        <>
-          {/* SubMode Selector & Export Bar for Form Mode */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden' }}>
+          {/* Header Bar for Form Mode */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.35rem 0.5rem',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '0.5rem',
+              marginBottom: '0.5rem',
+              flexShrink: 0,
+              minHeight: '40px',
+              boxSizing: 'border-box',
+              gap: '0.375rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            {/* Izquierda: Volver, Anterior, Siguiente, Selector Form/Markdown, Versión corta, Colección */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={handleSwitchToForm}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: '#ffffff',
-                  color: '#0f172a',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  transition: 'all 0.15s ease'
-                }}
+                onClick={handleBack}
+                className="btn-secondary"
+                style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                title={collectionIdParam ? 'Volver a la colección' : 'Volver a la lista'}
               >
-                <Layers size={13} /> Formulario
+                <ArrowLeft size={16} />
               </button>
-              <button
-                type="button"
-                onClick={handleSwitchToMarkdown}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: 'transparent',
-                  color: '#64748b',
-                  boxShadow: 'none',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Sparkles size={13} color="#64748b" /> Markdown
-              </button>
+
+              {navigationExercises.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateExercise('prev')}
+                    disabled={!hasPrevExercise}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.3rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: !hasPrevExercise ? 0.35 : 1,
+                      cursor: !hasPrevExercise ? 'not-allowed' : 'pointer'
+                    }}
+                    title={hasPrevExercise ? `Anterior: ${navigationExercises[currentExerciseIndex - 1]?.title}` : 'No hay ejercicio anterior'}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateExercise('next')}
+                    disabled={!hasNextExercise}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.3rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: !hasNextExercise ? 0.35 : 1,
+                      cursor: !hasNextExercise ? 'not-allowed' : 'pointer'
+                    }}
+                    title={hasNextExercise ? `Siguiente: ${navigationExercises[currentExerciseIndex + 1]?.title}` : 'No hay ejercicio siguiente'}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {/* Selector Formulario / Markdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
+                <button
+                  type="button"
+                  onClick={handleSwitchToForm}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: '#ffffff',
+                    color: '#0f172a',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Cambiar a formulario estructurado"
+                >
+                  <Layers size={13} /> Formulario
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchToMarkdown}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: 'transparent',
+                    color: '#64748b',
+                    boxShadow: 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Diseñar ejercicio en bloque Markdown único"
+                >
+                  <Sparkles size={13} color="#64748b" /> Markdown
+                </button>
+              </div>
+
+              {selectedId && (
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.15rem 0.4rem',
+                    fontWeight: 600,
+                    backgroundColor: '#e2e8f0',
+                    color: '#475569',
+                    borderRadius: '0.25rem'
+                  }}
+                  title={`Versión actual: v${versionNumber}`}
+                >
+                  v{versionNumber}
+                </span>
+              )}
+
+              {activeCollection && (
+                <span
+                  className="badge badge-info"
+                  style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem' }}
+                  title={`Colección: ${activeCollection.title}`}
+                >
+                  📚 {activeCollection.title}
+                </span>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportMarkdownFile}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-              title="Exportar la configuración actual del formulario como archivo .md"
-            >
-              <Download size={13} /> Descargar .md
-            </button>
+            {/* Derecha: Descargar .md, Exportar ZIP, Guardar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleExportMarkdownFile}
+                className="btn-secondary"
+                style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Descargar este ejercicio como archivo .md"
+              >
+                <Download size={16} />
+              </button>
+
+              {selectedId && (
+                <a
+                  href={api.teacherExportExerciseZipUrl(selectedId)}
+                  download
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textDecoration: 'none'
+                  }}
+                  title="Exportar ejercicio completo (paquete ZIP)"
+                >
+                  <Archive size={16} />
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary"
+                style={{
+                  padding: '0.3rem 0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: saving ? 0.6 : 1,
+                  cursor: saving ? 'not-allowed' : 'pointer'
+                }}
+                title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
+              >
+                <Save size={16} />
+              </button>
+            </div>
           </div>
+
+          {/* Contenido desplazable del formulario */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
 
           {/* SECTION 1: METADATA & PARAMETERS */}
           <div className="card" style={{ marginBottom: '1.5rem' }}>
@@ -2882,37 +3058,9 @@ export const TeacherExercisesView: React.FC = () => {
           }
         />
       </div>
-      </>
+          </div>
+        </div>
       )}
-
-      {/* Bottom Action Bar */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '1.25rem 0 2rem 0',
-        borderTop: '1px solid #e2e8f0',
-        marginTop: '1.5rem',
-        flexWrap: 'wrap'
-      }}>
-        <div>
-          {renderNavigationButtons(false)}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={handleBack} className="btn-secondary">
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary"
-            style={{ padding: '0.625rem 1.5rem', fontSize: '0.9375rem' }}
-          >
-            <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Ejercicio'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
