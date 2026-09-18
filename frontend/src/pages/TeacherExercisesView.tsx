@@ -404,14 +404,11 @@ export const TeacherExercisesView: React.FC = () => {
 
   // Helper to ensure exercise is saved before attaching assets
   const ensureExerciseSaved = async (): Promise<string | null> => {
-    if (selectedId) return selectedId;
     if (selectedIdRef.current) return selectedIdRef.current;
 
-    const parsed = parseExerciseMarkdown(markdownText);
     const currentMarkdown = editorRef.current ? editorRef.current.getValue() : markdownTextRef.current;
     const parsed = parseExerciseMarkdown(currentMarkdown);
     const exTitle = parsed.exercise.title?.trim();
-    if (!exTitle) {
     if (!exTitle || exTitle === 'Ejercicio sin título') {
       alert('Por favor, indica primero un título (# Título) para el ejercicio antes de subir o pegar imágenes.');
       return null;
@@ -477,7 +474,6 @@ export const TeacherExercisesView: React.FC = () => {
       setMarkdownText(updatedVal);
       markdownTextRef.current = updatedVal;
     } else {
-      setMarkdownText((prev) => prev + snippet);
       setMarkdownText((prev) => {
         const next = prev + snippet;
         markdownTextRef.current = next;
@@ -495,10 +491,6 @@ export const TeacherExercisesView: React.FC = () => {
       setUploadingAsset(true);
       let fileToUpload = file;
       if (!file.name || file.name === 'image.png' || file.name.startsWith('blob')) {
-        const ext = file.type.split('/')[1] || 'png';
-        const cleanExt = ext === 'jpeg' ? 'jpg' : ext;
-        const uniqueName = `img_${Date.now()}.${cleanExt}`;
-        fileToUpload = new File([file], uniqueName, { type: file.type });
         const ext = file.type ? (file.type.split('/')[1] || 'png') : 'png';
         const cleanExt = ext === 'jpeg' ? 'jpg' : ext.replace(/[^a-z0-9]/gi, '');
         const uniqueName = `img_${Date.now()}.${cleanExt || 'png'}`;
@@ -524,12 +516,10 @@ export const TeacherExercisesView: React.FC = () => {
 
   // Delete an asset from the exercise
   const handleDeleteAsset = async (filename: string) => {
-    if (!selectedId) return;
     const exId = selectedIdRef.current || selectedId;
     if (!exId) return;
     if (!confirm(`¿Seguro que deseas eliminar la imagen "${filename}" del servidor?`)) return;
     try {
-      await api.teacherDeleteAsset(selectedId, filename);
       await api.teacherDeleteAsset(exId, filename);
       setAssets((prev) => prev.filter((a) => a.filename !== filename));
       setStatusMsg({ type: 'success', text: `Imagen "${filename}" eliminada.` });
@@ -578,19 +568,6 @@ export const TeacherExercisesView: React.FC = () => {
 
     // Paste event listener (intercept clipboard images with capture phase)
     const onPaste = async (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            e.preventDefault();
-            e.stopPropagation();
-            await handleUploadAndInsertImage(file);
-            return;
-          }
-        }
       const imgFile = extractImageFile(e.clipboardData);
       if (imgFile) {
         e.preventDefault();
@@ -615,31 +592,16 @@ export const TeacherExercisesView: React.FC = () => {
 
     const onDrop = async (e: DragEvent) => {
       setIsDragOverEditor(false);
-      const files = e.dataTransfer?.files;
-      if (files && files.length > 0) {
-        for (let i = 0; i < files.length; i++) {
-          if (files[i].type.startsWith('image/')) {
-            e.preventDefault();
-            e.stopPropagation();
       const imgFile = extractImageFile(e.dataTransfer);
       if (imgFile) {
         e.preventDefault();
         e.stopPropagation();
 
-            // Set cursor to mouse drop location in Monaco
-            const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
-            if (target?.position) {
-              editor.setPosition(target.position);
-            }
         const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
         if (target?.position) {
           editor.setPosition(target.position);
         }
 
-            await handleUploadAndInsertImage(files[i]);
-            return;
-          }
-        }
         await handleUploadAndInsertImageRef.current(imgFile);
       }
     };
@@ -656,7 +618,7 @@ export const TeacherExercisesView: React.FC = () => {
           try {
             const clipboardItems = await navigator.clipboard.read();
             for (const item of clipboardItems) {
-              const imageType = item.types.find((t) => t.startsWith('image/'));
+              const imageType = item.types.find((t: string) => t.startsWith('image/'));
               if (imageType) {
                 e.preventDefault();
                 e.stopPropagation();
