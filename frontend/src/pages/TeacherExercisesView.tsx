@@ -10,7 +10,7 @@ import {
   GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check,
   Upload, FileText, Sparkles
 } from 'lucide-react';
-import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE, slugify } from '../utils/exerciseMarkdown';
+import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { CodeEditor } from '../components/CodeEditor';
 
 const TEMPLATE_LANGUAGES = [
@@ -1560,118 +1560,7 @@ export const TeacherExercisesView: React.FC = () => {
         onChange={handleImportMarkdownFile}
       />
 
-      {/* Editor SubMode Selector & Markdown Actions Bar */}
-      <div
-        className="card"
-        style={{
-          marginBottom: '1.5rem',
-          padding: '0.75rem 1rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#e2e8f0', padding: '3px', borderRadius: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={handleSwitchToForm}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              padding: '0.4rem 0.875rem',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              fontWeight: editorSubMode === 'form' ? 600 : 500,
-              border: 'none',
-              cursor: 'pointer',
-              backgroundColor: editorSubMode === 'form' ? '#ffffff' : 'transparent',
-              color: editorSubMode === 'form' ? '#0f172a' : '#64748b',
-              boxShadow: editorSubMode === 'form' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Layers size={16} /> Formulario estructurado
-          </button>
-          <button
-            type="button"
-            onClick={handleSwitchToMarkdown}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              padding: '0.4rem 0.875rem',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              fontWeight: editorSubMode === 'markdown' ? 600 : 500,
-              border: 'none',
-              cursor: 'pointer',
-              backgroundColor: editorSubMode === 'markdown' ? '#ffffff' : 'transparent',
-              color: editorSubMode === 'markdown' ? '#0f172a' : '#64748b',
-              boxShadow: editorSubMode === 'markdown' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Sparkles size={16} color={editorSubMode === 'markdown' ? '#6366f1' : '#64748b'} /> Bloque de Texto (Markdown)
-          </button>
-        </div>
 
-        {editorSubMode === 'markdown' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleLoadMarkdownExample}
-              className="btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-              title="Cargar ejemplo canónico para ver la sintaxis"
-            >
-              <FileText size={15} /> Plantilla ejemplo
-            </button>
-            <button
-              type="button"
-              onClick={() => markdownFileInputRef.current?.click()}
-              className="btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-              title="Cargar archivo .md desde tu ordenador"
-            >
-              <Upload size={15} /> Cargar .md
-            </button>
-            <button
-              type="button"
-              onClick={handleExportMarkdownFile}
-              className="btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-              title="Descargar este ejercicio como archivo .md"
-            >
-              <Download size={15} /> Descargar .md
-            </button>
-            <button
-              type="button"
-              onClick={() => setMarkdownPreview(!markdownPreview)}
-              className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
-              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-            >
-              <Columns size={15} /> {markdownPreview ? 'Ocultar vista previa' : 'Ver vista previa'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={handleExportMarkdownFile}
-              className="btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
-              title="Exportar la configuración actual del formulario como archivo .md"
-            >
-              <Download size={15} /> Descargar .md
-            </button>
-          </div>
-        )}
-      </div>
 
       {editorSubMode === 'markdown' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
@@ -1715,26 +1604,102 @@ export const TeacherExercisesView: React.FC = () => {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '0.625rem 1rem',
+                    padding: '0.4rem 0.75rem',
                     backgroundColor: '#f8fafc',
                     borderBottom: '1px solid #e2e8f0',
                     flexShrink: 0,
+                    minHeight: '43px',
+                    boxSizing: 'border-box',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FileText size={17} color="#2563eb" />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-                      Editor Markdown
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', backgroundColor: '#e2e8f0', padding: '0.125rem 0.375rem', borderRadius: '0.25rem', fontFamily: 'monospace' }}>
-                      .md
-                    </span>
+                  {/* Selector Formulario / Markdown */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleSwitchToForm}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: 'transparent',
+                        color: '#64748b',
+                        boxShadow: 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Cambiar a formulario estructurado"
+                    >
+                      <Layers size={13} /> Formulario
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSwitchToMarkdown}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      title="Diseñar ejercicio en bloque Markdown único"
+                    >
+                      <Sparkles size={13} color="#6366f1" /> Markdown
+                    </button>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      {markdownText.length} caracteres • {markdownText.split('\n').length} líneas
-                    </span>
+                  {/* Botones de acción del editor */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={handleLoadMarkdownExample}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Cargar ejemplo canónico para ver la sintaxis"
+                    >
+                      <FileText size={13} /> Plantilla ejemplo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => markdownFileInputRef.current?.click()}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Cargar archivo .md desde tu ordenador"
+                    >
+                      <Upload size={13} /> Cargar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportMarkdownFile}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Descargar este ejercicio como archivo .md"
+                    >
+                      <Download size={13} /> Descargar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMarkdownPreview(!markdownPreview)}
+                      className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                      title={markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
+                    >
+                      <Columns size={13} /> {markdownPreview ? 'Ocultar vista previa' : 'Mostrar vista previa'}
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1820,12 +1785,13 @@ export const TeacherExercisesView: React.FC = () => {
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      padding: '0.625rem 1rem',
+                      padding: '0.4rem 0.75rem',
                       backgroundColor: '#f8fafc',
                       borderBottom: '1px solid #e2e8f0',
                       flexShrink: 0,
+                      minHeight: '43px',
+                      boxSizing: 'border-box',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1833,72 +1799,32 @@ export const TeacherExercisesView: React.FC = () => {
                       <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
                         Vista Previa
                       </span>
-                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
-                        En vivo
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-                        {liveParsedMarkdown?.exercise.testCases.length || 0} tests ({liveParsedMarkdown?.exercise.testCases.reduce((acc, t) => acc + (t.weight || 1), 0) || 0} pts)
-                      </span>
                     </div>
                   </div>
 
                   {/* Contenido scrolleable de la vista previa */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
-                {/* Header summary of parsed exercise */}
-                <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#0f172a' }}>
-                        {liveParsedMarkdown?.exercise.title || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin título (# Título)</span>}
-                      </h3>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b', backgroundColor: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }}>
-                          slug: {liveParsedMarkdown?.exercise.slug || slugify(liveParsedMarkdown?.exercise.title || '') || '---'}
-                        </span>
-                        {liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0 && (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                            {liveParsedMarkdown.exercise.tags.map((t, idx) => (
-                              <span key={idx} className="badge badge-info" style={{ fontSize: '0.7rem' }}>
-                                #{t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                    {/* Warnings / Errors si los hay */}
+                    {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
+                      <div style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
+                        <strong>Atención:</strong>
+                        <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                          {liveParsedMarkdown.errors.map((err, idx) => (
+                            <li key={idx}>{err}</li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-                        {liveParsedMarkdown?.exercise.testCases.length || 0} tests ({liveParsedMarkdown?.exercise.testCases.reduce((acc, t) => acc + (t.weight || 1), 0) || 0} pts)
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Warnings / Errors */}
-                  {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
-                    <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
-                      <strong>Atención:</strong>
-                      <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                        {liveParsedMarkdown.errors.map((err, idx) => (
-                          <li key={idx}>{err}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {liveParsedMarkdown?.warnings && liveParsedMarkdown.warnings.length > 0 && (
-                    <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
-                      <strong>Aviso:</strong>
-                      <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
-                        {liveParsedMarkdown.warnings.map((w, idx) => (
-                          <li key={idx}>{w}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                    )}
+                    {liveParsedMarkdown?.warnings && liveParsedMarkdown.warnings.length > 0 && (
+                      <div style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
+                        <strong>Aviso:</strong>
+                        <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                          {liveParsedMarkdown.warnings.map((w, idx) => (
+                            <li key={idx}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
                 {/* Statement Section */}
                   <div style={{ marginBottom: '1.25rem' }}>
@@ -1986,16 +1912,16 @@ export const TeacherExercisesView: React.FC = () => {
                                 </span>
                               </div>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.75rem' }}>
                               <div>
                                 <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Entrada:</span>
-                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '70px', overflowY: 'auto' }}>
+                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '90px', overflowY: 'auto' }}>
                                   {tc.input || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
                                 </pre>
                               </div>
                               <div>
                                 <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Salida esperada:</span>
-                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '70px', overflowY: 'auto' }}>
+                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '90px', overflowY: 'auto' }}>
                                   {tc.expectedOutput || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
                                 </pre>
                               </div>
@@ -2018,6 +1944,64 @@ export const TeacherExercisesView: React.FC = () => {
         </div>
       ) : (
         <>
+          {/* SubMode Selector & Export Bar for Form Mode */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#e2e8f0', padding: '2px', borderRadius: '0.375rem' }}>
+              <button
+                type="button"
+                onClick={handleSwitchToForm}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Layers size={13} /> Formulario
+              </button>
+              <button
+                type="button"
+                onClick={handleSwitchToMarkdown}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: 'transparent',
+                  color: '#64748b',
+                  boxShadow: 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Sparkles size={13} color="#64748b" /> Markdown
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportMarkdownFile}
+              className="btn-secondary"
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+              title="Exportar la configuración actual del formulario como archivo .md"
+            >
+              <Download size={13} /> Descargar .md
+            </button>
+          </div>
+
           {/* SECTION 1: METADATA & PARAMETERS */}
           <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
