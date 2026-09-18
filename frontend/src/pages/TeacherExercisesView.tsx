@@ -7,8 +7,11 @@ import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   ArrowUp, ArrowDown, Eye, Edit3, Columns, CheckCircle, AlertCircle, FileCode, Layers,
-  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check
+  GripVertical, ChevronLeft, ChevronRight, Tag, X, Copy, Scissors, ClipboardPaste, Info, Check,
+  Upload, FileText, Sparkles
 } from 'lucide-react';
+import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE, slugify } from '../utils/exerciseMarkdown';
+import { CodeEditor } from '../components/CodeEditor';
 
 const TEMPLATE_LANGUAGES = [
   { id: 'java', label: 'Java', icon: '☕', ext: '.java' },
@@ -82,6 +85,18 @@ export const TeacherExercisesView: React.FC = () => {
   }, [templates]);
 
   // Editor UI State
+  const [editorSubMode, setEditorSubMode] = useState<'form' | 'markdown'>('form');
+  const [markdownText, setMarkdownText] = useState<string>('');
+  const [markdownPreview, setMarkdownPreview] = useState<boolean>(true);
+  const markdownFileInputRef = useRef<HTMLInputElement>(null);
+  const listImportFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Real-time parsed markdown for live preview and badge stats
+  const liveParsedMarkdown = useMemo(() => {
+    if (editorSubMode !== 'markdown') return null;
+    return parseExerciseMarkdown(markdownText);
+  }, [editorSubMode, markdownText]);
+
   const [statementView, setStatementView] = useState<'split' | 'edit' | 'preview'>('split');
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -288,6 +303,15 @@ export const TeacherExercisesView: React.FC = () => {
       setTags(detail.tags || []);
       setTagInput('');
       setTestCases(detail.testCases || []);
+      setMarkdownText(serializeExerciseToMarkdown({
+        title: detail.title || '',
+        slug: detail.slug || '',
+        tags: detail.tags || [],
+        statement: detail.statement || '',
+        templates: initialTemplates,
+        testCases: detail.testCases || []
+      }));
+      setEditorSubMode('form');
       setAssets(detail.assets || []);
       setVersionNumber(detail.versionNumber || 1);
       setMode('editor');
@@ -318,8 +342,108 @@ export const TeacherExercisesView: React.FC = () => {
     ]);
     setAssets([]);
     setVersionNumber(1);
+    setMarkdownText(CANONICAL_EXERCISE_EXAMPLE);
+    setEditorSubMode('form');
     setStatusMsg(null);
     setMode('editor');
+  };
+
+  // Handlers for switching between Structured Form and Markdown Block
+  const handleSwitchToMarkdown = () => {
+    const serialized = serializeExerciseToMarkdown({
+      title,
+      slug,
+      tags,
+      statement,
+      templates,
+      testCases
+    });
+    setMarkdownText(serialized);
+    setEditorSubMode('markdown');
+  };
+
+  const handleSwitchToForm = () => {
+    const parsed = parseExerciseMarkdown(markdownText);
+    if (parsed.exercise.title) setTitle(parsed.exercise.title);
+    if (parsed.exercise.slug) setSlug(parsed.exercise.slug);
+    setTags(parsed.exercise.tags || []);
+    setStatement(parsed.exercise.statement || '');
+    setTemplates(parsed.exercise.templates || {});
+    setTestCases(parsed.exercise.testCases || []);
+    setEditorSubMode('form');
+  };
+
+  const handleLoadMarkdownExample = () => {
+    if (markdownText.trim().length > 0 && !confirm('¿Deseas reemplazar el contenido actual con la plantilla de ejemplo?')) {
+      return;
+    }
+    setMarkdownText(CANONICAL_EXERCISE_EXAMPLE);
+    setStatusMsg({ type: 'info', text: 'Plantilla canónica cargada en el editor.' });
+  };
+
+  const handleExportMarkdownFile = () => {
+    const contentToExport = editorSubMode === 'markdown'
+      ? markdownText
+      : serializeExerciseToMarkdown({ title, slug, tags, statement, templates, testCases });
+    const blob = new Blob([contentToExport], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${slug || 'ejercicio'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportMarkdownFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setMarkdownText(content);
+        const parsed = parseExerciseMarkdown(content);
+        if (parsed.exercise.title) setTitle(parsed.exercise.title);
+        if (parsed.exercise.slug) setSlug(parsed.exercise.slug);
+        setTags(parsed.exercise.tags || []);
+        setStatement(parsed.exercise.statement || '');
+        setTemplates(parsed.exercise.templates || {});
+        setTestCases(parsed.exercise.testCases || []);
+        setStatusMsg({ type: 'success', text: `Archivo "${file.name}" importado correctamente.` });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleListImportMarkdown = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        setSelectedId(null);
+        setSearchParams({});
+        setMarkdownText(content);
+        const parsed = parseExerciseMarkdown(content);
+        setTitle(parsed.exercise.title);
+        setSlug(parsed.exercise.slug);
+        setTags(parsed.exercise.tags || []);
+        setStatement(parsed.exercise.statement || '');
+        setTemplates(parsed.exercise.templates || {});
+        setTestCases(parsed.exercise.testCases || []);
+        setAssets([]);
+        setVersionNumber(1);
+        setEditorSubMode('markdown');
+        setMode('editor');
+        setStatusMsg({ type: 'success', text: `Ejercicio cargado desde "${file.name}". Revisa los datos y pulsa Guardar.` });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Slug generator helper
@@ -869,46 +993,74 @@ export const TeacherExercisesView: React.FC = () => {
 
   // Save exercise
   const handleSave = async () => {
-    if (!title.trim()) {
-      setStatusMsg({ type: 'error', text: 'El título es obligatorio.' });
-      return;
-    }
-    if (!slug.trim()) {
-      setStatusMsg({ type: 'error', text: 'El identificador (slug) es obligatorio.' });
-      return;
+    let effectiveTitle = title;
+    let effectiveSlug = slug;
+    let effectiveStatement = statement;
+    let effectiveTemplates = templates;
+    let effectiveTags = [...tags];
+    let effectiveTestCases = testCases;
+
+    if (editorSubMode === 'markdown') {
+      const parsed = parseExerciseMarkdown(markdownText);
+      if (!parsed.exercise.title || !parsed.exercise.title.trim()) {
+        setStatusMsg({ type: 'error', text: 'El documento Markdown debe contener al menos un título (# Título del Ejercicio).' });
+        return;
+      }
+      effectiveTitle = parsed.exercise.title;
+      effectiveSlug = parsed.exercise.slug;
+      effectiveStatement = parsed.exercise.statement;
+      effectiveTemplates = parsed.exercise.templates;
+      effectiveTags = parsed.exercise.tags;
+      effectiveTestCases = parsed.exercise.testCases;
+
+      // Sync form states
+      setTitle(effectiveTitle);
+      setSlug(effectiveSlug);
+      setStatement(effectiveStatement);
+      setTemplates(effectiveTemplates);
+      setTags(effectiveTags);
+      setTestCases(effectiveTestCases);
+    } else {
+      if (!title.trim()) {
+        setStatusMsg({ type: 'error', text: 'El título es obligatorio.' });
+        return;
+      }
+      if (!slug.trim()) {
+        setStatusMsg({ type: 'error', text: 'El identificador (slug) es obligatorio.' });
+        return;
+      }
+
+      // If there's uncommitted text in tagInput, include it
+      if (tagInput.trim()) {
+        const pending = tagInput.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+        const existingLower = new Set(effectiveTags.map((t) => t.toLowerCase()));
+        const toAdd = pending.filter((p) => !existingLower.has(p.toLowerCase()));
+        effectiveTags = [...effectiveTags, ...toAdd];
+        setTags(effectiveTags);
+        setTagInput('');
+      }
     }
 
     setSaving(true);
     setStatusMsg(null);
 
-    // If there's uncommitted text in tagInput, include it
-    let effectiveTags = [...tags];
-    if (tagInput.trim()) {
-      const pending = tagInput.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
-      const existingLower = new Set(effectiveTags.map((t) => t.toLowerCase()));
-      const toAdd = pending.filter((p) => !existingLower.has(p.toLowerCase()));
-      effectiveTags = [...effectiveTags, ...toAdd];
-      setTags(effectiveTags);
-      setTagInput('');
-    }
-
     try {
       const cleanTemplates: Record<string, string> = {};
-      Object.entries(templates).forEach(([k, v]) => {
+      Object.entries(effectiveTemplates).forEach(([k, v]) => {
         if (v && v.trim()) cleanTemplates[k] = v;
       });
       const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
 
       const payload = {
-        title: title.trim(),
-        slug: slug.trim(),
-        statement: statement.trim(),
+        title: effectiveTitle.trim(),
+        slug: effectiveSlug.trim(),
+        statement: effectiveStatement.trim(),
         starterCode: primaryStarter,
         templates: cleanTemplates,
         language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
         runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
         tags: effectiveTags,
-        testCases: testCases.map((tc, idx) => ({
+        testCases: effectiveTestCases.map((tc, idx) => ({
           ...tc,
           orderIndex: idx,
           weight: Number(tc.weight) || 1
@@ -921,6 +1073,17 @@ export const TeacherExercisesView: React.FC = () => {
       setVersionNumber(result.versionNumber);
       setAssets(result.assets || []);
       setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" guardado correctamente (v${result.versionNumber}).` });
+
+      // Keep markdownText in sync with saved result
+      setMarkdownText(serializeExerciseToMarkdown({
+        title: result.title,
+        slug: result.slug,
+        statement: result.statement,
+        templates: result.templates || cleanTemplates,
+        tags: result.tags || effectiveTags,
+        testCases: result.testCases || effectiveTestCases
+      }));
+
       // Refresh exercise list
       loadExercises();
     } catch (err: any) {
@@ -958,9 +1121,26 @@ export const TeacherExercisesView: React.FC = () => {
               Crea, edita y organiza los ejercicios y casos de prueba almacenados en la base de datos.
             </p>
           </div>
-          <button onClick={handleOpenCreate} className="btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
-            <Plus size={18} /> Nuevo Ejercicio
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <input
+              type="file"
+              ref={listImportFileInputRef}
+              accept=".md,.markdown,text/markdown"
+              style={{ display: 'none' }}
+              onChange={handleListImportMarkdown}
+            />
+            <button
+              onClick={() => listImportFileInputRef.current?.click()}
+              className="btn-secondary"
+              style={{ padding: '0.625rem 1.25rem' }}
+              title="Importar ejercicio desde archivo .md"
+            >
+              <Upload size={18} /> Importar .md
+            </button>
+            <button onClick={handleOpenCreate} className="btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
+              <Plus size={18} /> Nuevo Ejercicio
+            </button>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -1275,8 +1455,359 @@ export const TeacherExercisesView: React.FC = () => {
         </div>
       )}
 
-      {/* SECTION 1: METADATA & PARAMETERS */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
+      {/* Hidden file input for importing markdown into the active exercise */}
+      <input
+        type="file"
+        ref={markdownFileInputRef}
+        accept=".md,.markdown,text/markdown"
+        style={{ display: 'none' }}
+        onChange={handleImportMarkdownFile}
+      />
+
+      {/* Editor SubMode Selector & Markdown Actions Bar */}
+      <div
+        className="card"
+        style={{
+          marginBottom: '1.5rem',
+          padding: '0.75rem 1rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          backgroundColor: '#f8fafc',
+          border: '1px solid #e2e8f0'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#e2e8f0', padding: '3px', borderRadius: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={handleSwitchToForm}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.4rem 0.875rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.875rem',
+              fontWeight: editorSubMode === 'form' ? 600 : 500,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: editorSubMode === 'form' ? '#ffffff' : 'transparent',
+              color: editorSubMode === 'form' ? '#0f172a' : '#64748b',
+              boxShadow: editorSubMode === 'form' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Layers size={16} /> Formulario estructurado
+          </button>
+          <button
+            type="button"
+            onClick={handleSwitchToMarkdown}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              padding: '0.4rem 0.875rem',
+              borderRadius: '0.375rem',
+              fontSize: '0.875rem',
+              fontWeight: editorSubMode === 'markdown' ? 600 : 500,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: editorSubMode === 'markdown' ? '#ffffff' : 'transparent',
+              color: editorSubMode === 'markdown' ? '#0f172a' : '#64748b',
+              boxShadow: editorSubMode === 'markdown' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Sparkles size={16} color={editorSubMode === 'markdown' ? '#6366f1' : '#64748b'} /> Bloque de Texto (Markdown)
+          </button>
+        </div>
+
+        {editorSubMode === 'markdown' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleLoadMarkdownExample}
+              className="btn-secondary"
+              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
+              title="Cargar ejemplo canónico para ver la sintaxis"
+            >
+              <FileText size={15} /> Plantilla ejemplo
+            </button>
+            <button
+              type="button"
+              onClick={() => markdownFileInputRef.current?.click()}
+              className="btn-secondary"
+              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
+              title="Cargar archivo .md desde tu ordenador"
+            >
+              <Upload size={15} /> Cargar .md
+            </button>
+            <button
+              type="button"
+              onClick={handleExportMarkdownFile}
+              className="btn-secondary"
+              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
+              title="Descargar este ejercicio como archivo .md"
+            >
+              <Download size={15} /> Descargar .md
+            </button>
+            <button
+              type="button"
+              onClick={() => setMarkdownPreview(!markdownPreview)}
+              className={markdownPreview ? 'btn-primary' : 'btn-secondary'}
+              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
+            >
+              <Columns size={15} /> {markdownPreview ? 'Ocultar vista previa' : 'Ver vista previa'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleExportMarkdownFile}
+              className="btn-secondary"
+              style={{ fontSize: '0.8125rem', padding: '0.375rem 0.75rem' }}
+              title="Exportar la configuración actual del formulario como archivo .md"
+            >
+              <Download size={15} /> Descargar .md
+            </button>
+          </div>
+        )}
+      </div>
+
+      {editorSubMode === 'markdown' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
+          {/* Quick syntax hint */}
+          <div style={{
+            fontSize: '0.8125rem',
+            color: '#475569',
+            backgroundColor: '#f1f5f9',
+            border: '1px solid #cbd5e1',
+            borderRadius: '0.5rem',
+            padding: '0.625rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.5rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Info size={16} color="#0284c7" />
+              <span>
+                Define todo el ejercicio: <code># Título</code>, enunciado libre, <code>## Plantillas</code> con bloques de código y <code>## Tests</code> con <code>### Test</code> (o <code>### Test private [peso]</code>).
+              </span>
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              Frontmatter YAML opcional para slug/tags.
+            </span>
+          </div>
+
+          {/* Editor & Preview Area */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: markdownPreview ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
+            gap: '1.25rem',
+            alignItems: 'start'
+          }}>
+            {/* Left: CodeEditor for Markdown */}
+            <div className="card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', height: '720px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.25rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                  Documento Markdown (.md)
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  {markdownText.length} caracteres • {markdownText.split('\n').length} líneas
+                </span>
+              </div>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <CodeEditor
+                  value={markdownText}
+                  onChange={(val) => setMarkdownText(val)}
+                  language="markdown"
+                  height="100%"
+                />
+              </div>
+            </div>
+
+            {/* Right: Live Preview & Inspection */}
+            {markdownPreview && (
+              <div className="card" style={{ padding: '1rem', height: '720px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* Header summary of parsed exercise */}
+                <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid #e2e8f0', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#0f172a' }}>
+                        {liveParsedMarkdown?.exercise.title || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Sin título (# Título)</span>}
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b', backgroundColor: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }}>
+                          slug: {liveParsedMarkdown?.exercise.slug || slugify(liveParsedMarkdown?.exercise.title || '') || '---'}
+                        </span>
+                        {liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                            {liveParsedMarkdown.exercise.tags.map((t, idx) => (
+                              <span key={idx} className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+                                #{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+                        {liveParsedMarkdown?.exercise.testCases.length || 0} tests ({liveParsedMarkdown?.exercise.testCases.reduce((acc, t) => acc + (t.weight || 1), 0) || 0} pts)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Warnings / Errors */}
+                  {liveParsedMarkdown?.errors && liveParsedMarkdown.errors.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#991b1b' }}>
+                      <strong>Atención:</strong>
+                      <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                        {liveParsedMarkdown.errors.map((err, idx) => (
+                          <li key={idx}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {liveParsedMarkdown?.warnings && liveParsedMarkdown.warnings.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '0.375rem', fontSize: '0.75rem', color: '#92400e' }}>
+                      <strong>Aviso:</strong>
+                      <ul style={{ margin: '0.25rem 0 0 1rem', padding: 0 }}>
+                        {liveParsedMarkdown.warnings.map((w, idx) => (
+                          <li key={idx}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Scrollable Preview Body */}
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
+                  {/* Statement Section */}
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
+                      Enunciado
+                    </h4>
+                    {liveParsedMarkdown?.exercise.statement ? (
+                      <div
+                        className="markdown-body"
+                        style={{
+                          fontSize: '0.875rem',
+                          backgroundColor: '#f8fafc',
+                          padding: '0.75rem 1rem',
+                          borderRadius: '0.375rem',
+                          border: '1px solid #e2e8f0'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(liveParsedMarkdown.exercise.statement) }}
+                      />
+                    ) : (
+                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
+                        Sin enunciado redactado.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Templates Section */}
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
+                      Plantillas ({Object.keys(liveParsedMarkdown?.exercise.templates || {}).length})
+                    </h4>
+                    {Object.keys(liveParsedMarkdown?.exercise.templates || {}).length === 0 ? (
+                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
+                        No se han definido plantillas (sección opcional).
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {Object.entries(liveParsedMarkdown?.exercise.templates || {}).map(([lang, code]) => (
+                          <div key={lang} style={{ border: '1px solid #e2e8f0', borderRadius: '0.375rem', overflow: 'hidden' }}>
+                            <div style={{ backgroundColor: '#f1f5f9', padding: '0.25rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155' }}>
+                              {lang.toUpperCase()}
+                            </div>
+                            <pre style={{ margin: 0, padding: '0.5rem', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.75rem', overflowX: 'auto', maxHeight: '120px' }}>
+                              <code>{code}</code>
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Test Cases Section */}
+                  <div>
+                    <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', margin: '0 0 0.5rem 0' }}>
+                      Casos de Prueba ({liveParsedMarkdown?.exercise.testCases.length || 0})
+                    </h4>
+                    {(!liveParsedMarkdown?.exercise.testCases || liveParsedMarkdown.exercise.testCases.length === 0) ? (
+                      <div style={{ fontSize: '0.8125rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
+                        No se han detectado casos de prueba en la sección ## Tests.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {liveParsedMarkdown.exercise.testCases.map((tc, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.375rem',
+                              padding: '0.5rem 0.75rem',
+                              backgroundColor: '#ffffff'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>
+                                #{idx + 1}
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                                <span
+                                  className={tc.isPublic ? 'badge badge-success' : 'badge badge-warning'}
+                                  style={{ fontSize: '0.7rem' }}
+                                >
+                                  {tc.isPublic ? 'Público' : 'Privado'}
+                                </span>
+                                <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                  Peso: {tc.weight || 1}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.75rem' }}>
+                              <div>
+                                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Entrada:</span>
+                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '70px', overflowY: 'auto' }}>
+                                  {tc.input || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
+                                </pre>
+                              </div>
+                              <div>
+                                <span style={{ color: '#64748b', display: 'block', marginBottom: '2px', fontWeight: 500 }}>Salida esperada:</span>
+                                <pre style={{ margin: 0, padding: '0.25rem 0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', maxHeight: '70px', overflowY: 'auto' }}>
+                                  {tc.expectedOutput || <span style={{ color: '#94a3b8' }}>(vacía)</span>}
+                                </pre>
+                              </div>
+                            </div>
+                            {tc.explanation && (
+                              <div style={{ marginTop: '0.375rem', fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                                Explicación: {tc.explanation}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* SECTION 1: METADATA & PARAMETERS */}
+          <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Layers size={18} color="#2563eb" /> Parámetros del Ejercicio
         </h2>
@@ -2155,6 +2686,8 @@ export const TeacherExercisesView: React.FC = () => {
           }
         />
       </div>
+      </>
+      )}
 
       {/* Bottom Action Bar */}
       <div style={{

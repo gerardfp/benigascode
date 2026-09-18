@@ -16,7 +16,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   disabled = false,
   height = '100%',
 }) => {
-  const normalizedLanguage = language?.toLowerCase() === 'python' ? 'python' : 'java';
+  const langLower = language?.toLowerCase().trim() || 'java';
+  let normalizedLanguage = 'java';
+  if (langLower === 'python' || langLower === 'py') {
+    normalizedLanguage = 'python';
+  } else if (langLower === 'markdown' || langLower === 'md') {
+    normalizedLanguage = 'markdown';
+  } else if (langLower === 'json') {
+    normalizedLanguage = 'json';
+  } else if (langLower === 'yaml' || langLower === 'yml') {
+    normalizedLanguage = 'yaml';
+  }
 
   return (
     <div
