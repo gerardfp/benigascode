@@ -74,6 +74,12 @@ export const TeacherExercisesView: React.FC = () => {
   // Refs for Monaco & inputs
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const selectedIdRef = useRef<string | null>(selectedId);
+  selectedIdRef.current = selectedId;
+  const markdownTextRef = useRef<string>(markdownText);
+  markdownTextRef.current = markdownText;
+  const handleUploadAndInsertImageRef = useRef<(file: File) => Promise<void>>(async () => {});
   const markdownFileInputRef = useRef<HTMLInputElement>(null);
   const listImportFileInputRef = useRef<HTMLInputElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -399,10 +405,14 @@ export const TeacherExercisesView: React.FC = () => {
   // Helper to ensure exercise is saved before attaching assets
   const ensureExerciseSaved = async (): Promise<string | null> => {
     if (selectedId) return selectedId;
+    if (selectedIdRef.current) return selectedIdRef.current;
 
     const parsed = parseExerciseMarkdown(markdownText);
+    const currentMarkdown = editorRef.current ? editorRef.current.getValue() : markdownTextRef.current;
+    const parsed = parseExerciseMarkdown(currentMarkdown);
     const exTitle = parsed.exercise.title?.trim();
     if (!exTitle) {
+    if (!exTitle || exTitle === 'Ejercicio sin título') {
       alert('Por favor, indica primero un título (# Título) para el ejercicio antes de subir o pegar imágenes.');
       return null;
     }
@@ -427,6 +437,7 @@ export const TeacherExercisesView: React.FC = () => {
         testCases: parsed.exercise.testCases || []
       });
 
+      selectedIdRef.current = saved.id;
       setSelectedId(saved.id);
       setVersionNumber(saved.versionNumber || 1);
       setSearchParams(collectionIdParam ? { exerciseId: saved.id, collectionId: collectionIdParam } : { exerciseId: saved.id });
@@ -459,9 +470,19 @@ export const TeacherExercisesView: React.FC = () => {
           forceMoveMarkers: true,
         },
       ]);
+      editor.pushUndoStop();
       editor.focus();
+
+      const updatedVal = editor.getValue();
+      setMarkdownText(updatedVal);
+      markdownTextRef.current = updatedVal;
     } else {
       setMarkdownText((prev) => prev + snippet);
+      setMarkdownText((prev) => {
+        const next = prev + snippet;
+        markdownTextRef.current = next;
+        return next;
+      });
     }
   };
 
@@ -478,6 +499,10 @@ export const TeacherExercisesView: React.FC = () => {
         const cleanExt = ext === 'jpeg' ? 'jpg' : ext;
         const uniqueName = `img_${Date.now()}.${cleanExt}`;
         fileToUpload = new File([file], uniqueName, { type: file.type });
+        const ext = file.type ? (file.type.split('/')[1] || 'png') : 'png';
+        const cleanExt = ext === 'jpeg' ? 'jpg' : ext.replace(/[^a-z0-9]/gi, '');
+        const uniqueName = `img_${Date.now()}.${cleanExt || 'png'}`;
+        fileToUpload = new File([file], uniqueName, { type: file.type || 'image/png' });
       }
 
       const newAsset = await api.teacherUploadAsset(currentExId, fileToUpload);
@@ -488,24 +513,59 @@ export const TeacherExercisesView: React.FC = () => {
 
       setStatusMsg({ type: 'success', text: `Imagen "${newAsset.filename}" subida e insertada.` });
     } catch (err: any) {
+      console.error('Error subiendo imagen:', err);
       alert('Error subiendo imagen: ' + (err.message || 'Error desconocido'));
     } finally {
       setUploadingAsset(false);
       if (imageFileInputRef.current) imageFileInputRef.current.value = '';
     }
   };
+  handleUploadAndInsertImageRef.current = handleUploadAndInsertImage;
 
   // Delete an asset from the exercise
   const handleDeleteAsset = async (filename: string) => {
     if (!selectedId) return;
+    const exId = selectedIdRef.current || selectedId;
+    if (!exId) return;
     if (!confirm(`¿Seguro que deseas eliminar la imagen "${filename}" del servidor?`)) return;
     try {
       await api.teacherDeleteAsset(selectedId, filename);
+      await api.teacherDeleteAsset(exId, filename);
       setAssets((prev) => prev.filter((a) => a.filename !== filename));
       setStatusMsg({ type: 'success', text: `Imagen "${filename}" eliminada.` });
     } catch (err: any) {
       alert('Error eliminando imagen: ' + (err.message || 'Error desconocido'));
     }
+  };
+
+  // Helper to extract image file from DataTransfer (used by drop & paste)
+  const extractImageFile = (dataTransfer: DataTransfer | null): File | null => {
+    if (!dataTransfer) return null;
+
+    // 1. Check DataTransferItemList (standard clipboard image items)
+    const items = dataTransfer.items;
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/') || item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) return file;
+        }
+      }
+    }
+
+    // 2. Check FileList (e.g. dragging/pasting file from OS explorer)
+    const files = dataTransfer.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(file.name)) {
+          return file;
+        }
+      }
+    }
+
+    return null;
   };
 
   // Monaco Editor onMount handler: attach paste & drop listeners
@@ -531,6 +591,11 @@ export const TeacherExercisesView: React.FC = () => {
             return;
           }
         }
+      const imgFile = extractImageFile(e.clipboardData);
+      if (imgFile) {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleUploadAndInsertImageRef.current(imgFile);
       }
     };
 
@@ -556,17 +621,26 @@ export const TeacherExercisesView: React.FC = () => {
           if (files[i].type.startsWith('image/')) {
             e.preventDefault();
             e.stopPropagation();
+      const imgFile = extractImageFile(e.dataTransfer);
+      if (imgFile) {
+        e.preventDefault();
+        e.stopPropagation();
 
             // Set cursor to mouse drop location in Monaco
             const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
             if (target?.position) {
               editor.setPosition(target.position);
             }
+        const target = editor.getTargetAtClientPoint(e.clientX, e.clientY);
+        if (target?.position) {
+          editor.setPosition(target.position);
+        }
 
             await handleUploadAndInsertImage(files[i]);
             return;
           }
         }
+        await handleUploadAndInsertImageRef.current(imgFile);
       }
     };
 
@@ -574,7 +648,53 @@ export const TeacherExercisesView: React.FC = () => {
     domNode.addEventListener('dragover', onDragOver, true);
     domNode.addEventListener('dragleave', onDragLeave, true);
     domNode.addEventListener('drop', onDrop, true);
+
+    // KeyDown interceptor for Ctrl+V / Cmd+V with navigator.clipboard as fallback
+    editor.onKeyDown(async (e: any) => {
+      if ((e.ctrlKey || e.metaKey) && e.keyCode === monaco.KeyCode.KeyV) {
+        if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+          try {
+            const clipboardItems = await navigator.clipboard.read();
+            for (const item of clipboardItems) {
+              const imageType = item.types.find((t) => t.startsWith('image/'));
+              if (imageType) {
+                e.preventDefault();
+                e.stopPropagation();
+                const blob = await item.getType(imageType);
+                const ext = imageType.split('/')[1] || 'png';
+                const file = new File([blob], `pasted_img_${Date.now()}.${ext}`, { type: imageType });
+                await handleUploadAndInsertImageRef.current(file);
+                return;
+              }
+            }
+          } catch (clipErr) {
+            // Silently allow default / paste event capture to proceed
+          }
+        }
+      }
+    });
   };
+
+  // Additional container-level paste listener as extra safety net
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+
+    const onContainerPaste = async (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return;
+      const imgFile = extractImageFile(e.clipboardData);
+      if (imgFile) {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleUploadAndInsertImageRef.current(imgFile);
+      }
+    };
+
+    container.addEventListener('paste', onContainerPaste, true);
+    return () => {
+      container.removeEventListener('paste', onContainerPaste, true);
+    };
+  }, [mode]);
 
   // Save exercise directly from Markdown text
   const handleSave = async () => {
@@ -1178,9 +1298,17 @@ export const TeacherExercisesView: React.FC = () => {
 
             {/* Monaco Editor */}
             <div style={{ flex: 1, minHeight: 0 }}>
+            <div
+              ref={editorContainerRef}
+              style={{ flex: 1, minHeight: 0 }}
+            >
               <CodeEditor
                 value={markdownText}
                 onChange={(val) => setMarkdownText(val)}
+                onChange={(val) => {
+                  setMarkdownText(val);
+                  markdownTextRef.current = val;
+                }}
                 language="markdown"
                 height="100%"
                 onMount={handleEditorDidMount}
@@ -1361,6 +1489,19 @@ export const TeacherExercisesView: React.FC = () => {
                     </ul>
                   </div>
                 )}
+
+                {/* Título del ejercicio (tal como lo ve el alumno) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                  <h1 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 700,
+                    margin: 0,
+                    color: liveParsedMarkdown?.exercise.title?.trim() ? '#0f172a' : '#94a3b8',
+                    fontStyle: liveParsedMarkdown?.exercise.title?.trim() ? 'normal' : 'italic'
+                  }}>
+                    {liveParsedMarkdown?.exercise.title?.trim() || 'Ejercicio sin título (# Título)'}
+                  </h1>
+                </div>
 
                 {/* Etiquetas (tags) si están presentes */}
                 {liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0 && (
