@@ -5,9 +5,8 @@ import { Collection, Exercise, CollectionItemDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, Trash2, Download, 
-  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Edit3
   ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Edit3,
-  GripVertical
+  GripVertical, ChevronsRight
 } from 'lucide-react';
 
 export const TeacherCollectionsView: React.FC = () => {
@@ -60,6 +59,10 @@ export const TeacherCollectionsView: React.FC = () => {
   // Drag and drop reorder state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+
+  // Quick position editing state
+  const [editingPosIndex, setEditingPosIndex] = useState<number | null>(null);
+  const [editingPosValue, setEditingPosValue] = useState<string>('');
 
   // Available catalog exercises to add
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
@@ -249,6 +252,35 @@ export const TeacherCollectionsView: React.FC = () => {
       } catch (err: any) {
         setCollectionExercises(collectionExercises);
         setStatusMsg({ type: 'error', text: err.message || 'Error al reordenar ejercicios.' });
+      }
+    }
+  };
+
+  const handleSetPosition = async (fromIndex: number, newPos1Based: number) => {
+    if (isNaN(newPos1Based)) return;
+    const targetPos = Math.max(1, Math.min(collectionExercises.length, newPos1Based));
+    const targetIndex = targetPos - 1;
+    if (targetIndex === fromIndex) return;
+
+    const updated = [...collectionExercises];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+    const ordered = updated.map((ex, i) => ({ ...ex, orderIndex: i }));
+    setCollectionExercises(ordered);
+
+    if (selectedId) {
+      try {
+        await api.teacherSaveCollection({
+          title: title.trim(),
+          slug: slug.trim(),
+          description: description.trim() || undefined,
+          visibility,
+          exerciseIds: ordered.map((e) => e.exerciseId)
+        }, selectedId);
+        loadCollections();
+      } catch (err: any) {
+        setCollectionExercises(collectionExercises);
+        setStatusMsg({ type: 'error', text: err.message || 'Error al recolocar el ejercicio.' });
       }
     }
   };
@@ -545,9 +577,6 @@ export const TeacherCollectionsView: React.FC = () => {
 
       {/* CARD: PARÁMETROS Y EJERCICIOS */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Folder size={18} color="#2563eb" /> {selectedId ? 'Parámetros de la Colección' : 'Nueva Colección'}
-        </h2>
         {!selectedId && (
           <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Folder size={18} color="#2563eb" /> Nueva Colección
@@ -672,12 +701,8 @@ export const TeacherCollectionsView: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <BookOpen size={18} color="#2563eb" /> Ejercicios en esta Colección ({collectionExercises.length})
                   <BookOpen size={18} color="#2563eb" /> Ejercicios ({collectionExercises.length})
                 </h3>
-                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                  Organiza y reordena los ejercicios que componen esta colección. Los cambios se guardan automáticamente.
-                </span>
               </div>
 
               <button
@@ -756,27 +781,6 @@ export const TeacherCollectionsView: React.FC = () => {
                 Esta colección aún no tiene ejercicios. Haz clic en "Añadir Ejercicio" para seleccionarlos.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {collectionExercises.map((item, index) => (
-                  <div
-                    key={item.exerciseId}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '0.75rem 1rem',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '0.375rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', width: '24px' }}>
-                        #{index + 1}
-                      </span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
-                          {item.exerciseTitle}
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDragLeave={(e) => {
@@ -833,8 +837,6 @@ export const TeacherCollectionsView: React.FC = () => {
                         >
                           Mover a la posición #{index + 1}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
-                          {item.exerciseSlug}
                       )}
 
                       <div
@@ -887,9 +889,95 @@ export const TeacherCollectionsView: React.FC = () => {
                           >
                             <GripVertical size={16} />
                           </div>
-                          <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', width: '24px' }}>
-                            #{index + 1}
-                          </span>
+                          {editingPosIndex === index ? (
+                            <div
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                              draggable={false}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="number"
+                                min={1}
+                                max={collectionExercises.length}
+                                value={editingPosValue}
+                                autoFocus
+                                onChange={(e) => setEditingPosValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const parsed = parseInt(editingPosValue, 10);
+                                    if (!isNaN(parsed)) {
+                                      handleSetPosition(index, parsed);
+                                    }
+                                    setEditingPosIndex(null);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setEditingPosIndex(null);
+                                  }
+                                }}
+                                style={{
+                                  width: '48px',
+                                  padding: '0.2rem 0.35rem',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 700,
+                                  textAlign: 'center',
+                                  border: '1px solid #2563eb',
+                                  borderRadius: '0.25rem',
+                                  outline: 'none',
+                                  backgroundColor: '#ffffff',
+                                  color: '#1e293b',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const parsed = parseInt(editingPosValue, 10);
+                                  if (!isNaN(parsed)) {
+                                    handleSetPosition(index, parsed);
+                                  }
+                                  setEditingPosIndex(null);
+                                }}
+                                className="btn-primary"
+                                style={{
+                                  padding: '0.25rem 0.4rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: '0.25rem',
+                                }}
+                                title="Mover a esta posición"
+                              >
+                                <ChevronsRight size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              draggable={false}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPosIndex(index);
+                                setEditingPosValue(String(index + 1));
+                              }}
+                              className="btn-secondary"
+                              style={{
+                                padding: '0.15rem 0.4rem',
+                                fontSize: '0.8125rem',
+                                fontWeight: 700,
+                                color: '#475569',
+                                backgroundColor: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '0.25rem',
+                                minWidth: '34px',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                              }}
+                              title="Haz clic para cambiar de posición"
+                            >
+                              #{index + 1}
+                            </button>
+                          )}
                           <div>
                             <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
                               {item.exerciseTitle}
@@ -951,56 +1039,6 @@ export const TeacherCollectionsView: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Reorder, Edit, and Delete Actions */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const url = selectedId 
-                            ? `/teacher/exercises?exerciseId=${item.exerciseId}&collectionId=${selectedId}`
-                            : `/teacher/exercises?exerciseId=${item.exerciseId}`;
-                          navigate(url);
-                        }}
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        title="Editar este ejercicio en el editor completo"
-                      >
-                        <Edit3 size={13} /> Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMoveExercise(index, 'up')}
-                        disabled={index === 0}
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.4rem', opacity: index === 0 ? 0.3 : 1 }}
-                        title="Mover arriba"
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMoveExercise(index, 'down')}
-                        disabled={index === collectionExercises.length - 1}
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.4rem', opacity: index === collectionExercises.length - 1 ? 0.3 : 1 }}
-                        title="Mover abajo"
-                      >
-                        <ArrowDown size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExercise(index)}
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', color: '#dc2626' }}
-                        title="Quitar de esta colección"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
                       {showPlaceholderAfter && (
                         <div
                           onDragOver={(e) => {
