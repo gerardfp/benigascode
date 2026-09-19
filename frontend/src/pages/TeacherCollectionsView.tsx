@@ -273,36 +273,35 @@ export const TeacherCollectionsView: React.FC = () => {
   if (mode === 'list') {
     return (
       <div className="app-container">
-        {/* Top Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Folder size={24} style={{ color: '#2563eb' }} />
-            <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              Colecciones
-            </h1>
-          </div>
-          <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Plus size={16} /> Crear Colección
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Buscar colección por título o identificador..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field"
-              style={{ paddingLeft: '2.5rem' }}
-            />
-          </div>
-        </div>
-
         {/* Collections Table / Cards */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Toolbar de búsqueda y acciones pegado a la tabla */}
+          <div style={{
+            padding: '0.875rem 1.25rem',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#ffffff',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: 500 }}>
+              <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <input
+                type="text"
+                placeholder="Buscar colección por título o identificador..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input-field"
+                style={{ paddingLeft: '2.5rem', width: '100%', fontSize: '0.875rem' }}
+              />
+            </div>
+
+            <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>
+              <Plus size={16} /> Crear Colección
+            </button>
+          </div>
           {loading ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Cargando colecciones...</div>
           ) : filteredCollections.length === 0 ? (

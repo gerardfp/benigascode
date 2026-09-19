@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import { api } from '../services/api';
 
@@ -10,6 +10,17 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isPathActive = (path: string) => {
+    if (path === '/') {
+      return location.pathname === '/';
+    }
+    if (path === '/teacher/teachers' || path === '/teacher/management') {
+      return location.pathname.startsWith('/teacher/teachers') || location.pathname.startsWith('/teacher/management');
+    }
+    return location.pathname.startsWith(path);
+  };
 
   const handleLogout = async () => {
     try {
@@ -30,26 +41,26 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           </Link>
 
           {user && (
-            <nav style={{ display: 'flex', gap: '1rem' }}>
+            <nav style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
               {user.role === 'STUDENT' && (
                 <>
-                  <Link to="/" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Mis Actividades</Link>
-                  <Link to="/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
-                  <Link to="/progress" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Mi Progreso</Link>
-                  <Link to="/history" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Historial</Link>
+                  <Link to="/" className={`nav-link ${isPathActive('/') ? 'active' : ''}`}>Mis Actividades</Link>
+                  <Link to="/collections" className={`nav-link ${isPathActive('/collections') ? 'active' : ''}`}>Colecciones</Link>
+                  <Link to="/progress" className={`nav-link ${isPathActive('/progress') ? 'active' : ''}`}>Mi Progreso</Link>
+                  <Link to="/history" className={`nav-link ${isPathActive('/history') ? 'active' : ''}`}>Historial</Link>
                 </>
               )}
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
                 <>
-                  <Link to="/teacher/collections" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Colecciones</Link>
-                  <Link to="/teacher/exercises" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Ejercicios</Link>
-                  <Link to="/teacher/spaces" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Espacios</Link>
-                  <Link to="/teacher/students" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Alumnos</Link>
-                  <Link to="/teacher/teachers" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Profesores</Link>
-                  <Link to="/teacher/activities" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Actividades</Link>
-                  <Link to="/teacher/insights" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Insights</Link>
-                  <Link to="/teacher/submissions" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Envíos</Link>
-                  <Link to="/teacher/sync" style={{ textDecoration: 'none', color: '#475569', fontSize: '0.875rem', fontWeight: 500 }}>Importar / Exportar</Link>
+                  <Link to="/teacher/collections" className={`nav-link ${isPathActive('/teacher/collections') ? 'active' : ''}`}>Colecciones</Link>
+                  <Link to="/teacher/exercises" className={`nav-link ${isPathActive('/teacher/exercises') ? 'active' : ''}`}>Ejercicios</Link>
+                  <Link to="/teacher/spaces" className={`nav-link ${isPathActive('/teacher/spaces') ? 'active' : ''}`}>Espacios</Link>
+                  <Link to="/teacher/students" className={`nav-link ${isPathActive('/teacher/students') ? 'active' : ''}`}>Alumnos</Link>
+                  <Link to="/teacher/teachers" className={`nav-link ${isPathActive('/teacher/teachers') ? 'active' : ''}`}>Profesores</Link>
+                  <Link to="/teacher/activities" className={`nav-link ${isPathActive('/teacher/activities') ? 'active' : ''}`}>Actividades</Link>
+                  <Link to="/teacher/insights" className={`nav-link ${isPathActive('/teacher/insights') ? 'active' : ''}`}>Insights</Link>
+                  <Link to="/teacher/submissions" className={`nav-link ${isPathActive('/teacher/submissions') ? 'active' : ''}`}>Envíos</Link>
+                  <Link to="/teacher/sync" className={`nav-link ${isPathActive('/teacher/sync') ? 'active' : ''}`}>Importar / Exportar</Link>
                 </>
               )}
             </nav>

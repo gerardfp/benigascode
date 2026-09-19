@@ -521,20 +521,6 @@ export const TeacherSpacesView: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Layers size={24} style={{ color: '#2563eb' }} />
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-            Espacios
-          </h1>
-        </div>
-
-        <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={16} /> Crear Espacio
-        </button>
-      </div>
-
       {error && (
         <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', color: '#b91c1c', marginBottom: '1rem' }}>
           {error}
@@ -543,6 +529,18 @@ export const TeacherSpacesView: React.FC = () => {
 
       {/* Tabla de Espacios */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{
+          padding: '0.875rem 1.25rem',
+          borderBottom: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+        }}>
+          <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+            <Plus size={16} /> Crear Espacio
+          </button>
+        </div>
         {loading ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
             Cargando espacios...

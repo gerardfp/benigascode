@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
 import { AuthorizedTeacherDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
-import { Shield } from 'lucide-react';
 
 export const TeacherManagementView: React.FC = () => {
   const [teachers, setTeachers] = useState<AuthorizedTeacherDTO[]>([]);
@@ -111,16 +110,6 @@ export const TeacherManagementView: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Shield size={24} style={{ color: '#2563eb' }} />
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-            Profesores
-          </h1>
-        </div>
-      </div>
-
       {error && (
         <div style={{
           backgroundColor: '#fee2e2',
@@ -148,60 +137,62 @@ export const TeacherManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* Formulario para añadir profesor */}
-      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
-        <h2 style={{ fontSize: '1.0625rem', fontWeight: 600, margin: '0 0 1rem' }}>
-          + Autorizar Nuevo Profesor (GitHub)
-        </h2>
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1 1 240px' }}>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: '0.25rem', color: '#475569' }}>
-              Usuario de GitHub *
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <span style={{ position: 'absolute', left: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>@</span>
-              <input
-                type="text"
-                required
-                className="input-field"
-                style={{ paddingLeft: '2rem' }}
-                placeholder="ej. octocat"
-                value={githubUsername}
-                onChange={(e) => setGithubUsername(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div style={{ flex: '2 1 300px' }}>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 500, marginBottom: '0.25rem', color: '#475569' }}>
-              Notas / Nombre / Departamento
-            </label>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="ej. Profesor de Programación DAM"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn-primary"
-            style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
-          >
-            {submitting ? 'Añadiendo...' : '+ Autorizar Profesor'}
-          </button>
-        </form>
-      </div>
-
       {/* Listado de profesores autorizados */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '1.0625rem', fontWeight: 600, margin: 0 }}>
+        <div style={{
+          padding: '1.25rem',
+          borderBottom: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+        }}>
+          <h2 style={{ fontSize: '1.0625rem', fontWeight: 600, margin: 0, color: '#0f172a' }}>
             Profesores Autorizados ({teachers.length})
           </h2>
+
+          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>
+                Usuario de GitHub *
+              </label>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>@</span>
+                <input
+                  type="text"
+                  required
+                  className="input-field"
+                  style={{ paddingLeft: '2rem', fontSize: '0.875rem' }}
+                  placeholder="ej. octocat"
+                  value={githubUsername}
+                  onChange={(e) => setGithubUsername(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: '2 1 260px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>
+                Notas / Nombre / Departamento
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                style={{ fontSize: '0.875rem' }}
+                placeholder="ej. Profesor de Programación DAM"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary"
+              style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
+            >
+              {submitting ? 'Añadiendo...' : '+ Autorizar Profesor'}
+            </button>
+          </form>
         </div>
 
         <div style={{ overflowX: 'auto' }}>

@@ -293,107 +293,11 @@ export const TeacherStudentsView: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Users size={24} style={{ color: '#2563eb' }} />
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-            Alumnos
-          </h1>
-        </div>
-      </div>
-
       {error && (
         <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', color: '#b91c1c', marginBottom: '1rem' }}>
           {error}
         </div>
       )}
-
-      {/* Barra de Filtros */}
-      <div className="card" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Filtrar por Espacio */}
-          <div style={{ minWidth: 200, flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-              Filtrar por Espacio Docente
-            </label>
-            <select
-              value={selectedSpaceId}
-              onChange={e => setSelectedSpaceId(e.target.value)}
-              className="input-field"
-              style={{ width: '100%', fontSize: '0.875rem' }}
-            >
-              <option value="">Todos los espacios docentes</option>
-              {spaces.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtrar por Categoría */}
-          <div style={{ minWidth: 160, flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-              Categoría de Etiqueta
-            </label>
-            <select
-              value={selectedTagCategory}
-              onChange={e => {
-                setSelectedTagCategory(e.target.value);
-                setSelectedTagValue('');
-              }}
-              className="input-field"
-              style={{ width: '100%', fontSize: '0.875rem' }}
-            >
-              <option value="">Todas las categorías</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtrar por Valor de Etiqueta */}
-          {selectedTagCategory && (
-            <div style={{ minWidth: 160, flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-                Valor de Etiqueta
-              </label>
-              <select
-                value={selectedTagValue}
-                onChange={e => setSelectedTagValue(e.target.value)}
-                className="input-field"
-                style={{ width: '100%', fontSize: '0.875rem' }}
-              >
-                <option value="">Todos los valores de {selectedTagCategory}</option>
-                {availableTags
-                  .filter(t => t.category === selectedTagCategory)
-                  .map(t => (
-                    <option key={t.id} value={t.value}>{t.value}</option>
-                  ))}
-              </select>
-            </div>
-          )}
-
-          {/* Buscador de Alumno */}
-          <div style={{ minWidth: 220, flex: 2 }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-              Buscar Alumno
-            </label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Nombre, usuario o GitHub..."
-                className="input-field"
-                style={{ width: '100%', fontSize: '0.875rem' }}
-              />
-              <button type="submit" className="btn-secondary" style={{ padding: '0.5rem 0.75rem' }}>
-                <Search size={16} />
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
 
       {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Visible al seleccionar 1 o más alumnos) */}
       {selectedStudentIds.size > 0 && (
@@ -790,6 +694,95 @@ export const TeacherStudentsView: React.FC = () => {
 
       {/* Tabla de Alumnos */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Toolbar de Filtros y Búsqueda pegado a la tabla */}
+        <div style={{
+          padding: '1rem 1.25rem',
+          borderBottom: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
+        }}>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            {/* Filtrar por Espacio */}
+            <div style={{ minWidth: 200, flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
+                Filtrar por Espacio Docente
+              </label>
+              <select
+                value={selectedSpaceId}
+                onChange={e => setSelectedSpaceId(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', fontSize: '0.875rem' }}
+              >
+                <option value="">Todos los espacios docentes</option>
+                {spaces.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtrar por Categoría */}
+            <div style={{ minWidth: 160, flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
+                Categoría de Etiqueta
+              </label>
+              <select
+                value={selectedTagCategory}
+                onChange={e => {
+                  setSelectedTagCategory(e.target.value);
+                  setSelectedTagValue('');
+                }}
+                className="input-field"
+                style={{ width: '100%', fontSize: '0.875rem' }}
+              >
+                <option value="">Todas las categorías</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtrar por Valor de Etiqueta */}
+            {selectedTagCategory && (
+              <div style={{ minWidth: 160, flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
+                  Valor de Etiqueta
+                </label>
+                <select
+                  value={selectedTagValue}
+                  onChange={e => setSelectedTagValue(e.target.value)}
+                  className="input-field"
+                  style={{ width: '100%', fontSize: '0.875rem' }}
+                >
+                  <option value="">Todos los valores de {selectedTagCategory}</option>
+                  {availableTags
+                    .filter(t => t.category === selectedTagCategory)
+                    .map(t => (
+                      <option key={t.id} value={t.value}>{t.value}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+            {/* Buscador de Alumno */}
+            <div style={{ minWidth: 220, flex: 2 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
+                Buscar Alumno
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Nombre, usuario o GitHub..."
+                  className="input-field"
+                  style={{ width: '100%', fontSize: '0.875rem' }}
+                />
+                <button type="submit" className="btn-secondary" style={{ padding: '0.5rem 0.75rem' }}>
+                  <Search size={16} />
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
         {loading ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
             Cargando alumnos...
