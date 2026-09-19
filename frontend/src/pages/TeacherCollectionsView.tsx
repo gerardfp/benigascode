@@ -6,6 +6,8 @@ import { SortableHeader } from '../components/SortableHeader';
 import { 
   Plus, Search, Trash2, Download, 
   ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Edit3
+  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Edit3,
+  GripVertical
 } from 'lucide-react';
 
 export const TeacherCollectionsView: React.FC = () => {
@@ -54,6 +56,10 @@ export const TeacherCollectionsView: React.FC = () => {
 
   // Exercises inside this collection
   const [collectionExercises, setCollectionExercises] = useState<CollectionItemDTO[]>([]);
+
+  // Drag and drop reorder state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
 
   // Available catalog exercises to add
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
@@ -199,6 +205,35 @@ export const TeacherCollectionsView: React.FC = () => {
     const temp = updated[index];
     updated[index] = updated[target];
     updated[target] = temp;
+    const ordered = updated.map((ex, i) => ({ ...ex, orderIndex: i }));
+    setCollectionExercises(ordered);
+
+    if (selectedId) {
+      try {
+        await api.teacherSaveCollection({
+          title: title.trim(),
+          slug: slug.trim(),
+          description: description.trim() || undefined,
+          visibility,
+          exerciseIds: ordered.map((e) => e.exerciseId)
+        }, selectedId);
+      } catch (err: any) {
+        setCollectionExercises(collectionExercises);
+        setStatusMsg({ type: 'error', text: err.message || 'Error al reordenar ejercicios.' });
+      }
+    }
+  };
+
+  const handleDropReorder = async (fromIndex: number, targetIndex: number) => {
+    let toIndex = targetIndex;
+    if (fromIndex < toIndex) {
+      toIndex = toIndex - 1;
+    }
+    if (fromIndex === toIndex) return;
+
+    const updated = [...collectionExercises];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
     const ordered = updated.map((ex, i) => ({ ...ex, orderIndex: i }));
     setCollectionExercises(ordered);
 
@@ -513,6 +548,11 @@ export const TeacherCollectionsView: React.FC = () => {
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Folder size={18} color="#2563eb" /> {selectedId ? 'Parámetros de la Colección' : 'Nueva Colección'}
         </h2>
+        {!selectedId && (
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Folder size={18} color="#2563eb" /> Nueva Colección
+          </h2>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
@@ -633,6 +673,7 @@ export const TeacherCollectionsView: React.FC = () => {
               <div>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <BookOpen size={18} color="#2563eb" /> Ejercicios en esta Colección ({collectionExercises.length})
+                  <BookOpen size={18} color="#2563eb" /> Ejercicios ({collectionExercises.length})
                 </h3>
                 <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
                   Organiza y reordena los ejercicios que componen esta colección. Los cambios se guardan automáticamente.
@@ -736,9 +777,178 @@ export const TeacherCollectionsView: React.FC = () => {
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
                           {item.exerciseTitle}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDropTargetIndex(null);
+                  }
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+              >
+                {collectionExercises.map((item, index) => {
+                  const showPlaceholderBefore =
+                    draggedIndex !== null &&
+                    dropTargetIndex === index &&
+                    dropTargetIndex !== draggedIndex &&
+                    dropTargetIndex !== draggedIndex + 1;
+
+                  const isLastItem = index === collectionExercises.length - 1;
+                  const showPlaceholderAfter =
+                    isLastItem &&
+                    draggedIndex !== null &&
+                    dropTargetIndex === collectionExercises.length &&
+                    dropTargetIndex !== draggedIndex &&
+                    dropTargetIndex !== draggedIndex + 1;
+
+                  return (
+                    <React.Fragment key={item.exerciseId}>
+                      {showPlaceholderBefore && (
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedIndex !== null && dropTargetIndex !== null) {
+                              handleDropReorder(draggedIndex, dropTargetIndex);
+                            }
+                            setDraggedIndex(null);
+                            setDropTargetIndex(null);
+                          }}
+                          style={{
+                            height: '48px',
+                            backgroundColor: '#eff6ff',
+                            border: '2px dashed #3b82f6',
+                            borderRadius: '0.375rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#2563eb',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          Mover a la posición #{index + 1}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
                           {item.exerciseSlug}
+                      )}
+
+                      <div
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', String(index));
+                          setDraggedIndex(index);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const mid = rect.top + rect.height / 2;
+                          const pos = e.clientY > mid ? index + 1 : index;
+                          if (dropTargetIndex !== pos) {
+                            setDropTargetIndex(pos);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedIndex !== null && dropTargetIndex !== null) {
+                            handleDropReorder(draggedIndex, dropTargetIndex);
+                          }
+                          setDraggedIndex(null);
+                          setDropTargetIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedIndex(null);
+                          setDropTargetIndex(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '0.375rem',
+                          opacity: draggedIndex === index ? 0.35 : 1,
+                          cursor: 'grab',
+                          boxShadow: draggedIndex === index ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : undefined,
+                          transition: 'opacity 0.15s, box-shadow 0.15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <div
+                            style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', cursor: 'grab' }}
+                            title="Arrastrar para reordenar"
+                          >
+                            <GripVertical size={16} />
+                          </div>
+                          <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', width: '24px' }}>
+                            #{index + 1}
+                          </span>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+                              {item.exerciseTitle}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
+                              {item.exerciseSlug}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reorder, Edit, and Delete Actions */}
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          draggable={false}
+                          onDragStart={(e) => e.preventDefault()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = selectedId 
+                                ? `/teacher/exercises?exerciseId=${item.exerciseId}&collectionId=${selectedId}`
+                                : `/teacher/exercises?exerciseId=${item.exerciseId}`;
+                              navigate(url);
+                            }}
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Editar este ejercicio en el editor completo"
+                          >
+                            <Edit3 size={13} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveExercise(index, 'up')}
+                            disabled={index === 0}
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.4rem', opacity: index === 0 ? 0.3 : 1 }}
+                            title="Mover arriba"
+                          >
+                            <ArrowUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveExercise(index, 'down')}
+                            disabled={index === collectionExercises.length - 1}
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.4rem', opacity: index === collectionExercises.length - 1 ? 0.3 : 1 }}
+                            title="Mover abajo"
+                          >
+                            <ArrowDown size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExercise(index)}
+                            className="btn-secondary"
+                            style={{ padding: '0.25rem 0.5rem', color: '#dc2626' }}
+                            title="Quitar de esta colección"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -791,6 +1001,40 @@ export const TeacherCollectionsView: React.FC = () => {
                     </div>
                   </div>
                 ))}
+                      {showPlaceholderAfter && (
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedIndex !== null && dropTargetIndex !== null) {
+                              handleDropReorder(draggedIndex, dropTargetIndex);
+                            }
+                            setDraggedIndex(null);
+                            setDropTargetIndex(null);
+                          }}
+                          style={{
+                            height: '48px',
+                            backgroundColor: '#eff6ff',
+                            border: '2px dashed #3b82f6',
+                            borderRadius: '0.375rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#2563eb',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          Mover al final (posición #{collectionExercises.length})
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             )}
           </div>
