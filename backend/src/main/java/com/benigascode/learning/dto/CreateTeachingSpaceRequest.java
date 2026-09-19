@@ -1,5 +1,6 @@
 package com.benigascode.learning.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -13,6 +14,7 @@ public record CreateTeachingSpaceRequest(
 
     String description,
 
+    @JsonAlias({"requiredTagIds", "contextTagIds"})
     List<UUID> contextTagIds,
 
     List<UUID> teacherIds,

@@ -154,14 +154,6 @@ export const TeacherCollectionsView: React.FC = () => {
     });
   }, [collections, searchTerm, sortKey, sortDir]);
 
-  // Back to list helper
-  const handleBackToList = () => {
-    setMode('list');
-    setSelectedId(null);
-    setSearchParams({});
-    setStatusMsg(null);
-  };
-
   // Open Editor for an existing collection
   const handleOpenEdit = async (id: string) => {
     try {
@@ -536,27 +528,26 @@ export const TeacherCollectionsView: React.FC = () => {
                       <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                         <button
                           onClick={() => handleOpenEdit(col.id)}
-                          className="btn-secondary"
-                          style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem' }}
+                          className="btn-table-action"
+                          title="Editar colección"
                         >
-                          Editar
+                          <Edit3 size={15} />
                         </button>
                         <a
                           href={api.teacherExportCollectionZipUrl(col.id)}
                           download
-                          className="btn-secondary"
-                          style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem', textDecoration: 'none' }}
+                          className="btn-table-action"
+                          style={{ textDecoration: 'none' }}
                           title="Exportar ZIP"
                         >
-                          <Download size={14} /> ZIP
+                          <Download size={15} />
                         </a>
                         <button
                           onClick={() => handleDelete(col.id, col.title)}
-                          className="btn-secondary"
-                          style={{ padding: '0.375rem 0.625rem', fontSize: '0.8125rem', color: '#dc2626' }}
+                          className="btn-table-action-danger"
                           title="Eliminar colección"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>

@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
-import { TeachingSpace, Tag, Collection, TeacherStudent, ContextPreviewDTO } from '../types';
+import { TeachingSpace, Tag, Collection, ContextPreviewDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import {
   Layers, Plus, Trash2, Edit3, Users, BookOpen,
-  Shield, Info, X, Check
+  Shield, X, Check
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -97,11 +97,6 @@ export const TeacherSpacesView: React.FC = () => {
     return Array.from(new Set(allTags.map(t => t.category).filter(Boolean)));
   }, [allTags]);
 
-  // Modal Administrar Espacio
-  const [activeSpace, setActiveSpace] = useState<TeachingSpace | null>(null);
-  const [activeTab, setActiveTab] = useState<'students' | 'collections' | 'teachers'>('students');
-  const [spaceStudents, setSpaceStudents] = useState<TeacherStudent[]>([]);
-  const [spaceStudentsLoading, setSpaceStudentsLoading] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -173,7 +168,8 @@ export const TeacherSpacesView: React.FC = () => {
     setSpaceDesc(space.description || '');
     setInitialSpaceName(space.name);
     setInitialSpaceDesc(space.description || '');
-    const tagIds = space.tags ? space.tags.map(t => t.id) : (space.contextConfig?.tagIds || []);
+    const tags = space.contextTags || space.tags || [];
+    const tagIds = tags.map(t => t.id);
     setSelectedTagIds(tagIds);
     setSelectedCollectionIds(space.collections ? space.collections.map(c => c.id) : []);
     setContextPreview(null);
@@ -199,6 +195,7 @@ export const TeacherSpacesView: React.FC = () => {
       await api.updateSpace(editingSpaceId, {
         name: spaceName.trim(),
         description: spaceDesc.trim() || undefined,
+        contextTagIds: newTagIds,
         requiredTagIds: newTagIds,
       });
       loadData();
@@ -241,6 +238,7 @@ export const TeacherSpacesView: React.FC = () => {
       const created = await api.createSpace({
         name: spaceName.trim(),
         description: spaceDesc.trim() || undefined,
+        contextTagIds: [],
         requiredTagIds: [],
         collectionIds: [],
         teacherIds: [],
@@ -251,6 +249,8 @@ export const TeacherSpacesView: React.FC = () => {
       setInitialSpaceName(created.name);
       setInitialSpaceDesc(created.description || '');
       setSelectedTagIds(created.tags ? created.tags.map(t => t.id) : (created.contextConfig?.tagIds || []));
+      const createdTags = created.contextTags || created.tags || [];
+      setSelectedTagIds(createdTags.map(t => t.id));
       setSelectedCollectionIds(created.collections ? created.collections.map(c => c.id) : []);
       setSaveSuccessMsg('Espacio creado correctamente. Ahora puedes asociar colecciones y etiquetas.');
       setTimeout(() => setSaveSuccessMsg(null), 4000);
@@ -275,6 +275,7 @@ export const TeacherSpacesView: React.FC = () => {
       const updated = await api.updateSpace(editingSpaceId, {
         name: spaceName.trim(),
         description: spaceDesc.trim() || undefined,
+        contextTagIds: selectedTagIds,
         requiredTagIds: selectedTagIds,
       });
       setInitialSpaceName(updated.name);
@@ -335,20 +336,6 @@ export const TeacherSpacesView: React.FC = () => {
     }
   };
 
-  // Open Administration modal for a space
-  const openManageModal = async (space: TeachingSpace, initialTab: 'students' | 'collections' | 'teachers' = 'students') => {
-    setActiveSpace(space);
-    setActiveTab(initialTab);
-    setSpaceStudentsLoading(true);
-    try {
-      const students = await api.getSpaceStudents(space.id);
-      setSpaceStudents(students);
-    } catch (err) {
-      console.error('Error al cargar alumnos del espacio:', err);
-    } finally {
-      setSpaceStudentsLoading(false);
-    }
-  };
 
   // Sorted list of spaces
   const sortedSpaces = useMemo(() => {
@@ -358,12 +345,14 @@ export const TeacherSpacesView: React.FC = () => {
         cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       } else if (sortKey === 'tags') {
         cmp = (a.tags?.length || 0) - (b.tags?.length || 0);
+        cmp = ((a.contextTags || a.tags)?.length || 0) - ((b.contextTags || b.tags)?.length || 0);
       } else if (sortKey === 'collections') {
         cmp = (a.collections?.length || 0) - (b.collections?.length || 0);
       } else if (sortKey === 'teachers') {
         cmp = (a.teachers?.length || 0) - (b.teachers?.length || 0);
       } else if (sortKey === 'students') {
         cmp = (a.matchedStudentsCount || 0) - (b.matchedStudentsCount || 0);
+        cmp = (a.studentCount ?? a.matchedStudentsCount ?? 0) - (b.studentCount ?? b.matchedStudentsCount ?? 0);
       } else if (sortKey === 'createdAt') {
         cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
@@ -387,6 +376,11 @@ export const TeacherSpacesView: React.FC = () => {
         )}
 
         <div className="card" style={{ padding: '1.5rem' }}>
+          {!editingSpaceId && (
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Layers size={18} color="#2563eb" /> Nuevo Espacio
+            </h2>
+          )}
           <form onSubmit={editingSpaceId ? handleUpdateSpaceParams : handleCreateSpace}>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
@@ -421,7 +415,6 @@ export const TeacherSpacesView: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  onClick={() => setMode('list')}
                   onClick={handleBackToList}
                   className="btn-secondary"
                   disabled={formSubmitting}
@@ -440,7 +433,6 @@ export const TeacherSpacesView: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid #e2e8f0' }}>
                 <button
                   type="button"
-                  onClick={() => setMode('list')}
                   onClick={handleBackToList}
                   className="btn-secondary"
                   disabled={formSubmitting}
@@ -915,9 +907,9 @@ export const TeacherSpacesView: React.FC = () => {
                     </td>
 
                     <td style={{ padding: '1rem' }}>
-                      {space.tags && space.tags.length > 0 ? (
+                      {(space.contextTags || space.tags) && (space.contextTags || space.tags)!.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                          {space.tags.map(t => (
+                          {(space.contextTags || space.tags)!.map(t => (
                             <TagBadge
                               key={t.id}
                               category={t.category}
@@ -941,64 +933,45 @@ export const TeacherSpacesView: React.FC = () => {
                     </td>
 
                     <td style={{ padding: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                        <Shield size={16} style={{ color: '#4f46e5' }} />
-                        <span>{space.teachers?.map(t => t.fullName).join(', ') || 'Tú'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {space.teachers && space.teachers.length > 0 ? (
+                          space.teachers.map((t, idx) => (
+                            <div key={t.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                              <Shield size={14} style={{ color: '#4f46e5', flexShrink: 0 }} />
+                              <span>{t.fullName || t.username}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                            <Shield size={14} style={{ color: '#4f46e5', flexShrink: 0 }} />
+                            <span>Tú</span>
+                          </div>
+                        )}
                       </div>
                     </td>
 
                     <td style={{ padding: '1rem' }}>
-                      <button
-                        onClick={() => openManageModal(space, 'students')}
-                        style={{
-                          background: '#f1f5f9',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '0.375rem',
-                          padding: '0.25rem 0.625rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.375rem',
-                          cursor: 'pointer',
-                          fontSize: '0.8125rem',
-                          color: '#334155',
-                        }}
-                      >
-                        <Users size={14} style={{ color: '#2563eb' }} />
-                        <strong>{space.matchedStudentsCount ?? 0}</strong> alumnos
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <Users size={16} style={{ color: '#2563eb' }} />
+                        <span style={{ fontWeight: 600 }}>{space.studentCount ?? space.matchedStudentsCount ?? 0}</span>
+                      </div>
                     </td>
 
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                         <button
-                          onClick={() => openManageModal(space)}
-                          className="btn-secondary"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                          title="Administrar colecciones y alumnos"
-                        >
-                          Administrar
-                        </button>
-                        <button
                           onClick={() => handleOpenEdit(space)}
-                          className="btn-secondary"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          className="btn-table-action"
                           title="Editar espacio"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={15} />
                         </button>
                         <button
                           onClick={() => handleDeleteSpace(space)}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid #fecaca',
-                            borderRadius: '0.375rem',
-                            color: '#dc2626',
-                            padding: '0.25rem 0.5rem',
-                            cursor: 'pointer',
-                          }}
+                          className="btn-table-action-danger"
                           title="Eliminar espacio"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -1009,215 +982,6 @@ export const TeacherSpacesView: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* MODAL DETALLE / ADMINISTRAR ESPACIO */}
-      {activeSpace && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              width: '100%',
-              maxWidth: 800,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '1.5rem',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
-                  {activeSpace.name}
-                </h2>
-                <div style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '0.25rem' }}>
-                  Contexto: {activeSpace.tags?.map(t => `${t.category}:${t.value}`).join(' AND ') || 'Sin etiquetas (abierto)'}
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveSpace(null)}
-                style={{ background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#64748b' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Pestañas de Navegación */}
-            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #e2e8f0', marginBottom: '1rem' }}>
-              <button
-                onClick={() => setActiveTab('students')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: 'none',
-                  borderBottom: activeTab === 'students' ? '2px solid #2563eb' : '2px solid transparent',
-                  background: 'none',
-                  color: activeTab === 'students' ? '#2563eb' : '#64748b',
-                  fontWeight: activeTab === 'students' ? 600 : 400,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                }}
-              >
-                <Users size={16} /> Alumnos por Contexto ({spaceStudents.length})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('collections')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: 'none',
-                  borderBottom: activeTab === 'collections' ? '2px solid #2563eb' : '2px solid transparent',
-                  background: 'none',
-                  color: activeTab === 'collections' ? '#2563eb' : '#64748b',
-                  fontWeight: activeTab === 'collections' ? 600 : 400,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                }}
-              >
-                <BookOpen size={16} /> Colecciones ({activeSpace.collections?.length || 0})
-              </button>
-
-              <button
-                onClick={() => setActiveTab('teachers')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: 'none',
-                  borderBottom: activeTab === 'teachers' ? '2px solid #2563eb' : '2px solid transparent',
-                  background: 'none',
-                  color: activeTab === 'teachers' ? '#2563eb' : '#64748b',
-                  fontWeight: activeTab === 'teachers' ? 600 : 400,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                }}
-              >
-                <Shield size={16} /> Profesores ({activeSpace.teachers?.length || 0})
-              </button>
-            </div>
-
-            {/* Contenido Pestaña ALUMNOS */}
-            {activeTab === 'students' && (
-              <div>
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '0.375rem', padding: '0.75rem 1rem', color: '#1e40af', fontSize: '0.8125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Info size={16} />
-                  <span>
-                    Estos alumnos pertenecen automáticamente a este espacio porque satisfacen la conjunción de etiquetas en tiempo real.
-                  </span>
-                </div>
-
-                {spaceStudentsLoading ? (
-                  <p style={{ textAlign: 'center', color: '#64748b' }}>Cargando alumnos del espacio...</p>
-                ) : spaceStudents.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem 0' }}>
-                    Ningún alumno tiene actualmente todas las etiquetas requeridas por este espacio.
-                  </p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left' }}>Nombre</th>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left' }}>Email / Usuario</th>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left' }}>Etiquetas Activas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {spaceStudents.map(student => (
-                        <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>{student.fullName}</td>
-                          <td style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>{student.username}</td>
-                          <td style={{ padding: '0.5rem 0.75rem' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                              {student.activeTags?.map(st => (
-                                <TagBadge
-                                  key={st.id}
-                                  category={st.category || st.tag?.category}
-                                  value={st.value || st.tag?.value || ''}
-                                  color={st.color || st.tag?.color}
-                                />
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
-
-            {/* Contenido Pestaña COLECCIONES */}
-            {activeTab === 'collections' && (
-              <div>
-                {activeSpace.collections && activeSpace.collections.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {activeSpace.collections.map(col => (
-                      <div key={col.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem' }}>
-                        <div>
-                          <strong style={{ fontSize: '0.9375rem' }}>{col.title}</strong>
-                          <div style={{ color: '#64748b', fontSize: '0.8125rem' }}>{col.slug}</div>
-                        </div>
-                        <span className={`badge ${col.visibility === 'PUBLIC' ? 'badge-success' : 'badge-neutral'}`}>
-                          {col.visibility}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem 0' }}>
-                    No hay colecciones asociadas a este espacio docente.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Contenido Pestaña PROFESORES */}
-            {activeTab === 'teachers' && (
-              <div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {activeSpace.teachers && activeSpace.teachers.length > 0 ? (
-                    activeSpace.teachers.map(t => (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem' }}>
-                        <div>
-                          <strong style={{ fontSize: '0.9375rem' }}>{t.fullName}</strong>
-                          <div style={{ color: '#64748b', fontSize: '0.8125rem' }}>{t.username}</div>
-                        </div>
-                        <span className="badge badge-info">Profesor</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem 0' }}>
-                      No hay otros profesores asignados a este espacio.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setActiveSpace(null)}
-                className="btn-secondary"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

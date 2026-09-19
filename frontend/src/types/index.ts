@@ -80,10 +80,12 @@ export interface TeachingSpace {
   contextConfig?: {
     tagIds?: string[];
   };
-  tags: Tag[];
+  tags?: Tag[];
+  contextTags?: Tag[];
   collections: Collection[];
   teachers: TeachingSpaceTeacher[];
   matchedStudentsCount?: number;
+  studentCount?: number;
   createdAt: string;
   updatedAt: string;
 }

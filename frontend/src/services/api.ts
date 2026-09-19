@@ -187,16 +187,24 @@ export const api = {
   getSpace: (id: string): Promise<TeachingSpace> =>
     request<TeachingSpace>(`/teacher/spaces/${id}`),
 
-  createSpace: (space: { name: string; description?: string; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
+  createSpace: (space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
     request<TeachingSpace>('/teacher/spaces', {
       method: 'POST',
-      body: JSON.stringify(space),
+      body: JSON.stringify({
+        ...space,
+        contextTagIds: space.contextTagIds || space.requiredTagIds,
+        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+      }),
     }),
 
-  updateSpace: (id: string, space: { name: string; description?: string; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
+  updateSpace: (id: string, space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
     request<TeachingSpace>(`/teacher/spaces/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(space),
+      body: JSON.stringify({
+        ...space,
+        contextTagIds: space.contextTagIds || space.requiredTagIds,
+        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+      }),
     }),
 
   deleteSpace: (id: string): Promise<void> =>

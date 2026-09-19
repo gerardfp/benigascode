@@ -9,7 +9,7 @@ import {
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   Eye, Columns, CheckCircle, AlertCircle,
   ChevronLeft, ChevronRight, X, Info,
-  Upload, FileText, Archive, Tag as TagIcon, Check
+  Upload, FileText, Archive, Tag as TagIcon, Check, Edit3
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { parseTagExpression } from '../utils/tagExpression';
@@ -1456,16 +1456,14 @@ export const TeacherExercisesView: React.FC = () => {
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                           <button
                             onClick={() => handleOpenEdit(ex.id)}
-                            className="btn-secondary"
-                            style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem' }}
+                            className="btn-table-action"
                             title="Editar ejercicio"
                           >
-                            Editar
+                            <Edit3 size={15} />
                           </button>
                           <button
                             onClick={() => handleDeleteExercise(ex.id, ex.title)}
-                            className="btn-secondary"
-                            style={{ padding: '0.375rem 0.5rem', color: '#ef4444', borderColor: '#fecaca' }}
+                            className="btn-table-action-danger"
                             title="Eliminar ejercicio"
                           >
                             <Trash2 size={15} />
