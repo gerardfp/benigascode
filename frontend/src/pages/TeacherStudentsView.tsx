@@ -1,14 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { api } from '../services/api';
-import { TeacherStudent, TeachingSpace, Tag, StudentTag } from '../types';
 import { TeacherStudent, TeachingSpace, Tag } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import { 
-  Users, Tag as TagIcon, Layers, Trash2, Search, Plus, X, Check
   Users, Tag as TagIcon, Layers, Search, Plus, X, Check
 } from 'lucide-react';
 
@@ -20,7 +16,6 @@ export const TeacherStudentsView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Sorting
-  type StudentSortKey = 'name' | 'spaces' | 'tags' | 'createdAt';
   type StudentSortKey = 'name' | 'spaces' | 'tags';
   const [sortKey, setSortKey] = useState<StudentSortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -54,23 +49,6 @@ export const TeacherStudentsView: React.FC = () => {
   const [bulkNewDesc, setBulkNewDesc] = useState('');
   const [bulkValidUntil, setBulkValidUntil] = useState('');
   const [bulkNewColor, setBulkNewColor] = useState<string | null>(null);
-
-  // Modal Gestión de Etiquetas para un Alumno individual
-  const [managingStudent, setManagingStudent] = useState<TeacherStudent | null>(null);
-  const [studentTagAssignments, setStudentTagAssignments] = useState<StudentTag[]>([]);
-  const [studentTagsLoading, setStudentTagsLoading] = useState(false);
-  
-  // Asignar etiqueta existente (modal individual)
-  const [selectedTagIdToAssign, setSelectedTagIdToAssign] = useState<string>('');
-  const [validUntilInput, setValidUntilInput] = useState<string>('');
-  const [assignSubmitting, setAssignSubmitting] = useState(false);
-
-  // Crear nueva etiqueta e inmediatamente asignarla (modal individual)
-  const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
-  const [newTagCategory, setNewTagCategory] = useState('group');
-  const [newTagValue, setNewTagValue] = useState('');
-  const [newTagDesc, setNewTagDesc] = useState('');
-  const [newTagColor, setNewTagColor] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -281,21 +259,6 @@ export const TeacherStudentsView: React.FC = () => {
     }
   };
 
-  // Abrir modal de gestión de etiquetas para un alumno individual
-  const handleOpenTagManager = async (student: TeacherStudent) => {
-    setManagingStudent(student);
-    setSelectedTagIdToAssign('');
-    setValidUntilInput('');
-    setIsCreatingNewTag(false);
-    setNewTagColor(null);
-    setStudentTagsLoading(true);
-    try {
-      const tags = await api.getStudentTags(student.id, true);
-      setStudentTagAssignments(tags);
-    } catch (err: any) {
-      alert(err.message || 'Error al cargar las etiquetas del alumno');
-    } finally {
-      setStudentTagsLoading(false);
   // Manejar clic sobre un alumno para seleccionar y gestionar etiquetas
   const handleStudentClick = (student: TeacherStudent) => {
     if (selectedStudentIds.size > 0) {
@@ -305,62 +268,6 @@ export const TeacherStudentsView: React.FC = () => {
       setTimeout(() => {
         tagPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 50);
-    }
-  };
-
-  // Asignar etiqueta al alumno (modal individual)
-  const handleAssignTag = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!managingStudent) return;
-
-    let tagId = selectedTagIdToAssign;
-
-    setAssignSubmitting(true);
-    try {
-      if (isCreatingNewTag) {
-        if (!newTagCategory.trim() || !newTagValue.trim()) return;
-        const newTag = await api.createTag({
-          category: newTagCategory.trim().toLowerCase(),
-          value: newTagValue.trim(),
-          description: newTagDesc.trim() || undefined,
-          color: newTagColor,
-        });
-        setAvailableTags(prev => [...prev, newTag]);
-        tagId = newTag.id;
-      }
-
-      if (!tagId) return;
-
-      const assigned = await api.assignStudentTag(
-        managingStudent.id,
-        tagId,
-        validUntilInput ? new Date(validUntilInput).toISOString() : undefined
-      );
-
-      setStudentTagAssignments(prev => [...prev, assigned]);
-      setSelectedTagIdToAssign('');
-      setValidUntilInput('');
-      setIsCreatingNewTag(false);
-      setNewTagValue('');
-      setNewTagDesc('');
-      setNewTagColor(null);
-      await loadData();
-    } catch (err: any) {
-      alert(err.message || 'Error al asignar la etiqueta');
-    } finally {
-      setAssignSubmitting(false);
-    }
-  };
-
-  // Revocar etiqueta del alumno (modal individual)
-  const handleRevokeTag = async (assignmentId: string) => {
-    if (!window.confirm('¿Seguro que deseas revocar esta etiqueta del alumno?')) return;
-    try {
-      await api.revokeStudentTag(assignmentId);
-      setStudentTagAssignments(prev => prev.filter(a => a.id !== assignmentId));
-      await loadData();
-    } catch (err: any) {
-      alert(err.message || 'Error al revocar la etiqueta');
     }
   };
 
@@ -379,8 +286,6 @@ export const TeacherStudentsView: React.FC = () => {
         cmp = (a.spaces?.length || 0) - (b.spaces?.length || 0);
       } else if (sortKey === 'tags') {
         cmp = (a.activeTags?.length || 0) - (b.activeTags?.length || 0);
-      } else if (sortKey === 'createdAt') {
-        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -397,11 +302,12 @@ export const TeacherStudentsView: React.FC = () => {
               Alumnos
             </h1>
           </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Users size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Alumnos
+          </h1>
         </div>
-
-        <Link to="/teacher/spaces" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
-          <Layers size={16} /> Ver Espacios
-        </Link>
       </div>
 
       {error && (
@@ -533,7 +439,6 @@ export const TeacherStudentsView: React.FC = () => {
                   Asignación de etiquetas
                 </h2>
                 <div style={{ fontSize: '0.8125rem', color: '#1d4ed8' }}>
-                  <strong>{selectedStudentIds.size}</strong> {selectedStudentIds.size === 1 ? 'alumno seleccionado' : 'alumnos seleccionados'} para edición masiva
                   {selectedStudents.length === 1 ? (
                     <span><strong>{selectedStudents[0].fullName}</strong> ({selectedStudents[0].username})</span>
                   ) : (
@@ -573,18 +478,11 @@ export const TeacherStudentsView: React.FC = () => {
                 flexDirection: 'column',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                   Etiquetas en alumnos seleccionados ({tagsInSelectedStudents.length})
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  Conjunto distinct
-                </span>
               </div>
-              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 0.75rem 0' }}>
-                Pulsa <strong>x</strong> para eliminar la etiqueta de los alumnos que la tienen, o <strong>+</strong> para asignarla a los restantes.
-              </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 280, overflowY: 'auto' }}>
                 {tagsInSelectedStudents.length === 0 ? (
@@ -701,18 +599,11 @@ export const TeacherStudentsView: React.FC = () => {
                 flexDirection: 'column',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                   Etiquetas no asignadas ({unassignedAvailableTags.length})
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                  Sin asignar en la selección
-                </span>
               </div>
-              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 0.5rem 0' }}>
-                Etiquetas del sistema que no tiene ningún alumno seleccionado. Pulsa <strong>+</strong> para asignarla a todos.
-              </p>
 
               {/* Buscador de etiquetas no asignadas */}
               {availableTags.length > 5 && (
@@ -938,10 +829,6 @@ export const TeacherStudentsView: React.FC = () => {
                     />
                   </th>
                   <SortableHeader<StudentSortKey> label="Alumno" sortKey="name" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <SortableHeader<StudentSortKey> label="Etiquetas Activas" sortKey="tags" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <SortableHeader<StudentSortKey> label="Espacios Resueltos" sortKey="spaces" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <SortableHeader<StudentSortKey> label="Fecha Registro" sortKey="createdAt" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Acciones</th>
                   <SortableHeader<StudentSortKey> label="Etiquetas" sortKey="tags" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                   <SortableHeader<StudentSortKey> label="Espacios" sortKey="spaces" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                 </tr>
@@ -968,10 +855,8 @@ export const TeacherStudentsView: React.FC = () => {
                       </td>
 
                       <td
-                        onClick={() => handleOpenTagManager(student)}
                         onClick={() => handleStudentClick(student)}
                         style={{ padding: '1rem', cursor: 'pointer' }}
-                        title="Gestionar etiquetas del alumno"
                         title="Seleccionar alumno y gestionar etiquetas"
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -989,7 +874,6 @@ export const TeacherStudentsView: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Etiquetas Activas */}
                       {/* Etiquetas */}
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', alignItems: 'center' }}>
@@ -1016,30 +900,10 @@ export const TeacherStudentsView: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Espacios Resueltos */}
                       {/* Espacios */}
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                           {student.spaces && student.spaces.length > 0 ? (
-                            student.spaces.map(s => (
-                              <span
-                                key={s.id}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  background: '#eff6ff',
-                                  color: '#1d4ed8',
-                                  border: '1px solid #bfdbfe',
-                                  borderRadius: '0.25rem',
-                                  padding: '0.125rem 0.5rem',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 500,
-                                }}
-                              >
-                                <Layers size={12} /> {s.name}
-                              </span>
-                            ))
                             student.spaces.map(s => {
                               const sId = s.id || s.spaceId;
                               const sName = s.name || s.spaceName;
@@ -1070,20 +934,6 @@ export const TeacherStudentsView: React.FC = () => {
                           )}
                         </div>
                       </td>
-
-                      <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.8125rem' }}>
-                        {new Date(student.createdAt).toLocaleDateString()}
-                      </td>
-
-                      <td style={{ padding: '1rem', textAlign: 'right' }}>
-                        <button
-                          onClick={() => handleOpenTagManager(student)}
-                          className="btn-secondary"
-                          style={{ padding: '0.375rem 0.625rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
-                        >
-                          <TagIcon size={14} /> Gestionar Etiquetas
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}
@@ -1092,245 +942,6 @@ export const TeacherStudentsView: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* MODAL GESTIÓN DE ETIQUETAS DE UN ALUMNO INDIVIDUAL */}
-      {managingStudent && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              width: '100%',
-              maxWidth: 640,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
-                  Etiquetas de {managingStudent.fullName}
-                </h2>
-                <div style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: '0.25rem' }}>
-                  {managingStudent.username}
-                </div>
-              </div>
-              <button
-                onClick={() => setManagingStudent(null)}
-                style={{ background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#64748b' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Listado de Etiquetas Asignadas Actuales */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.5rem' }}>
-                Etiquetas Activas ({studentTagAssignments.length})
-              </h3>
-
-              {studentTagsLoading ? (
-                <p style={{ color: '#64748b', fontSize: '0.875rem' }}>Cargando asignaciones...</p>
-              ) : studentTagAssignments.length === 0 ? (
-                <p style={{ color: '#94a3b8', fontSize: '0.875rem', fontStyle: 'italic', background: '#f8fafc', padding: '1rem', borderRadius: '0.375rem', textAlign: 'center' }}>
-                  Este alumno no tiene ninguna etiqueta asignada.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {studentTagAssignments.map(assignment => {
-                    const cat = assignment.category || assignment.tag?.category || '';
-                    const val = assignment.value || assignment.tag?.value || '';
-                    return (
-                      <div
-                        key={assignment.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '0.625rem 0.75rem',
-                          background: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '0.375rem',
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <TagBadge
-                              category={cat}
-                              value={val}
-                              color={assignment.color || assignment.tag?.color}
-                            />
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-                            Válida desde: {new Date(assignment.validFrom).toLocaleDateString()}
-                            {assignment.validUntil ? ` • Hasta: ${new Date(assignment.validUntil).toLocaleDateString()}` : ' • Indefinida'}
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => handleRevokeTag(assignment.id)}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#dc2626',
-                            cursor: 'pointer',
-                            padding: '0.25rem',
-                            borderRadius: '0.25rem',
-                          }}
-                          title="Revocar etiqueta"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Asignar Nueva Etiqueta */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                  Asignar Nueva Etiqueta
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingNewTag(!isCreatingNewTag)}
-                  style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.8125rem', cursor: 'pointer', fontWeight: 500 }}
-                >
-                  {isCreatingNewTag ? '« Elegir de existentes' : '+ Crear nueva etiqueta'}
-                </button>
-              </div>
-
-              <form onSubmit={handleAssignTag}>
-                {!isCreatingNewTag ? (
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Seleccionar Etiqueta
-                    </label>
-                    <select
-                      value={selectedTagIdToAssign}
-                      onChange={e => setSelectedTagIdToAssign(e.target.value)}
-                      className="input-field"
-                      style={{ width: '100%', fontSize: '0.875rem' }}
-                      required
-                    >
-                      <option value="">-- Selecciona una etiqueta --</option>
-                      {availableTags.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.category}: {t.value} {t.description ? `(${t.description})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                          Categoría *
-                        </label>
-                        <input
-                          type="text"
-                          value={newTagCategory}
-                          onChange={e => setNewTagCategory(e.target.value)}
-                          placeholder="ej. academic_year, education, group"
-                          className="input-field"
-                          style={{ width: '100%', fontSize: '0.8125rem' }}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                          Valor *
-                        </label>
-                        <input
-                          type="text"
-                          value={newTagValue}
-                          onChange={e => setNewTagValue(e.target.value)}
-                          placeholder="ej. 2026-2027, DAM, Grupo A"
-                          className="input-field"
-                          style={{ width: '100%', fontSize: '0.8125rem' }}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Descripción (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        value={newTagDesc}
-                        onChange={e => setNewTagDesc(e.target.value)}
-                        placeholder="ej. Grupo turno de mañana"
-                        className="input-field"
-                        style={{ width: '100%', fontSize: '0.8125rem' }}
-                      />
-                    </div>
-
-                    <TagColorPicker
-                      selectedColor={newTagColor}
-                      onChange={setNewTagColor}
-                      category={newTagCategory}
-                      value={newTagValue}
-                      usedColors={usedTagColors}
-                    />
-                  </div>
-                )}
-
-                {/* Fecha de Expiración Opcional */}
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    Válida hasta (opcional - dejar vacío para vigencia indefinida)
-                  </label>
-                  <input
-                    type="date"
-                    value={validUntilInput}
-                    onChange={e => setValidUntilInput(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.875rem' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={assignSubmitting || (!isCreatingNewTag && !selectedTagIdToAssign) || (isCreatingNewTag && (!newTagCategory.trim() || !newTagValue.trim()))}
-                    style={{ fontSize: '0.8125rem' }}
-                  >
-                    {assignSubmitting ? 'Asignando...' : 'Asignar Etiqueta'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
-              <button
-                type="button"
-                onClick={() => setManagingStudent(null)}
-                className="btn-secondary"
-              >
-                Listo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

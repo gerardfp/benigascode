@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
 import { AuthorizedTeacherDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
+import { Shield } from 'lucide-react';
 
 export const TeacherManagementView: React.FC = () => {
   const [teachers, setTeachers] = useState<AuthorizedTeacherDTO[]>([]);
@@ -110,6 +111,7 @@ export const TeacherManagementView: React.FC = () => {
 
   return (
     <div className="app-container" style={{ maxWidth: 1200 }}>
+    <div className="app-container">
       {/* Cabecera */}
       <div style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.25rem' }}>
@@ -134,6 +136,12 @@ export const TeacherManagementView: React.FC = () => {
         <div>
           Cualquier usuario de GitHub añadido a esta lista podrá iniciar sesión directamente desde la pantalla de login pulsando <strong>"Continuar con GitHub"</strong> y se le asignará automáticamente el rol de <strong>Profesor</strong>.
           Los alumnos, en cambio, deben registrarse mediante sus <strong>claves de invitación</strong>.
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Shield size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Profesores
+          </h1>
         </div>
       </div>
 

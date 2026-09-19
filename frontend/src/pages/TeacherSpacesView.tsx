@@ -263,7 +263,6 @@ export const TeacherSpacesView: React.FC = () => {
 
   if (mode === 'editor') {
     return (
-      <div className="app-container" style={{ maxWidth: 840 }}>
       <div className="app-container">
         {/* Top Bar with Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -531,6 +530,11 @@ export const TeacherSpacesView: React.FC = () => {
               Espacios
             </h1>
           </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Layers size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Espacios
+          </h1>
         </div>
 
         <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

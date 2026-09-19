@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { ArrowLeftRight } from 'lucide-react';
 import {
   GitRepository,
   GitHubRepo,
@@ -401,6 +402,7 @@ export const GitSyncView: React.FC = () => {
 
   return (
     <div className="app-container" style={{ maxWidth: 1040, margin: '0 auto', paddingBottom: '3rem' }}>
+    <div className="app-container" style={{ paddingBottom: '3rem' }}>
       {/* Cabecera */}
       <div style={{ marginBottom: '1.5rem' }}>
         <Link to="/teacher" style={{ color: '#2563eb', fontSize: '0.875rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem' }}>
@@ -415,9 +417,18 @@ export const GitSyncView: React.FC = () => {
               Importa o exporta el catálogo completo de ejercicios y colecciones conectando tu cuenta de GitHub o usando repositorios públicos.
             </p>
           </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <ArrowLeftRight size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Importar / Exportar
+          </h1>
+        </div>
 
           {/* Tarjeta compacta de estado de conexión GitHub */}
           <div style={{
+        {/* Tarjeta compacta de estado de conexión GitHub */}
+        <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',

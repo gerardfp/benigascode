@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { Activity } from '../types';
+import { FileCode } from 'lucide-react';
 
 export const TeacherActivitiesView: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -33,6 +34,13 @@ export const TeacherActivitiesView: React.FC = () => {
           <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
             Consulta las actividades asignadas a los cursos y accede al seguimiento de entregas.
           </p>
+      {/* Cabecera */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FileCode size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Actividades
+          </h1>
         </div>
       </div>
 

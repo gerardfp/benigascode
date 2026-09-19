@@ -105,6 +105,11 @@ export const TeacherInsightsView: React.FC = () => {
           <p style={{ color: '#64748b', margin: 0, fontSize: '0.9375rem' }}>
             Métricas de aprendizaje globales, comparativas por grupo (clase) y fichas de seguimiento individual
           </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <BarChart2 size={24} style={{ color: '#2563eb' }} />
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            Insights
+          </h1>
         </div>
 
         <Link to="/teacher/submissions" className="btn-secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>

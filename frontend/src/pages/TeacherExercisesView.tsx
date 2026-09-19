@@ -9,6 +9,7 @@ import {
   Eye, Columns, CheckCircle, AlertCircle,
   ChevronLeft, ChevronRight, X, Info,
   Upload, FileText, Archive
+  Upload, FileText, Archive, Code
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { CodeEditor } from '../components/CodeEditor';
@@ -734,6 +735,12 @@ export const TeacherExercisesView: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
             <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Ejercicios</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Code size={24} style={{ color: '#2563eb' }} />
+            <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+              Ejercicios
+            </h1>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <input
@@ -747,16 +754,20 @@ export const TeacherExercisesView: React.FC = () => {
               onClick={() => listImportFileInputRef.current?.click()}
               className="btn-secondary"
               style={{ padding: '0.625rem 1.25rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               title="Importar ejercicio desde archivo .md"
             >
               <Upload size={18} /> Cargar .md
+              <Upload size={16} /> Cargar .md
             </button>
             <button
               onClick={handleOpenCreate}
               className="btn-primary"
               style={{ padding: '0.625rem 1.25rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
               <Plus size={18} /> Nuevo Ejercicio
+              <Plus size={16} /> Crear Ejercicio
             </button>
           </div>
         </div>

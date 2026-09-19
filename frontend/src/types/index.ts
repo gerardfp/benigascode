@@ -100,8 +100,6 @@ export interface ContextPreviewDTO {
 }
 
 export interface StudentSpaceDTO {
-  id: string;
-  name: string;
   id?: string;
   name?: string;
   spaceId?: string;
