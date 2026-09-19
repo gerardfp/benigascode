@@ -1,0 +1,4 @@
+- Autosave execici (en alumne i en professor) i quan vajes a ixir de un exercici que t'avise si no has guardat i te dixe guardar.
+- en el professor el icono de guardar se te desactivar si ja está guardat
+- Ctrl+s per a guardar?
+- toggle test panel on header
