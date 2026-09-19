@@ -93,9 +93,22 @@ export interface ContextPreviewDTO {
   requiredTagIds: string[];
   matchedStudentsCount: number;
   matchedStudents: {
+  requiredTagIds?: string[];
+  matchingStudentsCount?: number;
+  matchingStudents?: {
     id: string;
     fullName: string;
     username: string;
+    avatarUrl?: string;
+    githubUsername?: string;
+  }[];
+  matchedStudentsCount?: number;
+  matchedStudents?: {
+    id: string;
+    fullName: string;
+    username: string;
+    avatarUrl?: string;
+    githubUsername?: string;
   }[];
 }
 
