@@ -380,16 +380,13 @@ export const TeacherStudentsView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <Users size={24} style={{ color: '#2563eb' }} />
             <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              Gestión de Alumnos y Etiquetas
+              Alumnos
             </h1>
           </div>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '0.9375rem' }}>
-            Organización por características independientes y asignación temporal de etiquetas. Los espacios docentes se resuelven automáticamente.
-          </p>
         </div>
 
         <Link to="/teacher/spaces" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
-          <Layers size={16} /> Ver Espacios Docentes
+          <Layers size={16} /> Ver Espacios
         </Link>
       </div>
 
@@ -946,7 +943,11 @@ export const TeacherStudentsView: React.FC = () => {
                         />
                       </td>
 
-                      <td style={{ padding: '1rem' }}>
+                      <td
+                        onClick={() => handleOpenTagManager(student)}
+                        style={{ padding: '1rem', cursor: 'pointer' }}
+                        title="Gestionar etiquetas del alumno"
+                      >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           {student.avatarUrl ? (
                             <img src={student.avatarUrl} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
@@ -956,7 +957,7 @@ export const TeacherStudentsView: React.FC = () => {
                             </div>
                           )}
                           <div>
-                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{student.fullName}</div>
+                            <div style={{ fontWeight: 600, color: '#1e293b', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{student.fullName}</div>
                             <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>{student.username}</div>
                           </div>
                         </div>

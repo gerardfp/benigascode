@@ -276,10 +276,7 @@ export const TeacherCollectionsView: React.FC = () => {
         {/* Top Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Gestión de Colecciones</h1>
-            <p style={{ color: '#64748b', margin: '0.25rem 0 0 0', fontSize: '0.9375rem' }}>
-              Organiza ejercicios en colecciones públicas o privadas para tus cursos y alumnos.
-            </p>
+            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Colecciones</h1>
           </div>
           <button onClick={handleOpenCreate} className="btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
             <Plus size={18} /> Nueva Colección
@@ -351,10 +348,14 @@ export const TeacherCollectionsView: React.FC = () => {
               <tbody>
                 {filteredCollections.map((col) => (
                   <tr key={col.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.875rem 1.25rem', fontWeight: 600, color: '#1e293b' }}>
+                    <td
+                      onClick={() => handleOpenEdit(col.id)}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
+                      title="Editar colección"
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Folder size={16} color="#2563eb" />
-                        <span>{col.title}</span>
+                        <span style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{col.title}</span>
                       </div>
                       {col.description && (
                         <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem', fontWeight: 400 }}>

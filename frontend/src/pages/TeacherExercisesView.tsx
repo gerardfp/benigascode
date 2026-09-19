@@ -733,10 +733,7 @@ export const TeacherExercisesView: React.FC = () => {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Gestión de Ejercicios</h1>
-            <p style={{ color: '#64748b', margin: '0.25rem 0 0 0', fontSize: '0.9375rem' }}>
-              Crea, edita y organiza los ejercicios y casos de prueba almacenados en la base de datos.
-            </p>
+            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Ejercicios</h1>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <input
@@ -830,8 +827,12 @@ export const TeacherExercisesView: React.FC = () => {
                 <tbody>
                   {currentExercises.map((ex) => (
                     <tr key={ex.id} style={{ borderBottom: '1px solid #f1f5f9' }} className="hover:bg-slate-50">
-                      <td style={{ padding: '0.875rem 1.25rem', fontWeight: 500, color: '#1e293b' }}>
-                        <div>{ex.title}</div>
+                      <td
+                        onClick={() => handleOpenEdit(ex.id)}
+                        style={{ padding: '0.875rem 1.25rem', fontWeight: 500, color: '#1e293b', cursor: 'pointer' }}
+                        title="Editar ejercicio"
+                      >
+                        <div style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{ex.title}</div>
                         {ex.tags && ex.tags.length > 0 && (
                           <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                             {ex.tags.map((t, idx) => (

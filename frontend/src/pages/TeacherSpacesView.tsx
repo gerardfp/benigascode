@@ -5,7 +5,7 @@ import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import { 
-  Layers, Plus, Trash2, Edit3, Users, BookOpen, Shield, Info 
+  Layers, Plus, Trash2, Edit3, Users, BookOpen, Shield, Info, ArrowLeft 
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -29,8 +29,8 @@ export const TeacherSpacesView: React.FC = () => {
     }
   };
 
-  // Modal Crear / Editar Espacio
-  const [showFormModal, setShowFormModal] = useState(false);
+  // Modo de vista: 'list' | 'editor'
+  const [mode, setMode] = useState<'list' | 'editor'>('list');
   const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
   const [spaceName, setSpaceName] = useState('');
   const [spaceDesc, setSpaceDesc] = useState('');
@@ -87,7 +87,7 @@ export const TeacherSpacesView: React.FC = () => {
 
   // Update live context preview when selected tags change
   useEffect(() => {
-    if (!showFormModal) return;
+    if (mode !== 'editor') return;
     if (selectedTagIds.length === 0) {
       setContextPreview(null);
       return;
@@ -104,7 +104,7 @@ export const TeacherSpacesView: React.FC = () => {
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [selectedTagIds, showFormModal]);
+  }, [selectedTagIds, mode]);
 
   // Agrupar etiquetas por categoría
   const tagsByCategory = useMemo(() => {
@@ -116,7 +116,7 @@ export const TeacherSpacesView: React.FC = () => {
     return map;
   }, [allTags]);
 
-  const openCreateModal = () => {
+  const handleOpenCreate = () => {
     setEditingSpaceId(null);
     setSpaceName('');
     setSpaceDesc('');
@@ -125,10 +125,10 @@ export const TeacherSpacesView: React.FC = () => {
     setSelectedTeacherIds([]);
     setContextPreview(null);
     setFormError(null);
-    setShowFormModal(true);
+    setMode('editor');
   };
 
-  const openEditModal = (space: TeachingSpace) => {
+  const handleOpenEdit = (space: TeachingSpace) => {
     setEditingSpaceId(space.id);
     setSpaceName(space.name);
     setSpaceDesc(space.description || '');
@@ -138,7 +138,7 @@ export const TeacherSpacesView: React.FC = () => {
     setSelectedTeacherIds(space.teachers ? space.teachers.map(t => t.id) : []);
     setContextPreview(null);
     setFormError(null);
-    setShowFormModal(true);
+    setMode('editor');
   };
 
   const handleToggleTag = (tagId: string) => {
@@ -179,7 +179,7 @@ export const TeacherSpacesView: React.FC = () => {
           teacherIds: selectedTeacherIds,
         });
       }
-      setShowFormModal(false);
+      setMode('list');
       await loadData();
     } catch (err: any) {
       setFormError(err.message || 'Error al guardar el espacio docente');
@@ -261,6 +261,264 @@ export const TeacherSpacesView: React.FC = () => {
     });
   }, [spaces, sortKey, sortDir]);
 
+  if (mode === 'editor') {
+    return (
+      <div className="app-container" style={{ maxWidth: 840 }}>
+        {/* Top Bar with Navigation */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button onClick={() => setMode('list')} className="btn-secondary">
+              <ArrowLeft size={16} /> Volver a la lista
+            </button>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
+              {editingSpaceId ? `Editar: ${spaceName || 'Espacio'}` : 'Nuevo Espacio'}
+            </h1>
+          </div>
+        </div>
+
+        {formError && (
+          <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', color: '#b91c1c', marginBottom: '1rem', fontSize: '0.875rem' }}>
+            {formError}
+          </div>
+        )}
+
+        <div className="card" style={{ padding: '1.5rem' }}>
+          <form onSubmit={handleSaveSpace}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                Nombre del Espacio *
+              </label>
+              <input
+                type="text"
+                value={spaceName}
+                onChange={e => setSpaceName(e.target.value)}
+                placeholder="ej. Programación Java DAM 1 - Grupo A"
+                className="input-field"
+                style={{ width: '100%' }}
+                required
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                Descripción
+              </label>
+              <textarea
+                value={spaceDesc}
+                onChange={e => setSpaceDesc(e.target.value)}
+                placeholder="Descripción o notas internas del espacio"
+                className="input-field"
+                style={{ width: '100%', minHeight: 60 }}
+              />
+            </div>
+
+            {/* CONTEXT BUILDER */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div>
+                  <strong style={{ fontSize: '0.9375rem', color: '#1e293b' }}>Context Builder (Conjunción AND de Etiquetas)</strong>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
+                    Los alumnos que posean TODAS las etiquetas seleccionadas tendrán acceso automático.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInlineTagForm(!showInlineTagForm)}
+                  style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                >
+                  + Nueva Etiqueta
+                </button>
+              </div>
+
+              {/* Inline Tag Creator */}
+              {showInlineTagForm && (
+                <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.375rem', padding: '0.75rem', marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Crear Etiqueta Rápida</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Categoría (ej: academic_year, group, level)"
+                      value={newTagCategory}
+                      onChange={e => setNewTagCategory(e.target.value)}
+                      className="input-field"
+                      style={{ fontSize: '0.8125rem' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Valor (ej: 2026-2027, Grupo A, Primero)"
+                      value={newTagValue}
+                      onChange={e => setNewTagValue(e.target.value)}
+                      className="input-field"
+                      style={{ fontSize: '0.8125rem' }}
+                    />
+                  </div>
+
+                  <TagColorPicker
+                    selectedColor={newTagColor}
+                    onChange={setNewTagColor}
+                    category={newTagCategory}
+                    value={newTagValue}
+                    usedColors={usedTagColors}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowInlineTagForm(false)}
+                      className="btn-secondary"
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateInlineTag}
+                      disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
+                      className="btn-primary"
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                    >
+                      {inlineTagSubmitting ? 'Creando...' : 'Crear y Añadir'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Categorized Tag Selector */}
+              {Object.keys(tagsByCategory).length === 0 ? (
+                <div style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>
+                  No hay etiquetas disponibles. Crea etiquetas como <code>academic_year</code>, <code>education</code> o <code>group</code> arriba.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {Object.entries(tagsByCategory).map(([category, tags]) => (
+                    <div key={category}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                        {category}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                        {tags.map(tag => {
+                          const isSelected = selectedTagIds.includes(tag.id);
+                          return (
+                            <button
+                              type="button"
+                              key={tag.id}
+                              onClick={() => handleToggleTag(tag.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                padding: '0.25rem 0.625rem',
+                                borderRadius: '9999px',
+                                fontSize: '0.8125rem',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                background: isSelected ? '#2563eb' : '#ffffff',
+                                color: isSelected ? '#ffffff' : '#334155',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '0.5rem',
+                                  height: '0.5rem',
+                                  borderRadius: '50%',
+                                  backgroundColor: isSelected ? '#ffffff' : (tag.color || '#2563eb'),
+                                  flexShrink: 0,
+                                }}
+                              />
+                              {isSelected ? '✓ ' : ''}{tag.value}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Live Context Resolution Preview */}
+              <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+                  <Users size={16} style={{ color: '#2563eb' }} />
+                  <span>Resolución en vivo:</span>
+                  {previewLoading ? (
+                    <span style={{ color: '#64748b' }}>Calculando...</span>
+                  ) : contextPreview ? (
+                    <strong>
+                      {contextPreview.matchedStudentsCount} alumno(s) coinciden actualmente
+                    </strong>
+                  ) : (
+                    <span style={{ color: '#64748b' }}>Selecciona etiquetas para previsualizar</span>
+                  )}
+                </div>
+                {contextPreview && contextPreview.matchedStudents.length > 0 && (
+                  <span style={{ fontSize: '0.75rem', color: '#475569' }}>
+                    Ej: {contextPreview.matchedStudents.slice(0, 3).map(s => s.fullName).join(', ')}
+                    {contextPreview.matchedStudents.length > 3 ? ` y ${contextPreview.matchedStudents.length - 3} más` : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* ASOCIAR COLECCIONES */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem' }}>
+                Colecciones Disponibles en este Espacio
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.5rem', maxHeight: 180, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.375rem', padding: '0.5rem' }}>
+                {allCollections.map(col => {
+                  const isSelected = selectedCollectionIds.includes(col.id);
+                  return (
+                    <label
+                      key={col.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.375rem 0.5rem',
+                        background: isSelected ? '#f0fdf4' : '#ffffff',
+                        border: isSelected ? '1px solid #86efac' : '1px solid #f1f5f9',
+                        borderRadius: '0.25rem',
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleCollection(col.id)}
+                      />
+                      <span style={{ fontWeight: isSelected ? 600 : 400 }}>{col.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* BOTONES DE ACCIÓN */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => setMode('list')}
+                className="btn-secondary"
+                disabled={formSubmitting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={formSubmitting}
+              >
+                {formSubmitting ? 'Guardando...' : editingSpaceId ? 'Actualizar Espacio' : 'Crear Espacio'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Cabecera */}
@@ -269,16 +527,13 @@ export const TeacherSpacesView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <Layers size={24} style={{ color: '#2563eb' }} />
             <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              Espacios Docentes (Teaching Spaces)
+              Espacios
             </h1>
           </div>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '0.9375rem' }}>
-            Workspaces configurados por contexto (conjunción de etiquetas). Los alumnos se resuelven de forma dinámica en tiempo real sin listas estáticas.
-          </p>
         </div>
 
-        <button onClick={openCreateModal} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={16} /> Crear Espacio Docente
+        <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Plus size={16} /> Crear Espacio
         </button>
       </div>
 
@@ -292,16 +547,16 @@ export const TeacherSpacesView: React.FC = () => {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
-            Cargando espacios docentes...
+            Cargando espacios...
           </div>
         ) : spaces.length === 0 ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
             <Layers size={48} style={{ color: '#cbd5e1', marginBottom: '1rem' }} />
-            <p style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem' }}>No hay espacios docentes creados</p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem' }}>No hay espacios creados</p>
             <p style={{ fontSize: '0.875rem', margin: '0 0 1.5rem' }}>
-              Crea tu primer espacio docente definiendo su contexto de etiquetas para asociar colecciones y alumnos.
+              Crea tu primer espacio definiendo su contexto de etiquetas para asociar colecciones y alumnos.
             </p>
-            <button onClick={openCreateModal} className="btn-primary">
+            <button onClick={handleOpenCreate} className="btn-primary">
               Crear Primer Espacio
             </button>
           </div>
@@ -311,18 +566,22 @@ export const TeacherSpacesView: React.FC = () => {
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>
                   <SortableHeader<SpaceSortKey> label="Nombre del Espacio" sortKey="name" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <th style={{ padding: '0.75rem 1rem' }}>Contexto (Etiquetas AND)</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Etiquetas</th>
                   <SortableHeader<SpaceSortKey> label="Colecciones" sortKey="collections" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                   <SortableHeader<SpaceSortKey> label="Profesores" sortKey="teachers" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
-                  <SortableHeader<SpaceSortKey> label="Alumnos (Contexto)" sortKey="students" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
+                  <SortableHeader<SpaceSortKey> label="Alumnos" sortKey="students" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedSpaces.map(space => (
                   <tr key={space.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '1rem' }}>
-                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem' }}>{space.name}</div>
+                    <td
+                      onClick={() => handleOpenEdit(space)}
+                      style={{ padding: '1rem', cursor: 'pointer' }}
+                      title="Editar espacio"
+                    >
+                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9375rem', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{space.name}</div>
                       {space.description && (
                         <div style={{ color: '#64748b', fontSize: '0.8125rem', marginTop: '0.25rem' }}>{space.description}</div>
                       )}
@@ -393,7 +652,7 @@ export const TeacherSpacesView: React.FC = () => {
                           Administrar
                         </button>
                         <button
-                          onClick={() => openEditModal(space)}
+                          onClick={() => handleOpenEdit(space)}
                           className="btn-secondary"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                           title="Editar espacio"
@@ -423,284 +682,6 @@ export const TeacherSpacesView: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* MODAL CREAR / EDITAR ESPACIO DOCENTE */}
-      {showFormModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem',
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              width: '100%',
-              maxWidth: 760,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>
-                {editingSpaceId ? 'Editar Espacio Docente' : 'Nuevo Espacio Docente'}
-              </h2>
-              <button
-                onClick={() => setShowFormModal(false)}
-                style={{ background: 'transparent', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#64748b' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {formError && (
-              <div style={{ padding: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', color: '#b91c1c', marginBottom: '1rem', fontSize: '0.875rem' }}>
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleSaveSpace}>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                  Nombre del Espacio *
-                </label>
-                <input
-                  type="text"
-                  value={spaceName}
-                  onChange={e => setSpaceName(e.target.value)}
-                  placeholder="ej. Programación Java DAM 1 - Grupo A"
-                  className="input-field"
-                  style={{ width: '100%' }}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                  Descripción
-                </label>
-                <textarea
-                  value={spaceDesc}
-                  onChange={e => setSpaceDesc(e.target.value)}
-                  placeholder="Descripción o notas internas del espacio docente"
-                  className="input-field"
-                  style={{ width: '100%', minHeight: 60 }}
-                />
-              </div>
-
-              {/* CONTEXT BUILDER */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <div>
-                    <strong style={{ fontSize: '0.9375rem', color: '#1e293b' }}>Context Builder (Conjunción AND de Etiquetas)</strong>
-                    <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                      Los alumnos que posean TODAS las etiquetas seleccionadas tendrán acceso automático.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowInlineTagForm(!showInlineTagForm)}
-                    style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
-                  >
-                    + Nueva Etiqueta
-                  </button>
-                </div>
-
-                {/* Inline Tag Creator */}
-                {showInlineTagForm && (
-                  <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.375rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Crear Etiqueta Rápida</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <input
-                        type="text"
-                        placeholder="Categoría (ej: academic_year, group, level)"
-                        value={newTagCategory}
-                        onChange={e => setNewTagCategory(e.target.value)}
-                        className="input-field"
-                        style={{ fontSize: '0.8125rem' }}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Valor (ej: 2026-2027, Grupo A, Primero)"
-                        value={newTagValue}
-                        onChange={e => setNewTagValue(e.target.value)}
-                        className="input-field"
-                        style={{ fontSize: '0.8125rem' }}
-                      />
-                    </div>
-
-                    <TagColorPicker
-                      selectedColor={newTagColor}
-                      onChange={setNewTagColor}
-                      category={newTagCategory}
-                      value={newTagValue}
-                      usedColors={usedTagColors}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => setShowInlineTagForm(false)}
-                        className="btn-secondary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCreateInlineTag}
-                        disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
-                        className="btn-primary"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        {inlineTagSubmitting ? 'Creando...' : 'Crear y Añadir'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Categorized Tag Selector */}
-                {Object.keys(tagsByCategory).length === 0 ? (
-                  <div style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>
-                    No hay etiquetas disponibles. Crea etiquetas como <code>academic_year</code>, <code>education</code> o <code>group</code> arriba.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {Object.entries(tagsByCategory).map(([category, tags]) => (
-                      <div key={category}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                          {category}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                          {tags.map(tag => {
-                            const isSelected = selectedTagIds.includes(tag.id);
-                            return (
-                              <button
-                                type="button"
-                                key={tag.id}
-                                onClick={() => handleToggleTag(tag.id)}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.375rem',
-                                  padding: '0.25rem 0.625rem',
-                                  borderRadius: '9999px',
-                                  fontSize: '0.8125rem',
-                                  fontWeight: 500,
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                  border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                  background: isSelected ? '#2563eb' : '#ffffff',
-                                  color: isSelected ? '#ffffff' : '#334155',
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: '0.5rem',
-                                    height: '0.5rem',
-                                    borderRadius: '50%',
-                                    backgroundColor: isSelected ? '#ffffff' : (tag.color || '#2563eb'),
-                                    flexShrink: 0,
-                                  }}
-                                />
-                                {isSelected ? '✓ ' : ''}{tag.value}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Live Context Resolution Preview */}
-                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                    <Users size={16} style={{ color: '#2563eb' }} />
-                    <span>Resolución en vivo:</span>
-                    {previewLoading ? (
-                      <span style={{ color: '#64748b' }}>Calculando...</span>
-                    ) : contextPreview ? (
-                      <strong>
-                        {contextPreview.matchedStudentsCount} alumno(s) coinciden actualmente
-                      </strong>
-                    ) : (
-                      <span style={{ color: '#64748b' }}>Selecciona etiquetas para previsualizar</span>
-                    )}
-                  </div>
-                  {contextPreview && contextPreview.matchedStudents.length > 0 && (
-                    <span style={{ fontSize: '0.75rem', color: '#475569' }}>
-                      Ej: {contextPreview.matchedStudents.slice(0, 3).map(s => s.fullName).join(', ')}
-                      {contextPreview.matchedStudents.length > 3 ? ` y ${contextPreview.matchedStudents.length - 3} más` : ''}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* ASOCIAR COLECCIONES */}
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem' }}>
-                  Colecciones Disponibles en este Espacio
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.5rem', maxHeight: 150, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.375rem', padding: '0.5rem' }}>
-                  {allCollections.map(col => {
-                    const isSelected = selectedCollectionIds.includes(col.id);
-                    return (
-                      <label
-                        key={col.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.375rem 0.5rem',
-                          background: isSelected ? '#f0fdf4' : '#ffffff',
-                          border: isSelected ? '1px solid #86efac' : '1px solid #f1f5f9',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.8125rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleCollection(col.id)}
-                        />
-                        <span style={{ fontWeight: isSelected ? 600 : 400 }}>{col.title}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* BOTONES DE ACCIÓN */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowFormModal(false)}
-                  className="btn-secondary"
-                  disabled={formSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={formSubmitting}
-                >
-                  {formSubmitting ? 'Guardando...' : editingSpaceId ? 'Actualizar Espacio' : 'Crear Espacio'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL DETALLE / ADMINISTRAR ESPACIO */}
       {activeSpace && (
