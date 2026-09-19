@@ -4,8 +4,9 @@ import { TeachingSpace, Tag, Collection, TeacherStudent, ContextPreviewDTO } fro
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
-import { 
-  Layers, Plus, Trash2, Edit3, Users, BookOpen, Shield, Info, ArrowLeft 
+import {
+  Layers, Plus, Trash2, Edit3, Users, BookOpen,
+  Shield, Info, ArrowLeft, X
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -44,8 +45,7 @@ export const TeacherSpacesView: React.FC = () => {
   const [contextPreview, setContextPreview] = useState<ContextPreviewDTO | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Inline Tag Creation within form
-  const [showInlineTagForm, setShowInlineTagForm] = useState(false);
+  const [availableTagsSearch, setAvailableTagsSearch] = useState('');
   const [newTagCategory, setNewTagCategory] = useState('');
   const [newTagValue, setNewTagValue] = useState('');
   const [newTagDesc, setNewTagDesc] = useState('');
@@ -54,6 +54,28 @@ export const TeacherSpacesView: React.FC = () => {
 
   const usedTagColors = useMemo(() => {
     return allTags.map(t => t.color).filter(Boolean);
+  }, [allTags]);
+
+  const assignedTags = useMemo(() => {
+    return allTags.filter(t => selectedTagIds.includes(t.id));
+  }, [allTags, selectedTagIds]);
+
+  const availableTags = useMemo(() => {
+    return allTags.filter(t => !selectedTagIds.includes(t.id));
+  }, [allTags, selectedTagIds]);
+
+  const filteredAvailableTags = useMemo(() => {
+    if (!availableTagsSearch.trim()) return availableTags;
+    const q = availableTagsSearch.toLowerCase();
+    return availableTags.filter(t =>
+      t.value.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q) ||
+      (t.description && t.description.toLowerCase().includes(q))
+    );
+  }, [availableTags, availableTagsSearch]);
+
+  const existingCategories = useMemo(() => {
+    return Array.from(new Set(allTags.map(t => t.category).filter(Boolean)));
   }, [allTags]);
 
   // Modal Administrar Espacio
@@ -106,15 +128,6 @@ export const TeacherSpacesView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [selectedTagIds, mode]);
 
-  // Agrupar etiquetas por categoría
-  const tagsByCategory = useMemo(() => {
-    const map: Record<string, Tag[]> = {};
-    allTags.forEach(tag => {
-      if (!map[tag.category]) map[tag.category] = [];
-      map[tag.category].push(tag);
-    });
-    return map;
-  }, [allTags]);
 
   const handleOpenCreate = () => {
     setEditingSpaceId(null);
@@ -125,6 +138,11 @@ export const TeacherSpacesView: React.FC = () => {
     setSelectedTeacherIds([]);
     setContextPreview(null);
     setFormError(null);
+    setAvailableTagsSearch('');
+    setNewTagCategory('');
+    setNewTagValue('');
+    setNewTagDesc('');
+    setNewTagColor(null);
     setMode('editor');
   };
 
@@ -138,6 +156,11 @@ export const TeacherSpacesView: React.FC = () => {
     setSelectedTeacherIds(space.teachers ? space.teachers.map(t => t.id) : []);
     setContextPreview(null);
     setFormError(null);
+    setAvailableTagsSearch('');
+    setNewTagCategory('');
+    setNewTagValue('');
+    setNewTagDesc('');
+    setNewTagColor(null);
     setMode('editor');
   };
 
@@ -200,8 +223,8 @@ export const TeacherSpacesView: React.FC = () => {
     }
   };
 
-  const handleCreateInlineTag = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateInlineTag = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newTagCategory.trim() || !newTagValue.trim()) return;
     setInlineTagSubmitting(true);
     try {
@@ -217,7 +240,6 @@ export const TeacherSpacesView: React.FC = () => {
       setNewTagValue('');
       setNewTagDesc('');
       setNewTagColor(null);
-      setShowInlineTagForm(false);
     } catch (err: any) {
       alert(err.message || 'Error al crear la etiqueta');
     } finally {
@@ -311,157 +333,8 @@ export const TeacherSpacesView: React.FC = () => {
                 style={{ width: '100%', minHeight: 60 }}
               />
             </div>
-
-            {/* CONTEXT BUILDER */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <div>
-                  <strong style={{ fontSize: '0.9375rem', color: '#1e293b' }}>Context Builder (Conjunción AND de Etiquetas)</strong>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>
-                    Los alumnos que posean TODAS las etiquetas seleccionadas tendrán acceso automático.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowInlineTagForm(!showInlineTagForm)}
-                  style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer' }}
-                >
-                  + Nueva Etiqueta
-                </button>
-              </div>
-
-              {/* Inline Tag Creator */}
-              {showInlineTagForm && (
-                <div style={{ background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.375rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.8125rem', marginBottom: '0.5rem' }}>Crear Etiqueta Rápida</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <input
-                      type="text"
-                      placeholder="Categoría (ej: academic_year, group, level)"
-                      value={newTagCategory}
-                      onChange={e => setNewTagCategory(e.target.value)}
-                      className="input-field"
-                      style={{ fontSize: '0.8125rem' }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Valor (ej: 2026-2027, Grupo A, Primero)"
-                      value={newTagValue}
-                      onChange={e => setNewTagValue(e.target.value)}
-                      className="input-field"
-                      style={{ fontSize: '0.8125rem' }}
-                    />
-                  </div>
-
-                  <TagColorPicker
-                    selectedColor={newTagColor}
-                    onChange={setNewTagColor}
-                    category={newTagCategory}
-                    value={newTagValue}
-                    usedColors={usedTagColors}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowInlineTagForm(false)}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateInlineTag}
-                      disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
-                      className="btn-primary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                    >
-                      {inlineTagSubmitting ? 'Creando...' : 'Crear y Añadir'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Categorized Tag Selector */}
-              {Object.keys(tagsByCategory).length === 0 ? (
-                <div style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>
-                  No hay etiquetas disponibles. Crea etiquetas como <code>academic_year</code>, <code>education</code> o <code>group</code> arriba.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {Object.entries(tagsByCategory).map(([category, tags]) => (
-                    <div key={category}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                        {category}
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                        {tags.map(tag => {
-                          const isSelected = selectedTagIds.includes(tag.id);
-                          return (
-                            <button
-                              type="button"
-                              key={tag.id}
-                              onClick={() => handleToggleTag(tag.id)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.375rem',
-                                padding: '0.25rem 0.625rem',
-                                borderRadius: '9999px',
-                                fontSize: '0.8125rem',
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                background: isSelected ? '#2563eb' : '#ffffff',
-                                color: isSelected ? '#ffffff' : '#334155',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: '0.5rem',
-                                  height: '0.5rem',
-                                  borderRadius: '50%',
-                                  backgroundColor: isSelected ? '#ffffff' : (tag.color || '#2563eb'),
-                                  flexShrink: 0,
-                                }}
-                              />
-                              {isSelected ? '✓ ' : ''}{tag.value}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Live Context Resolution Preview */}
-              <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                  <Users size={16} style={{ color: '#2563eb' }} />
-                  <span>Resolución en vivo:</span>
-                  {previewLoading ? (
-                    <span style={{ color: '#64748b' }}>Calculando...</span>
-                  ) : contextPreview ? (
-                    <strong>
-                      {contextPreview.matchedStudentsCount} alumno(s) coinciden actualmente
-                    </strong>
-                  ) : (
-                    <span style={{ color: '#64748b' }}>Selecciona etiquetas para previsualizar</span>
-                  )}
-                </div>
-                {contextPreview && contextPreview.matchedStudents.length > 0 && (
-                  <span style={{ fontSize: '0.75rem', color: '#475569' }}>
-                    Ej: {contextPreview.matchedStudents.slice(0, 3).map(s => s.fullName).join(', ')}
-                    {contextPreview.matchedStudents.length > 3 ? ` y ${contextPreview.matchedStudents.length - 3} más` : ''}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* ASOCIAR COLECCIONES */}
-            <div style={{ marginBottom: '1.25rem' }}>
+            {/* 2. COLECCIONES DISPONIBLES */}
+            <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem' }}>
                 Colecciones Disponibles en este Espacio
               </label>
@@ -492,6 +365,343 @@ export const TeacherSpacesView: React.FC = () => {
                     </label>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* 3. ETIQUETAS Y LISTA DE ALUMNOS */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              {/* Panel de Etiquetas */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1.25rem' }}>
+                {/* Cabecera del Panel */}
+                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                  <strong style={{ fontSize: '0.9375rem', color: '#1e293b' }}>Etiquetas</strong>
+                </div>
+
+                {/* Contenido: 2 Columnas */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '1.25rem',
+                    padding: '1rem',
+                  }}
+                >
+                  {/* LADO IZQUIERDO: Etiquetas asociadas al espacio */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.5rem',
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                        Etiquetas asociadas ({assignedTags.length})
+                      </h3>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 240, overflowY: 'auto' }}>
+                      {assignedTags.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
+                          No hay etiquetas asociadas a este espacio.
+                        </div>
+                      ) : (
+                        assignedTags.map(tag => (
+                          <div
+                            key={tag.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '0.375rem',
+                              padding: '0.4rem 0.625rem',
+                              gap: '0.5rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
+                              <TagBadge
+                                category={tag.category}
+                                value={tag.value}
+                                color={tag.color}
+                              />
+                              {tag.description && (
+                                <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
+                                  ({tag.description})
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTag(tag.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 26,
+                                height: 26,
+                                borderRadius: '0.25rem',
+                                border: '1px solid #fecaca',
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                              title="Quitar etiqueta del espacio"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* LADO DERECHO: Etiquetas disponibles */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.5rem',
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                        Etiquetas disponibles ({availableTags.length})
+                      </h3>
+                    </div>
+
+                    {availableTags.length > 4 && (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <input
+                          type="text"
+                          placeholder="Buscar etiqueta disponible..."
+                          value={availableTagsSearch}
+                          onChange={e => setAvailableTagsSearch(e.target.value)}
+                          className="input-field"
+                          style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 240, overflowY: 'auto' }}>
+                      {filteredAvailableTags.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
+                          {availableTagsSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas disponibles.'}
+                        </div>
+                      ) : (
+                        filteredAvailableTags.map(tag => (
+                          <div
+                            key={tag.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.375rem',
+                              padding: '0.4rem 0.625rem',
+                              gap: '0.5rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
+                              <TagBadge
+                                category={tag.category}
+                                value={tag.value}
+                                color={tag.color}
+                              />
+                              {tag.description && (
+                                <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
+                                  ({tag.description})
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTag(tag.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 26,
+                                height: 26,
+                                borderRadius: '0.25rem',
+                                border: '1px solid #bfdbfe',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                              title="Asociar etiqueta al espacio"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* PARTE INFERIOR: Opción de crear una nueva etiqueta (como en el panel de alumnos) */}
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    borderTop: '1px solid #e2e8f0',
+                    padding: '0.875rem 1.25rem',
+                  }}
+                >
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
+                    Crear nueva etiqueta y asociarla al espacio
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '0.75rem',
+                      alignItems: 'flex-end',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ minWidth: 140, flex: 1 }}>
+                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                        Categoría *
+                      </label>
+                      <input
+                        type="text"
+                        list="space-new-tag-categories"
+                        placeholder="ej. group, año..."
+                        value={newTagCategory}
+                        onChange={e => setNewTagCategory(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                      />
+                      <datalist id="space-new-tag-categories">
+                        {existingCategories.map(cat => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    <div style={{ minWidth: 160, flex: 1.5 }}>
+                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                        Valor *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ej. DAM2, 2026-2027..."
+                        value={newTagValue}
+                        onChange={e => setNewTagValue(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+
+                    <div style={{ minWidth: 160, flex: 1.5 }}>
+                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                        Descripción (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="ej. Grupo de refuerzo"
+                        value={newTagDesc}
+                        onChange={e => setNewTagDesc(e.target.value)}
+                        className="input-field"
+                        style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+
+                    <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <TagColorPicker
+                        selectedColor={newTagColor}
+                        onChange={setNewTagColor}
+                        category={newTagCategory}
+                        value={newTagValue}
+                        usedColors={usedTagColors}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleCreateInlineTag()}
+                        disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
+                        className="btn-primary"
+                        style={{
+                          padding: '0.45rem 0.875rem',
+                          fontSize: '0.8125rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                          whiteSpace: 'nowrap',
+                          marginLeft: 'auto',
+                        }}
+                      >
+                        <Plus size={14} />
+                        {inlineTagSubmitting ? 'Creando...' : 'Crear y asociar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de Alumnos que tienen las etiquetas seleccionadas */}
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden' }}>
+                <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Users size={18} style={{ color: '#2563eb' }} />
+                    <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>
+                      Alumnos con las etiquetas seleccionadas
+                      {contextPreview !== null ? ` (${contextPreview.matchedStudentsCount})` : ''}
+                    </strong>
+                  </div>
+                  {previewLoading && (
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Calculando...</span>
+                  )}
+                </div>
+
+                {selectedTagIds.length === 0 ? (
+                  <div style={{ padding: '1.5rem 1rem', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center' }}>
+                    No hay etiquetas seleccionadas. Asocia etiquetas arriba para ver los alumnos que coinciden.
+                  </div>
+                ) : previewLoading && !contextPreview ? (
+                  <div style={{ padding: '1.5rem 1rem', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center' }}>
+                    Cargando alumnos coincidentes...
+                  </div>
+                ) : contextPreview && contextPreview.matchedStudents.length === 0 ? (
+                  <div style={{ padding: '1.5rem 1rem', color: '#94a3b8', fontSize: '0.8125rem', textAlign: 'center', fontStyle: 'italic' }}>
+                    Ningún alumno posee actualmente todas las etiquetas seleccionadas.
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead>
+                        <tr style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
+                          <th style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>Nombre</th>
+                          <th style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>Usuario / Email</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contextPreview?.matchedStudents.map(student => (
+                          <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#ffffff' }}>
+                            <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: '#1e293b' }}>
+                              {student.fullName}
+                            </td>
+                            <td style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>
+                              {student.username}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
