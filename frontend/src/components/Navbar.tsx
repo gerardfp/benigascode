@@ -14,6 +14,48 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  // Ensure navbar is visible when changing routes
+  useEffect(() => {
+    setVisible(true);
+  }, [location.pathname]);
+
+  // Hide navbar on scroll down, show on scroll up
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Always show near top of page
+      if (currentScrollY <= 10) {
+        setVisible(true);
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+
+      const diff = currentScrollY - lastScrollY.current;
+
+      // Threshold to prevent jitter
+      if (Math.abs(diff) < 8) {
+        return;
+      }
+
+      if (diff > 0) {
+        // Scrolling down
+        setVisible(false);
+        setUserMenuOpen(false);
+      } else {
+        // Scrolling up
+        setVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -47,7 +89,18 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   };
 
   return (
-    <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+    <header
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
+        transform: visible ? 'translateY(0)' : 'translateY(-100%)',
+        transition: 'transform 0.25s ease-in-out',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+      }}
+    >
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <Link

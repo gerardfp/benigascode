@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/api';
 import { TeacherSubmissionItem, TeacherSubmissionDetail, Course, Group, TeachingSpace } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
-import { Inbox, RotateCw } from 'lucide-react';
+import { RotateCw } from 'lucide-react';
 
 type GroupingMode = 'flat' | 'student' | 'exercise' | 'status';
 
@@ -274,23 +274,14 @@ export const TeacherSubmissionsView: React.FC = () => {
   return (
     <div className="app-container" style={{ paddingBottom: '4rem' }}>
       {/* Encabezado */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Inbox size={24} style={{ color: '#2563eb' }} />
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-            Envíos
-          </h1>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <button
-            onClick={() => fetchSubmissions()}
-            className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <RotateCw size={16} /> Actualizar
-          </button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <button
+          onClick={() => fetchSubmissions()}
+          className="btn-secondary"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <RotateCw size={16} /> Actualizar
+        </button>
       </div>
 
       {/* Tarjetas KPI */}
