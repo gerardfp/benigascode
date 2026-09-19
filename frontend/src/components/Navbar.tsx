@@ -134,8 +134,26 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
                 <>
                   <Link to="/teacher/collections" className={`nav-link ${isPathActive('/teacher/collections') ? 'active' : ''}`}>Colecciones</Link>
+                  <Link
+                    to="/teacher/collections"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('benigascode:reset-collections'));
+                    }}
+                    className={`nav-link ${isPathActive('/teacher/collections') ? 'active' : ''}`}
+                  >
+                    Colecciones
+                  </Link>
                   <Link to="/teacher/exercises" className={`nav-link ${isPathActive('/teacher/exercises') ? 'active' : ''}`}>Ejercicios</Link>
                   <Link to="/teacher/spaces" className={`nav-link ${isPathActive('/teacher/spaces') ? 'active' : ''}`}>Espacios</Link>
+                  <Link
+                    to="/teacher/spaces"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('benigascode:reset-spaces'));
+                    }}
+                    className={`nav-link ${isPathActive('/teacher/spaces') ? 'active' : ''}`}
+                  >
+                    Espacios
+                  </Link>
                   <Link to="/teacher/students" className={`nav-link ${isPathActive('/teacher/students') ? 'active' : ''}`}>Alumnos</Link>
                   <Link to="/teacher/teachers" className={`nav-link ${isPathActive('/teacher/teachers') ? 'active' : ''}`}>Profesores</Link>
                   <Link to="/teacher/activities" className={`nav-link ${isPathActive('/teacher/activities') ? 'active' : ''}`}>Actividades</Link>

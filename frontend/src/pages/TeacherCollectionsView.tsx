@@ -102,9 +102,27 @@ export const TeacherCollectionsView: React.FC = () => {
     loadAllExercises();
   }, []);
 
+  // Back to list helper
+  const handleBackToList = () => {
+    setMode('list');
+    setSelectedId(null);
+    setSearchParams({});
+    setStatusMsg(null);
+  };
+
+  useEffect(() => {
+    const handleReset = () => {
+      handleBackToList();
+    };
+    window.addEventListener('benigascode:reset-collections', handleReset);
+    return () => window.removeEventListener('benigascode:reset-collections', handleReset);
+  }, []);
+
   useEffect(() => {
     if (collectionIdParam && collectionIdParam !== selectedId) {
       handleOpenEdit(collectionIdParam);
+    } else if (!collectionIdParam && (selectedId || mode === 'editor')) {
+      handleBackToList();
     }
   }, [collectionIdParam]);
 

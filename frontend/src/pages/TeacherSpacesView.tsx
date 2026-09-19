@@ -45,6 +45,21 @@ export const TeacherSpacesView: React.FC = () => {
 
   const isSpaceDirty = spaceName.trim() !== initialSpaceName.trim() || spaceDesc.trim() !== initialSpaceDesc.trim();
 
+  const handleBackToList = () => {
+    setMode('list');
+    setEditingSpaceId(null);
+    setFormError(null);
+    setSaveSuccessMsg(null);
+  };
+
+  useEffect(() => {
+    const handleReset = () => {
+      handleBackToList();
+    };
+    window.addEventListener('benigascode:reset-spaces', handleReset);
+    return () => window.removeEventListener('benigascode:reset-spaces', handleReset);
+  }, []);
+
   // Live Context Preview
   const [contextPreview, setContextPreview] = useState<ContextPreviewDTO | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -407,6 +422,7 @@ export const TeacherSpacesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMode('list')}
+                  onClick={handleBackToList}
                   className="btn-secondary"
                   disabled={formSubmitting}
                 >
@@ -425,6 +441,7 @@ export const TeacherSpacesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMode('list')}
+                  onClick={handleBackToList}
                   className="btn-secondary"
                   disabled={formSubmitting}
                 >
