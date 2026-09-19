@@ -388,6 +388,18 @@ export const api = {
   teacherDeleteExercise: (id: string): Promise<void> =>
     request<void>(`/teacher/exercises/${id}`, { method: 'DELETE' }),
 
+  batchAssignExerciseTag: (exerciseIds: string[], tag?: string, tagId?: string): Promise<void> =>
+    request<void>('/teacher/exercises/batch-assign-tag', {
+      method: 'POST',
+      body: JSON.stringify({ exerciseIds, tag, tagId }),
+    }),
+
+  batchRevokeExerciseTag: (exerciseIds: string[], tag?: string, tagId?: string): Promise<void> =>
+    request<void>('/teacher/exercises/batch-revoke-tag', {
+      method: 'POST',
+      body: JSON.stringify({ exerciseIds, tag, tagId }),
+    }),
+
   teacherUploadAsset: async (exerciseId: string, file: File): Promise<AssetDTO> => {
     const formData = new FormData();
     formData.append('file', file);

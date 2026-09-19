@@ -295,13 +295,6 @@ export const TeacherStudentsView: React.FC = () => {
     <div className="app-container">
       {/* Cabecera */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <Users size={24} style={{ color: '#2563eb' }} />
-            <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-              Alumnos
-            </h1>
-          </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Users size={24} style={{ color: '#2563eb' }} />
           <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>

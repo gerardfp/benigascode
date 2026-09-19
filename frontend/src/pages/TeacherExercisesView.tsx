@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Exercise, AssetDTO, TeacherCollectionDetail } from '../types';
+import { Exercise, AssetDTO, TeacherCollectionDetail, Tag } from '../types';
 import { renderMarkdown } from '../utils/markdown';
 import { SortableHeader } from '../components/SortableHeader';
+import { TagBadge } from '../components/TagBadge';
+import { TagColorPicker } from '../components/TagColorPicker';
+import { getDeterministicTagColor } from '../utils/tagColors';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   Eye, Columns, CheckCircle, AlertCircle,
   ChevronLeft, ChevronRight, X, Info,
-  Upload, FileText, Archive
-  Upload, FileText, Archive, Code
+  Upload, FileText, Archive, Code, Tag as TagIcon, Check
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { CodeEditor } from '../components/CodeEditor';
@@ -28,8 +30,19 @@ export const TeacherExercisesView: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 500;
 
+  // Selected exercises for batch operations & tag management
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [unassignedSearch, setUnassignedSearch] = useState('');
+  const [bulkNewCategory, setBulkNewCategory] = useState('');
+  const [bulkNewValue, setBulkNewValue] = useState('');
+  const [bulkNewDesc, setBulkNewDesc] = useState('');
+  const [bulkNewColor, setBulkNewColor] = useState<string | null>(null);
+  const tagPanelRef = useRef<HTMLDivElement>(null);
+
   // Sorting state
-  type ExerciseSortKey = 'title' | 'slug' | 'collections' | 'createdAt';
+  type ExerciseSortKey = 'title' | 'slug' | 'tags' | 'collections' | 'createdAt';
   const [sortKey, setSortKey] = useState<ExerciseSortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -169,9 +182,221 @@ export const TeacherExercisesView: React.FC = () => {
     }
   };
 
+  // Load all available tags from the system
+  const loadAllTags = async () => {
+    try {
+      const tags = await api.listTags();
+      setAvailableTags(tags);
+    } catch (err) {
+      console.error('Error cargando etiquetas:', err);
+    }
+  };
+
   useEffect(() => {
     loadExercises();
+    loadAllTags();
   }, []);
+
+  const usedTagColors = useMemo(() => {
+    return availableTags.map(t => t.color).filter(Boolean);
+  }, [availableTags]);
+
+  // Ejercicios seleccionados
+  const selectedExercises = useMemo(() => {
+    return exercises.filter(e => selectedExerciseIds.has(e.id));
+  }, [exercises, selectedExerciseIds]);
+
+  // Mapa de etiquetas en los ejercicios seleccionados
+  const tagsInSelectedExercises = useMemo(() => {
+    if (selectedExercises.length === 0) return [];
+
+    const tagMap = new Map<string, {
+      key: string;
+      tagId?: string;
+      category: string;
+      value: string;
+      color?: string | null;
+      formattedTag: string;
+      exerciseIdsWithTag: string[];
+    }>();
+
+    for (const ex of selectedExercises) {
+      if (!ex.tags || ex.tags.length === 0) continue;
+      for (const t of ex.tags) {
+        if (!t || !t.trim()) continue;
+        const cleanTag = t.trim();
+        let cat = '';
+        let val = cleanTag;
+        if (cleanTag.includes(':')) {
+          cat = cleanTag.substring(0, cleanTag.indexOf(':')).trim();
+          val = cleanTag.substring(cleanTag.indexOf(':') + 1).trim();
+        }
+
+        const matchedTag = availableTags.find(at =>
+          at.category.toLowerCase() === cat.toLowerCase() &&
+          at.value.toLowerCase() === val.toLowerCase()
+        ) || (!cat ? availableTags.find(at => at.value.toLowerCase() === val.toLowerCase()) : undefined);
+
+        const effectiveCat = matchedTag ? matchedTag.category : cat;
+        const effectiveVal = matchedTag ? matchedTag.value : val;
+        const key = matchedTag ? (matchedTag.category ? `${matchedTag.category}:${matchedTag.value}` : matchedTag.value).toLowerCase() : cleanTag.toLowerCase();
+        const effectiveColor = matchedTag?.color || getDeterministicTagColor(effectiveCat, effectiveVal);
+        const formattedTag = matchedTag ? (matchedTag.category ? `${matchedTag.category}:${matchedTag.value}` : matchedTag.value) : cleanTag;
+
+        if (!tagMap.has(key)) {
+          tagMap.set(key, {
+            key,
+            tagId: matchedTag?.id,
+            category: effectiveCat,
+            value: effectiveVal,
+            color: effectiveColor,
+            formattedTag,
+            exerciseIdsWithTag: [ex.id],
+          });
+        } else {
+          const item = tagMap.get(key)!;
+          if (!item.exerciseIdsWithTag.includes(ex.id)) {
+            item.exerciseIdsWithTag.push(ex.id);
+          }
+        }
+      }
+    }
+
+    return Array.from(tagMap.values()).sort((a, b) => {
+      const catCmp = a.category.localeCompare(b.category);
+      if (catCmp !== 0) return catCmp;
+      return a.value.localeCompare(b.value);
+    });
+  }, [selectedExercises, availableTags]);
+
+  // Etiquetas de availableTags que no tenga NINGUNO de los ejercicios seleccionados
+  const unassignedAvailableTags = useMemo(() => {
+    if (selectedExercises.length === 0) return [];
+    const assignedKeys = new Set(tagsInSelectedExercises.map(t => t.key));
+    let tags = availableTags.filter(t => {
+      const key1 = (t.category ? `${t.category}:${t.value}` : t.value).toLowerCase();
+      const key2 = t.value.toLowerCase();
+      return !assignedKeys.has(key1) && !assignedKeys.has(key2);
+    });
+    if (unassignedSearch.trim()) {
+      const q = unassignedSearch.toLowerCase();
+      tags = tags.filter(t => t.category.toLowerCase().includes(q) || t.value.toLowerCase().includes(q));
+    }
+    return tags.sort((a, b) => {
+      const catCmp = a.category.localeCompare(b.category);
+      if (catCmp !== 0) return catCmp;
+      return a.value.localeCompare(b.value);
+    });
+  }, [selectedExercises, tagsInSelectedExercises, availableTags, unassignedSearch]);
+
+  const handleToggleExercise = (id: string) => {
+    setSelectedExerciseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllVisible = () => {
+    const allVisible = currentExercises.map(e => e.id);
+    const allSelected = allVisible.length > 0 && allVisible.every(id => selectedExerciseIds.has(id));
+    if (allSelected) {
+      setSelectedExerciseIds(prev => {
+        const next = new Set(prev);
+        allVisible.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedExerciseIds(prev => {
+        const next = new Set(prev);
+        allVisible.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedExerciseIds(new Set());
+  };
+
+  const handleBatchAssignTag = async (tagStr: string, targetExerciseIds?: string[], tagId?: string) => {
+    const ids = targetExerciseIds && targetExerciseIds.length > 0
+      ? targetExerciseIds
+      : Array.from(selectedExerciseIds);
+    if (ids.length === 0) return;
+
+    setBatchSubmitting(true);
+    try {
+      await api.batchAssignExerciseTag(ids, tagStr, tagId);
+      await loadExercises();
+      await loadAllTags();
+    } catch (err: any) {
+      alert(err.message || 'Error al asignar la etiqueta en lote');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const handleBatchRevokeTag = async (tagStr: string, targetExerciseIds?: string[], tagId?: string) => {
+    const ids = targetExerciseIds && targetExerciseIds.length > 0
+      ? targetExerciseIds
+      : Array.from(selectedExerciseIds);
+    if (ids.length === 0) return;
+
+    setBatchSubmitting(true);
+    try {
+      await api.batchRevokeExerciseTag(ids, tagStr, tagId);
+      await loadExercises();
+      await loadAllTags();
+    } catch (err: any) {
+      alert(err.message || 'Error al revocar la etiqueta en lote');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const handleBulkCreateAndAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cat = bulkNewCategory.trim().toLowerCase();
+    const val = bulkNewValue.trim();
+    if (!cat || !val || selectedExerciseIds.size === 0) return;
+
+    setBatchSubmitting(true);
+    try {
+      let targetTag = availableTags.find(
+        t => t.category.toLowerCase() === cat && t.value.toLowerCase() === val.toLowerCase()
+      );
+      if (!targetTag) {
+        targetTag = await api.createTag({
+          category: cat,
+          value: val,
+          description: bulkNewDesc.trim() || undefined,
+          color: bulkNewColor,
+        });
+        setAvailableTags(prev => [...prev, targetTag!]);
+      }
+
+      await api.batchAssignExerciseTag(
+        Array.from(selectedExerciseIds),
+        targetTag.category ? `${targetTag.category}:${targetTag.value}` : targetTag.value,
+        targetTag.id
+      );
+
+      setBulkNewValue('');
+      setBulkNewDesc('');
+      setBulkNewColor(null);
+      await loadExercises();
+      await loadAllTags();
+    } catch (err: any) {
+      alert(err.message || 'Error al crear y asignar la etiqueta');
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
 
   // Load collection details if collectionIdParam is present
   useEffect(() => {
@@ -219,6 +444,9 @@ export const TeacherExercisesView: React.FC = () => {
       } else if (sortKey === 'slug') {
         valA = a.slug.toLowerCase();
         valB = b.slug.toLowerCase();
+      } else if (sortKey === 'tags') {
+        valA = (a.tags || []).join(', ').toLowerCase();
+        valB = (b.tags || []).join(', ').toLowerCase();
       } else if (sortKey === 'collections') {
         valA = (a.collections || []).join(', ').toLowerCase();
         valB = (b.collections || []).join(', ').toLowerCase();
@@ -732,9 +960,6 @@ export const TeacherExercisesView: React.FC = () => {
     return (
       <div className="app-container">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Ejercicios</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Code size={24} style={{ color: '#2563eb' }} />
@@ -753,20 +978,16 @@ export const TeacherExercisesView: React.FC = () => {
             <button
               onClick={() => listImportFileInputRef.current?.click()}
               className="btn-secondary"
-              style={{ padding: '0.625rem 1.25rem' }}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               title="Importar ejercicio desde archivo .md"
             >
-              <Upload size={18} /> Cargar .md
               <Upload size={16} /> Cargar .md
             </button>
             <button
               onClick={handleOpenCreate}
               className="btn-primary"
-              style={{ padding: '0.625rem 1.25rem' }}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <Plus size={18} /> Nuevo Ejercicio
               <Plus size={16} /> Crear Ejercicio
             </button>
           </div>
@@ -787,6 +1008,381 @@ export const TeacherExercisesView: React.FC = () => {
           </div>
         </div>
 
+        {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Visible al seleccionar 1 o más ejercicios) */}
+        {selectedExerciseIds.size > 0 && (
+          <div
+            ref={tagPanelRef}
+            className="card"
+            style={{
+              marginBottom: '1.5rem',
+              border: '2px solid #2563eb',
+              borderRadius: '0.75rem',
+              padding: 0,
+              overflow: 'hidden',
+              boxShadow: '0 4px 14px -2px rgba(37, 99, 235, 0.15)',
+              background: '#ffffff',
+            }}
+          >
+            {/* Cabecera del Marco */}
+            <div
+              style={{
+                padding: '0.875rem 1.25rem',
+                background: '#eff6ff',
+                borderBottom: '1px solid #bfdbfe',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <div style={{ background: '#2563eb', color: '#fff', borderRadius: '0.375rem', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <TagIcon size={16} />
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#1e3a8a' }}>
+                    Asignación de etiquetas
+                  </h2>
+                  <div style={{ fontSize: '0.8125rem', color: '#1d4ed8' }}>
+                    {selectedExercises.length === 1 ? (
+                      <span><strong>{selectedExercises[0].title}</strong> ({selectedExercises[0].slug})</span>
+                    ) : (
+                      <strong>{selectedExerciseIds.size} ejercicios seleccionados</strong>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="btn-secondary"
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: '#ffffff' }}
+              >
+                Deseleccionar todos
+              </button>
+            </div>
+
+            {/* Contenido: 2 Columnas */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+                gap: '1.5rem',
+                padding: '1.25rem',
+              }}
+            >
+              {/* LADO IZQUIERDO: Etiquetas en ejercicios seleccionados */}
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    Etiquetas en ejercicios seleccionados ({tagsInSelectedExercises.length})
+                  </h3>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 280, overflowY: 'auto' }}>
+                  {tagsInSelectedExercises.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
+                      Ninguno de los ejercicios seleccionados tiene etiquetas activas.
+                    </div>
+                  ) : (
+                    tagsInSelectedExercises.map(tagInfo => {
+                      const count = tagInfo.exerciseIdsWithTag.length;
+                      const total = selectedExercises.length;
+                      const isAll = count === total;
+                      const unassignedExercises = selectedExercises.filter(e => !tagInfo.exerciseIdsWithTag.includes(e.id)).map(e => e.id);
+
+                      return (
+                        <div
+                          key={tagInfo.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '0.375rem',
+                            padding: '0.4rem 0.625rem',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
+                            <TagBadge
+                              category={tagInfo.category}
+                              value={tagInfo.value}
+                              color={tagInfo.color}
+                            />
+
+                            <span
+                              style={{
+                                fontSize: '0.6875rem',
+                                fontWeight: 600,
+                                padding: '0.125rem 0.375rem',
+                                borderRadius: '9999px',
+                                background: isAll ? '#dcfce7' : '#fef3c7',
+                                color: isAll ? '#166534' : '#92400e',
+                                border: `1px solid ${isAll ? '#bbf7d0' : '#fde68a'}`,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={isAll ? 'Todos los ejercicios seleccionados tienen esta etiqueta' : `${count} de ${total} ejercicios seleccionados tienen esta etiqueta`}
+                            >
+                              {count}/{total} {count === 1 ? 'ejercicio' : 'ejercicios'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                            {/* Botón '+' para asignarla a todos los seleccionados que no la tengan */}
+                            <button
+                              type="button"
+                              disabled={batchSubmitting || isAll}
+                              onClick={() => handleBatchAssignTag(tagInfo.formattedTag, unassignedExercises, tagInfo.tagId)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 26,
+                                height: 26,
+                                borderRadius: '0.25rem',
+                                border: isAll ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                                background: isAll ? '#f1f5f9' : '#eff6ff',
+                                color: isAll ? '#94a3b8' : '#1d4ed8',
+                                cursor: isAll ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                              title={isAll ? 'Ya asignada a todos los ejercicios seleccionados' : `Asignar a los ${unassignedExercises.length} ejercicios restantes`}
+                            >
+                              {isAll ? <Check size={14} /> : <Plus size={14} />}
+                            </button>
+
+                            {/* Botón 'x' para eliminarla de todos los seleccionados que la tengan */}
+                            <button
+                              type="button"
+                              disabled={batchSubmitting}
+                              onClick={() => handleBatchRevokeTag(tagInfo.formattedTag, tagInfo.exerciseIdsWithTag, tagInfo.tagId)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 26,
+                                height: 26,
+                                borderRadius: '0.25rem',
+                                border: '1px solid #fecaca',
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                              title={`Quitar de los ${count} ejercicios que la tienen`}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* LADO DERECHO: Todas las etiquetas existentes que no tenga ninguno de los ejercicios seleccionados */}
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                  <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    Etiquetas no asignadas ({unassignedAvailableTags.length})
+                  </h3>
+                </div>
+
+                {/* Buscador de etiquetas no asignadas */}
+                {availableTags.length > 5 && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar etiqueta no asignada..."
+                      value={unassignedSearch}
+                      onChange={e => setUnassignedSearch(e.target.value)}
+                      className="input-field"
+                      style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 240, overflowY: 'auto' }}>
+                  {unassignedAvailableTags.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
+                      {unassignedSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas existentes libres.'}
+                    </div>
+                  ) : (
+                    unassignedAvailableTags.map(tag => (
+                      <div
+                        key={tag.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#ffffff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '0.375rem',
+                          padding: '0.4rem 0.625rem',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
+                          <TagBadge
+                            category={tag.category}
+                            value={tag.value}
+                            color={tag.color}
+                          />
+                          {tag.description && (
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
+                              ({tag.description})
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={batchSubmitting}
+                          onClick={() => handleBatchAssignTag(tag.category ? `${tag.category}:${tag.value}` : tag.value, Array.from(selectedExerciseIds), tag.id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 26,
+                            height: 26,
+                            borderRadius: '0.25rem',
+                            border: '1px solid #bfdbfe',
+                            background: '#eff6ff',
+                            color: '#1d4ed8',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                          title="Asignar a todos los ejercicios seleccionados"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* PARTE INFERIOR: Espacio para crear etiqueta (categoria:valor) y asignarla a todos los seleccionados */}
+            <div
+              style={{
+                background: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                padding: '0.875rem 1.25rem',
+              }}
+            >
+              <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e3a8a', marginBottom: '0.5rem' }}>
+                Crear nueva etiqueta y asignarla a la vez a todos los ejercicios seleccionados
+              </div>
+              <form
+                onSubmit={handleBulkCreateAndAssign}
+                style={{
+                  display: 'flex',
+                  gap: '0.75rem',
+                  alignItems: 'flex-end',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ minWidth: 140, flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                    Categoría *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej. dificultad, tema, lenguaje"
+                    value={bulkNewCategory}
+                    onChange={e => setBulkNewCategory(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 140, flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                    Valor *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej. facil, bucles, python"
+                    value={bulkNewValue}
+                    onChange={e => setBulkNewValue(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 160, flex: 1.5 }}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                    Descripción opcional
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ej. Ejercicios de iniciación"
+                    value={bulkNewDesc}
+                    onChange={e => setBulkNewDesc(e.target.value)}
+                    className="input-field"
+                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
+                  />
+                </div>
+
+                <div style={{ minWidth: 120 }}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                    Color
+                  </label>
+                  <TagColorPicker
+                    selectedColor={bulkNewColor}
+                    onChange={setBulkNewColor}
+                    category={bulkNewCategory}
+                    value={bulkNewValue}
+                    usedColors={usedTagColors}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={batchSubmitting || !bulkNewCategory.trim() || !bulkNewValue.trim()}
+                  className="btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.45rem 0.85rem',
+                    fontSize: '0.8125rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Plus size={14} /> Crear y Asignar
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* List Table */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {loading ? (
@@ -799,10 +1395,34 @@ export const TeacherExercisesView: React.FC = () => {
             <>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 600 }}>
+                    <th style={{ padding: '0.75rem 1rem', width: 44, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={currentExercises.length > 0 && currentExercises.every(e => selectedExerciseIds.has(e.id))}
+                        ref={input => {
+                          if (input) {
+                            const someSelected = currentExercises.some(e => selectedExerciseIds.has(e.id));
+                            const allSelected = currentExercises.length > 0 && currentExercises.every(e => selectedExerciseIds.has(e.id));
+                            input.indeterminate = someSelected && !allSelected;
+                          }
+                        }}
+                        onChange={handleSelectAllVisible}
+                        title="Seleccionar todos los ejercicios visibles"
+                        style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      />
+                    </th>
                     <SortableHeader
                       label="Título"
                       sortKey="title"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
+                    <SortableHeader
+                      label="Etiquetas"
+                      sortKey="tags"
                       currentSortKey={sortKey}
                       currentSortDir={sortDir}
                       onSort={handleSort}
@@ -836,51 +1456,85 @@ export const TeacherExercisesView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentExercises.map((ex) => (
-                    <tr key={ex.id} style={{ borderBottom: '1px solid #f1f5f9' }} className="hover:bg-slate-50">
-                      <td
-                        onClick={() => handleOpenEdit(ex.id)}
-                        style={{ padding: '0.875rem 1.25rem', fontWeight: 500, color: '#1e293b', cursor: 'pointer' }}
-                        title="Editar ejercicio"
+                  {currentExercises.map((ex) => {
+                    const isSelected = selectedExerciseIds.has(ex.id);
+                    return (
+                      <tr
+                        key={ex.id}
+                        style={{
+                          borderBottom: '1px solid #f1f5f9',
+                          background: isSelected ? '#eff6ff' : undefined,
+                          transition: 'background-color 0.15s',
+                        }}
+                        className="hover:bg-slate-50"
                       >
-                        <div style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{ex.title}</div>
-                        {ex.tags && ex.tags.length > 0 && (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-                            {ex.tags.map((t, idx) => (
-                              <span
-                                key={idx}
-                                className="badge badge-neutral"
-                                style={{ fontSize: '0.6875rem', padding: '0.1rem 0.35rem', backgroundColor: '#f1f5f9', color: '#475569' }}
-                              >
-                                #{t}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', color: '#64748b' }}>
-                        {ex.slug}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b' }}>
-                        {ex.collections && ex.collections.length > 0 ? (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                            {ex.collections.map((col, idx) => (
-                              <span
-                                key={idx}
-                                className="badge badge-secondary"
-                                style={{ fontSize: '0.75rem' }}
-                              >
-                                📚 {col}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>Ninguna</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontSize: '0.8125rem' }}>
-                        {ex.createdAt ? new Date(ex.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
+                        <td style={{ padding: '1rem', width: 44, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleExercise(ex.id)}
+                            style={{ cursor: 'pointer', width: 16, height: 16 }}
+                          />
+                        </td>
+                        <td
+                          onClick={() => handleOpenEdit(ex.id)}
+                          style={{ padding: '0.875rem 1.25rem', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
+                          title="Editar ejercicio"
+                        >
+                          <div style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{ex.title}</div>
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem' }}>
+                          {ex.tags && ex.tags.length > 0 ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              {ex.tags.map((t, idx) => {
+                                let cat = '';
+                                let val = t;
+                                if (t.includes(':')) {
+                                  cat = t.substring(0, t.indexOf(':'));
+                                  val = t.substring(t.indexOf(':') + 1);
+                                }
+                                const matched = availableTags.find(at =>
+                                  at.category.toLowerCase() === cat.toLowerCase() &&
+                                  at.value.toLowerCase() === val.toLowerCase()
+                                ) || (!cat ? availableTags.find(at => at.value.toLowerCase() === val.toLowerCase()) : undefined);
+
+                                return (
+                                  <TagBadge
+                                    key={idx}
+                                    category={matched ? matched.category : cat}
+                                    value={matched ? matched.value : val}
+                                    color={matched?.color}
+                                  />
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>Sin etiquetas</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', color: '#64748b' }}>
+                          {ex.slug}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', color: '#64748b' }}>
+                          {ex.collections && ex.collections.length > 0 ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                              {ex.collections.map((col, idx) => (
+                                <span
+                                  key={idx}
+                                  className="badge badge-secondary"
+                                  style={{ fontSize: '0.75rem' }}
+                                >
+                                  📚 {col}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>Ninguna</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', color: '#64748b', fontSize: '0.8125rem' }}>
+                          {ex.createdAt ? new Date(ex.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </td>
                       <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                           <button
@@ -902,7 +1556,8 @@ export const TeacherExercisesView: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
 

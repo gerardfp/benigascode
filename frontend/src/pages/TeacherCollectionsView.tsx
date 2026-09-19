@@ -274,9 +274,6 @@ export const TeacherCollectionsView: React.FC = () => {
     return (
       <div className="app-container">
         {/* Top Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.875rem', fontWeight: 700, margin: 0 }}>Colecciones</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Folder size={24} style={{ color: '#2563eb' }} />
@@ -284,8 +281,6 @@ export const TeacherCollectionsView: React.FC = () => {
               Colecciones
             </h1>
           </div>
-          <button onClick={handleOpenCreate} className="btn-primary" style={{ padding: '0.625rem 1.25rem' }}>
-            <Plus size={18} /> Nueva Colección
           <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Plus size={16} /> Crear Colección
           </button>

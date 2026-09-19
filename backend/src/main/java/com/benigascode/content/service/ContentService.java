@@ -9,7 +9,9 @@ import com.benigascode.content.dto.*;
 import com.benigascode.content.repository.*;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.learning.domain.Tag;
 import com.benigascode.learning.domain.TeachingSpace;
+import com.benigascode.learning.repository.TagRepository;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -56,6 +58,7 @@ public class ContentService {
     private final SubmissionRepository submissionRepository;
     private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
+    private final TagRepository tagRepository;
     private final ContextService contextService;
     private final ObjectMapper objectMapper;
 
@@ -70,6 +73,7 @@ public class ContentService {
                           SubmissionRepository submissionRepository,
                           StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
+                          TagRepository tagRepository,
                           ContextService contextService,
                           ObjectMapper objectMapper) {
         this.collectionRepository = collectionRepository;
@@ -83,6 +87,7 @@ public class ContentService {
         this.submissionRepository = submissionRepository;
         this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
+        this.tagRepository = tagRepository;
         this.contextService = contextService;
         this.objectMapper = objectMapper;
     }
@@ -813,6 +818,105 @@ public class ContentService {
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
         exerciseRepository.delete(exercise);
+    }
+
+    @Transactional
+    public void batchAssignTag(List<UUID> exerciseIds, String tagStr, UUID tagId, User teacher) {
+        if (exerciseIds == null || exerciseIds.isEmpty()) return;
+
+        String effectiveTag = tagStr;
+        if ((effectiveTag == null || effectiveTag.isBlank()) && tagId != null) {
+            Tag t = tagRepository.findById(tagId).orElse(null);
+            if (t != null) {
+                effectiveTag = t.getFormatted();
+            }
+        }
+        if (effectiveTag == null || effectiveTag.isBlank()) return;
+        final String finalTag = effectiveTag.trim();
+
+        for (UUID exerciseId : exerciseIds) {
+            Exercise exercise = exerciseRepository.findById(exerciseId)
+                    .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                    .orElse(null);
+            if (exercise == null) continue;
+
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                List<String> tagsList = new ArrayList<>();
+                if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                    try {
+                        tagsList = new ArrayList<>(objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {}));
+                    } catch (Exception ignored) {}
+                }
+
+                boolean exists = tagsList.stream().anyMatch(t -> t.equalsIgnoreCase(finalTag));
+                if (!exists) {
+                    tagsList.add(finalTag);
+                    try {
+                        ev.setTags(objectMapper.writeValueAsString(tagsList));
+                        exerciseVersionRepository.save(ev);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+    }
+
+    @Transactional
+    public void batchRevokeTag(List<UUID> exerciseIds, String tagStr, UUID tagId, User teacher) {
+        if (exerciseIds == null || exerciseIds.isEmpty()) return;
+
+        String effectiveTag = tagStr;
+        Tag tagEntity = null;
+        if (tagId != null) {
+            tagEntity = tagRepository.findById(tagId).orElse(null);
+            if (tagEntity != null && (effectiveTag == null || effectiveTag.isBlank())) {
+                effectiveTag = tagEntity.getFormatted();
+            }
+        }
+
+        final String matchTag = effectiveTag != null ? effectiveTag.trim() : null;
+        final Tag finalTagEntity = tagEntity;
+
+        for (UUID exerciseId : exerciseIds) {
+            Exercise exercise = exerciseRepository.findById(exerciseId)
+                    .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                    .orElse(null);
+            if (exercise == null) continue;
+
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                if (ev.getTags() == null || ev.getTags().isBlank()) continue;
+
+                List<String> tagsList;
+                try {
+                    tagsList = new ArrayList<>(objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {}));
+                } catch (Exception e) {
+                    continue;
+                }
+
+                boolean removed = tagsList.removeIf(t -> {
+                    if (matchTag != null && t.equalsIgnoreCase(matchTag)) return true;
+                    if (finalTagEntity != null) {
+                        if (t.equalsIgnoreCase(finalTagEntity.getValue())) return true;
+                        if (t.equalsIgnoreCase(finalTagEntity.getFormatted())) return true;
+                    }
+                    if (matchTag != null && matchTag.contains(":")) {
+                        String val = matchTag.substring(matchTag.indexOf(':') + 1);
+                        if (t.equalsIgnoreCase(val)) return true;
+                    }
+                    return false;
+                });
+
+                if (removed) {
+                    try {
+                        ev.setTags(objectMapper.writeValueAsString(tagsList));
+                        exerciseVersionRepository.save(ev);
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
     }
 
     private ExerciseVersion buildExerciseVersion(Exercise exercise, int versionNumber, SaveExerciseRequest req) {

@@ -110,32 +110,8 @@ export const TeacherManagementView: React.FC = () => {
   }
 
   return (
-    <div className="app-container" style={{ maxWidth: 1200 }}>
     <div className="app-container">
       {/* Cabecera */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.25rem' }}>
-          Gestión de Profesores
-        </h1>
-        <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
-          Configura las cuentas de GitHub con permisos docentes en Benigascode
-        </p>
-      </div>
-
-      {/* Explicación del funcionamiento */}
-      <div style={{
-        backgroundColor: '#eff6ff',
-        border: '1px solid #bfdbfe',
-        borderRadius: '0.5rem',
-        padding: '1rem 1.25rem',
-        marginBottom: '1.5rem',
-        fontSize: '0.875rem',
-        color: '#1e40af'
-      }}>
-        <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>ℹ️ Acceso docente con GitHub</div>
-        <div>
-          Cualquier usuario de GitHub añadido a esta lista podrá iniciar sesión directamente desde la pantalla de login pulsando <strong>"Continuar con GitHub"</strong> y se le asignará automáticamente el rol de <strong>Profesor</strong>.
-          Los alumnos, en cambio, deben registrarse mediante sus <strong>claves de invitación</strong>.
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Shield size={24} style={{ color: '#2563eb' }} />

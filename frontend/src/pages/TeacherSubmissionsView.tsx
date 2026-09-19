@@ -274,29 +274,20 @@ export const TeacherSubmissionsView: React.FC = () => {
   return (
     <div className="app-container" style={{ paddingBottom: '4rem' }}>
       {/* Encabezado */}
-      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 0.25rem 0', color: '#0f172a' }}>
-            📥 Envíos de Alumnos
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Inbox size={24} style={{ color: '#2563eb' }} />
           <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
             Envíos
           </h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '0.9375rem' }}>
-            Historial de entregas, inspección de código y desglose completo de pruebas públicas y privadas
-          </p>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button
             onClick={() => fetchSubmissions()}
             className="btn-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
-            🔄 Actualizar
             <RotateCw size={16} /> Actualizar
           </button>
         </div>

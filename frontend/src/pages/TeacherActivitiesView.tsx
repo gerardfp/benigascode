@@ -25,15 +25,6 @@ export const TeacherActivitiesView: React.FC = () => {
 
   return (
     <div className="app-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div>
-          <Link to="/teacher" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
-            &larr; Volver al Panel Docente
-          </Link>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0 0.25rem' }}>Actividades Publicadas</h1>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
-            Consulta las actividades asignadas a los cursos y accede al seguimiento de entregas.
-          </p>
       {/* Cabecera */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
