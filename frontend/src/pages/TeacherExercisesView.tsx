@@ -100,7 +100,6 @@ export const TeacherExercisesView: React.FC = () => {
   markdownTextRef.current = markdownText;
   const handleUploadAndInsertImageRef = useRef<(file: File) => Promise<void>>(async () => {});
   const markdownFileInputRef = useRef<HTMLInputElement>(null);
-  const listImportFileInputRef = useRef<HTMLInputElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
   // Saving & Uploading status
@@ -596,26 +595,6 @@ export const TeacherExercisesView: React.FC = () => {
     e.target.value = '';
   };
 
-  // Import .md file directly from List view
-  const handleListImportMarkdown = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setSelectedId(null);
-        setSearchParams(collectionIdParam ? { collectionId: collectionIdParam } : {});
-        setMarkdownText(content);
-        setAssets([]);
-        setVersionNumber(1);
-        setMode('editor');
-        setStatusMsg({ type: 'success', text: `Ejercicio cargado desde "${file.name}". Revisa el contenido y pulsa Guardar.` });
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   // Helper to ensure exercise is saved before attaching assets
   const ensureExerciseSaved = async (): Promise<string | null> => {
@@ -1264,122 +1243,79 @@ export const TeacherExercisesView: React.FC = () => {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {/* Toolbar de búsqueda, selección por etiquetas y acciones pegado a la tabla */}
           <div style={{
-            padding: '1rem 1.25rem',
+            padding: '0.875rem 1.25rem',
             borderBottom: '1px solid #e2e8f0',
             backgroundColor: '#ffffff',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '0.875rem',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-              {/* Búsquedas y filtros */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', flex: '1 1 500px' }}>
-                {/* 1. Búsqueda Textual */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.375rem' }}>
-                    Búsqueda textual
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input
-                      type="text"
-                      placeholder="Buscar por título o identificador (slug)..."
-                      value={searchTerm}
-                      onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                      className="input-field"
-                      style={{ paddingLeft: '2.5rem', paddingRight: searchTerm ? '2rem' : '0.75rem', width: '100%', fontSize: '0.875rem' }}
-                    />
-                    {searchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => { setSearchTerm(''); setPage(1); }}
-                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
-                        title="Limpiar búsqueda textual"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Selección por Etiquetas */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                      Selección por etiquetas
-                    </label>
-                    {tagExpression.trim() && (
-                      parsedTagExpr.isValid ? (
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                          <Check size={12} /> Expresión válida ({matchingCount} {matchingCount === 1 ? 'ejercicio seleccionado' : 'ejercicios seleccionados'})
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.25rem' }} title={parsedTagExpr.error || ''}>
-                          <AlertCircle size={12} /> {parsedTagExpr.error || 'Expresión incompleta'}
-                        </span>
-                      )
-                    )}
-                  </div>
-                  <div style={{ position: 'relative' }}>
-                    <TagIcon size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: tagExpression.trim() ? (parsedTagExpr.isValid ? '#2563eb' : '#dc2626') : '#94a3b8' }} />
-                    <input
-                      type="text"
-                      placeholder="Expresión booleana, ej. (strings && arrays) || !variables"
-                      value={tagExpression}
-                      onChange={(e) => { setTagExpression(e.target.value); setPage(1); }}
-                      className="input-field"
-                      style={{
-                        paddingLeft: '2.5rem',
-                        paddingRight: tagExpression ? '2rem' : '0.75rem',
-                        width: '100%',
-                        fontSize: '0.875rem',
-                        borderColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#86efac' : '#fca5a5') : undefined,
-                        backgroundColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#f0fdf4' : '#fff5f5') : undefined,
-                      }}
-                    />
-                    {tagExpression && (
-                      <button
-                        type="button"
-                        onClick={() => { setTagExpression(''); setPage(1); }}
-                        style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
-                        title="Limpiar expresión de etiquetas"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.6875rem', color: '#64748b', marginTop: '0.25rem' }}>
-                    Soporta <code style={{ color: '#0f172a', fontWeight: 600 }}>&&</code>, <code style={{ color: '#0f172a', fontWeight: 600 }}>||</code>, <code style={{ color: '#0f172a', fontWeight: 600 }}>!</code> y paréntesis <code style={{ color: '#0f172a', fontWeight: 600 }}>( )</code>.
-                  </div>
-                </div>
+            <div style={{ display: 'flex', gap: '1rem', flex: '1 1 500px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* 1. Búsqueda Textual */}
+              <div style={{ position: 'relative', flex: '1 1 220px' }}>
+                <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por título o identificador (slug)..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', paddingRight: searchTerm ? '2rem' : '0.75rem', width: '100%', fontSize: '0.875rem' }}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchTerm(''); setPage(1); }}
+                    style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
+                    title="Limpiar búsqueda textual"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
 
-              {/* Botones de acción */}
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', paddingTop: '1.25rem', flexShrink: 0 }}>
+              {/* 2. Selección por Etiquetas */}
+              <div style={{ position: 'relative', flex: '1 1 280px' }}>
+                <TagIcon size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: tagExpression.trim() ? (parsedTagExpr.isValid ? '#2563eb' : '#dc2626') : '#94a3b8' }} />
                 <input
-                  type="file"
-                  ref={listImportFileInputRef}
-                  accept=".md,.markdown,text/markdown"
-                  style={{ display: 'none' }}
-                  onChange={handleListImportMarkdown}
+                  type="text"
+                  placeholder="Selección por etiquetas: ej. (strings && arrays) || !variables"
+                  value={tagExpression}
+                  onChange={(e) => { setTagExpression(e.target.value); setPage(1); }}
+                  className="input-field"
+                  style={{
+                    paddingLeft: '2.5rem',
+                    paddingRight: tagExpression ? '2rem' : '0.75rem',
+                    width: '100%',
+                    fontSize: '0.875rem',
+                    borderColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#86efac' : '#fca5a5') : undefined,
+                    backgroundColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#f0fdf4' : '#fff5f5') : undefined,
+                  }}
+                  title={tagExpression.trim() ? (parsedTagExpr.isValid ? `Expresión válida (${matchingCount} seleccionados)` : (parsedTagExpr.error || 'Expresión incompleta')) : undefined}
                 />
-                <button
-                  onClick={() => listImportFileInputRef.current?.click()}
-                  className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
-                  title="Importar ejercicio desde archivo .md"
-                >
-                  <Upload size={16} /> Cargar .md
-                </button>
-                <button
-                  onClick={handleOpenCreate}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}
-                >
-                  <Plus size={16} /> Crear Ejercicio
-                </button>
+                {tagExpression && (
+                  <button
+                    type="button"
+                    onClick={() => { setTagExpression(''); setPage(1); }}
+                    style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
+                    title="Limpiar expresión de etiquetas"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Botón Crear Ejercicio */}
+            <button
+              onClick={handleOpenCreate}
+              className="btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
+            >
+              <Plus size={16} /> Crear Ejercicio
+            </button>
           </div>
           {loading ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>Cargando ejercicios...</div>

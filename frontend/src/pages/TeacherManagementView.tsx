@@ -140,22 +140,12 @@ export const TeacherManagementView: React.FC = () => {
       {/* Listado de profesores autorizados */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{
-          padding: '1.25rem',
+          padding: '0.875rem 1.25rem',
           borderBottom: '1px solid #e2e8f0',
           backgroundColor: '#ffffff',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
         }}>
-          <h2 style={{ fontSize: '1.0625rem', fontWeight: 600, margin: 0, color: '#0f172a' }}>
-            Profesores Autorizados ({teachers.length})
-          </h2>
-
-          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <div style={{ flex: '1 1 200px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>
-                Usuario de GitHub *
-              </label>
+          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: '1 1 220px' }}>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <span style={{ position: 'absolute', left: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>@</span>
                 <input
@@ -163,22 +153,19 @@ export const TeacherManagementView: React.FC = () => {
                   required
                   className="input-field"
                   style={{ paddingLeft: '2rem', fontSize: '0.875rem' }}
-                  placeholder="ej. octocat"
+                  placeholder="Usuario de GitHub: ej. octocat"
                   value={githubUsername}
                   onChange={(e) => setGithubUsername(e.target.value)}
                 />
               </div>
             </div>
 
-            <div style={{ flex: '2 1 260px' }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', color: '#475569' }}>
-                Notas / Nombre / Departamento
-              </label>
+            <div style={{ flex: '2 1 280px' }}>
               <input
                 type="text"
                 className="input-field"
                 style={{ fontSize: '0.875rem' }}
-                placeholder="ej. Profesor de Programación DAM"
+                placeholder="Notas: ej. Profesor de DAM"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
@@ -260,7 +247,7 @@ export const TeacherManagementView: React.FC = () => {
                             rel="noopener noreferrer"
                             style={{ color: '#2563eb', fontSize: '0.75rem', textDecoration: 'none' }}
                           >
-                            @{t.githubUsername} &nearr;
+                            @{t.githubUsername} ↗
                           </a>
                         </div>
                       </div>

@@ -700,12 +700,9 @@ export const TeacherStudentsView: React.FC = () => {
           borderBottom: '1px solid #e2e8f0',
           backgroundColor: '#ffffff',
         }}>
-          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Filtrar por Espacio */}
-            <div style={{ minWidth: 200, flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-                Filtrar por Espacio Docente
-              </label>
+            <div style={{ minWidth: 180, flex: 1 }}>
               <select
                 value={selectedSpaceId}
                 onChange={e => setSelectedSpaceId(e.target.value)}
@@ -721,9 +718,6 @@ export const TeacherStudentsView: React.FC = () => {
 
             {/* Filtrar por Categoría */}
             <div style={{ minWidth: 160, flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-                Categoría de Etiqueta
-              </label>
               <select
                 value={selectedTagCategory}
                 onChange={e => {
@@ -743,9 +737,6 @@ export const TeacherStudentsView: React.FC = () => {
             {/* Filtrar por Valor de Etiqueta */}
             {selectedTagCategory && (
               <div style={{ minWidth: 160, flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-                  Valor de Etiqueta
-                </label>
                 <select
                   value={selectedTagValue}
                   onChange={e => setSelectedTagValue(e.target.value)}
@@ -763,10 +754,7 @@ export const TeacherStudentsView: React.FC = () => {
             )}
 
             {/* Buscador de Alumno */}
-            <div style={{ minWidth: 220, flex: 2 }}>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.25rem' }}>
-                Buscar Alumno
-              </label>
+            <div style={{ minWidth: 220, flex: 1.5 }}>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   type="text"
