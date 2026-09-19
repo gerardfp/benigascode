@@ -415,6 +415,7 @@ export const TeacherCollectionsView: React.FC = () => {
   // RENDER: SINGLE-SHEET EDITOR VIEW (PARÁMETROS ARRIBA, EJERCICIOS ABAJO)
   return (
     <div className="app-container" style={{ maxWidth: 1100 }}>
+    <div className="app-container">
       {/* Top Bar with Navigation & Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

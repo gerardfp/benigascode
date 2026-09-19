@@ -264,6 +264,7 @@ export const TeacherSpacesView: React.FC = () => {
   if (mode === 'editor') {
     return (
       <div className="app-container" style={{ maxWidth: 840 }}>
+      <div className="app-container">
         {/* Top Bar with Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

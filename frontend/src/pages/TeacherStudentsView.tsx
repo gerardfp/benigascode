@@ -1,12 +1,15 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { api } from '../services/api';
 import { TeacherStudent, TeachingSpace, Tag, StudentTag } from '../types';
+import { TeacherStudent, TeachingSpace, Tag } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import { 
   Users, Tag as TagIcon, Layers, Trash2, Search, Plus, X, Check
+  Users, Tag as TagIcon, Layers, Search, Plus, X, Check
 } from 'lucide-react';
 
 export const TeacherStudentsView: React.FC = () => {
@@ -18,6 +21,7 @@ export const TeacherStudentsView: React.FC = () => {
 
   // Sorting
   type StudentSortKey = 'name' | 'spaces' | 'tags' | 'createdAt';
+  type StudentSortKey = 'name' | 'spaces' | 'tags';
   const [sortKey, setSortKey] = useState<StudentSortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -39,6 +43,7 @@ export const TeacherStudentsView: React.FC = () => {
   // Selección Múltiple (Checkbox)
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const tagPanelRef = useRef<HTMLDivElement>(null);
 
   // Búsqueda en etiquetas disponibles no asignadas
   const [unassignedSearch, setUnassignedSearch] = useState('');
@@ -291,6 +296,15 @@ export const TeacherStudentsView: React.FC = () => {
       alert(err.message || 'Error al cargar las etiquetas del alumno');
     } finally {
       setStudentTagsLoading(false);
+  // Manejar clic sobre un alumno para seleccionar y gestionar etiquetas
+  const handleStudentClick = (student: TeacherStudent) => {
+    if (selectedStudentIds.size > 0) {
+      handleToggleStudent(student.id);
+    } else {
+      setSelectedStudentIds(new Set([student.id]));
+      setTimeout(() => {
+        tagPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
     }
   };
 
@@ -485,6 +499,7 @@ export const TeacherStudentsView: React.FC = () => {
       {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Visible al seleccionar 1 o más alumnos) */}
       {selectedStudentIds.size > 0 && (
         <div
+          ref={tagPanelRef}
           className="card"
           style={{
             marginBottom: '1.5rem',
@@ -519,6 +534,11 @@ export const TeacherStudentsView: React.FC = () => {
                 </h2>
                 <div style={{ fontSize: '0.8125rem', color: '#1d4ed8' }}>
                   <strong>{selectedStudentIds.size}</strong> {selectedStudentIds.size === 1 ? 'alumno seleccionado' : 'alumnos seleccionados'} para edición masiva
+                  {selectedStudents.length === 1 ? (
+                    <span><strong>{selectedStudents[0].fullName}</strong> ({selectedStudents[0].username})</span>
+                  ) : (
+                    <strong>{selectedStudentIds.size} alumnos seleccionados</strong>
+                  )}
                 </div>
               </div>
             </div>
@@ -554,6 +574,7 @@ export const TeacherStudentsView: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                   Etiquetas en alumnos seleccionados ({tagsInSelectedStudents.length})
                 </h3>
@@ -681,6 +702,7 @@ export const TeacherStudentsView: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                   Etiquetas no asignadas ({unassignedAvailableTags.length})
                 </h3>
@@ -920,6 +942,8 @@ export const TeacherStudentsView: React.FC = () => {
                   <SortableHeader<StudentSortKey> label="Espacios Resueltos" sortKey="spaces" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                   <SortableHeader<StudentSortKey> label="Fecha Registro" sortKey="createdAt" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Acciones</th>
+                  <SortableHeader<StudentSortKey> label="Etiquetas" sortKey="tags" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
+                  <SortableHeader<StudentSortKey> label="Espacios" sortKey="spaces" currentSortKey={sortKey} currentSortDir={sortDir} onSort={handleSort} style={{ padding: '0.75rem 1rem' }} />
                 </tr>
               </thead>
               <tbody>
@@ -945,8 +969,10 @@ export const TeacherStudentsView: React.FC = () => {
 
                       <td
                         onClick={() => handleOpenTagManager(student)}
+                        onClick={() => handleStudentClick(student)}
                         style={{ padding: '1rem', cursor: 'pointer' }}
                         title="Gestionar etiquetas del alumno"
+                        title="Seleccionar alumno y gestionar etiquetas"
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           {student.avatarUrl ? (
@@ -964,6 +990,7 @@ export const TeacherStudentsView: React.FC = () => {
                       </td>
 
                       {/* Etiquetas Activas */}
+                      {/* Etiquetas */}
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', alignItems: 'center' }}>
                           {student.activeTags && student.activeTags.length > 0 ? (
@@ -990,6 +1017,7 @@ export const TeacherStudentsView: React.FC = () => {
                       </td>
 
                       {/* Espacios Resueltos */}
+                      {/* Espacios */}
                       <td style={{ padding: '1rem' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                           {student.spaces && student.spaces.length > 0 ? (
@@ -1012,6 +1040,29 @@ export const TeacherStudentsView: React.FC = () => {
                                 <Layers size={12} /> {s.name}
                               </span>
                             ))
+                            student.spaces.map(s => {
+                              const sId = s.id || s.spaceId;
+                              const sName = s.name || s.spaceName;
+                              return (
+                                <span
+                                  key={sId}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    border: '1px solid #bfdbfe',
+                                    borderRadius: '0.25rem',
+                                    padding: '0.125rem 0.5rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  <Layers size={12} /> {sName}
+                                </span>
+                              );
+                            })
                           ) : (
                             <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>
                               Ningún espacio activo
