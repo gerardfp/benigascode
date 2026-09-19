@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Exercise, AssetDTO, TeacherCollectionDetail, Tag } from '../types';
+import { Exercise, AssetDTO, TeacherCollectionDetail } from '../types';
 import { renderMarkdown } from '../utils/markdown';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
-import { TagColorPicker } from '../components/TagColorPicker';
-import { getDeterministicTagColor } from '../utils/tagColors';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   Eye, Columns, CheckCircle, AlertCircle,
@@ -33,13 +31,9 @@ export const TeacherExercisesView: React.FC = () => {
 
   // Selected exercises for batch operations & tag management
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(new Set());
-  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
-  const [bulkNewCategory, setBulkNewCategory] = useState('');
-  const [bulkNewValue, setBulkNewValue] = useState('');
-  const [bulkNewDesc, setBulkNewDesc] = useState('');
-  const [bulkNewColor, setBulkNewColor] = useState<string | null>(null);
+  const [bulkNewTag, setBulkNewTag] = useState('');
   const tagPanelRef = useRef<HTMLDivElement>(null);
 
   // Tag expression search & selection
@@ -193,24 +187,23 @@ export const TeacherExercisesView: React.FC = () => {
     }
   };
 
-  // Load all available tags from the system
-  const loadAllTags = async () => {
-    try {
-      const tags = await api.listTags();
-      setAvailableTags(tags);
-    } catch (err) {
-      console.error('Error cargando etiquetas:', err);
-    }
-  };
-
   useEffect(() => {
     loadExercises();
-    loadAllTags();
   }, []);
 
-  const usedTagColors = useMemo(() => {
-    return availableTags.map(t => t.color).filter(Boolean);
-  }, [availableTags]);
+  // Todas las etiquetas existentes en el catálogo de ejercicios
+  const allExerciseTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const ex of exercises) {
+      if (!ex.tags) continue;
+      for (const t of ex.tags) {
+        if (t && t.trim()) {
+          tagSet.add(t.trim());
+        }
+      }
+    }
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
+  }, [exercises]);
 
   // Ejercicios seleccionados
   const selectedExercises = useMemo(() => {
@@ -222,12 +215,7 @@ export const TeacherExercisesView: React.FC = () => {
     if (selectedExercises.length === 0) return [];
 
     const tagMap = new Map<string, {
-      key: string;
-      tagId?: string;
-      category: string;
-      value: string;
-      color?: string | null;
-      formattedTag: string;
+      tag: string;
       exerciseIdsWithTag: string[];
     }>();
 
@@ -236,32 +224,11 @@ export const TeacherExercisesView: React.FC = () => {
       for (const t of ex.tags) {
         if (!t || !t.trim()) continue;
         const cleanTag = t.trim();
-        let cat = '';
-        let val = cleanTag;
-        if (cleanTag.includes(':')) {
-          cat = cleanTag.substring(0, cleanTag.indexOf(':')).trim();
-          val = cleanTag.substring(cleanTag.indexOf(':') + 1).trim();
-        }
-
-        const matchedTag = availableTags.find(at =>
-          at.category.toLowerCase() === cat.toLowerCase() &&
-          at.value.toLowerCase() === val.toLowerCase()
-        ) || (!cat ? availableTags.find(at => at.value.toLowerCase() === val.toLowerCase()) : undefined);
-
-        const effectiveCat = matchedTag ? matchedTag.category : cat;
-        const effectiveVal = matchedTag ? matchedTag.value : val;
-        const key = matchedTag ? (matchedTag.category ? `${matchedTag.category}:${matchedTag.value}` : matchedTag.value).toLowerCase() : cleanTag.toLowerCase();
-        const effectiveColor = matchedTag?.color || getDeterministicTagColor(effectiveCat, effectiveVal);
-        const formattedTag = matchedTag ? (matchedTag.category ? `${matchedTag.category}:${matchedTag.value}` : matchedTag.value) : cleanTag;
+        const key = cleanTag.toLowerCase();
 
         if (!tagMap.has(key)) {
           tagMap.set(key, {
-            key,
-            tagId: matchedTag?.id,
-            category: effectiveCat,
-            value: effectiveVal,
-            color: effectiveColor,
-            formattedTag,
+            tag: cleanTag,
             exerciseIdsWithTag: [ex.id],
           });
         } else {
@@ -273,32 +240,20 @@ export const TeacherExercisesView: React.FC = () => {
       }
     }
 
-    return Array.from(tagMap.values()).sort((a, b) => {
-      const catCmp = a.category.localeCompare(b.category);
-      if (catCmp !== 0) return catCmp;
-      return a.value.localeCompare(b.value);
-    });
-  }, [selectedExercises, availableTags]);
+    return Array.from(tagMap.values()).sort((a, b) => a.tag.localeCompare(b.tag));
+  }, [selectedExercises]);
 
-  // Etiquetas de availableTags que no tenga NINGUNO de los ejercicios seleccionados
+  // Etiquetas del catálogo que no tenga NINGUNO de los ejercicios seleccionados
   const unassignedAvailableTags = useMemo(() => {
     if (selectedExercises.length === 0) return [];
-    const assignedKeys = new Set(tagsInSelectedExercises.map(t => t.key));
-    let tags = availableTags.filter(t => {
-      const key1 = (t.category ? `${t.category}:${t.value}` : t.value).toLowerCase();
-      const key2 = t.value.toLowerCase();
-      return !assignedKeys.has(key1) && !assignedKeys.has(key2);
-    });
+    const assignedKeys = new Set(tagsInSelectedExercises.map(t => t.tag.toLowerCase()));
+    let tags = allExerciseTags.filter(t => !assignedKeys.has(t.toLowerCase()));
     if (unassignedSearch.trim()) {
       const q = unassignedSearch.toLowerCase();
-      tags = tags.filter(t => t.category.toLowerCase().includes(q) || t.value.toLowerCase().includes(q));
+      tags = tags.filter(t => t.toLowerCase().includes(q));
     }
-    return tags.sort((a, b) => {
-      const catCmp = a.category.localeCompare(b.category);
-      if (catCmp !== 0) return catCmp;
-      return a.value.localeCompare(b.value);
-    });
-  }, [selectedExercises, tagsInSelectedExercises, availableTags, unassignedSearch]);
+    return tags;
+  }, [selectedExercises, tagsInSelectedExercises, allExerciseTags, unassignedSearch]);
 
   const handleToggleExercise = (id: string) => {
     setSelectedExerciseIds(prev => {
@@ -334,17 +289,16 @@ export const TeacherExercisesView: React.FC = () => {
     setSelectedExerciseIds(new Set());
   };
 
-  const handleBatchAssignTag = async (tagStr: string, targetExerciseIds?: string[], tagId?: string) => {
+  const handleBatchAssignTag = async (tagStr: string, targetExerciseIds?: string[]) => {
     const ids = targetExerciseIds && targetExerciseIds.length > 0
       ? targetExerciseIds
       : Array.from(selectedExerciseIds);
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !tagStr.trim()) return;
 
     setBatchSubmitting(true);
     try {
-      await api.batchAssignExerciseTag(ids, tagStr, tagId);
+      await api.batchAssignExerciseTag(ids, tagStr.trim());
       await loadExercises();
-      await loadAllTags();
     } catch (err: any) {
       alert(err.message || 'Error al asignar la etiqueta en lote');
     } finally {
@@ -352,17 +306,16 @@ export const TeacherExercisesView: React.FC = () => {
     }
   };
 
-  const handleBatchRevokeTag = async (tagStr: string, targetExerciseIds?: string[], tagId?: string) => {
+  const handleBatchRevokeTag = async (tagStr: string, targetExerciseIds?: string[]) => {
     const ids = targetExerciseIds && targetExerciseIds.length > 0
       ? targetExerciseIds
       : Array.from(selectedExerciseIds);
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !tagStr.trim()) return;
 
     setBatchSubmitting(true);
     try {
-      await api.batchRevokeExerciseTag(ids, tagStr, tagId);
+      await api.batchRevokeExerciseTag(ids, tagStr.trim());
       await loadExercises();
-      await loadAllTags();
     } catch (err: any) {
       alert(err.message || 'Error al revocar la etiqueta en lote');
     } finally {
@@ -372,38 +325,16 @@ export const TeacherExercisesView: React.FC = () => {
 
   const handleBulkCreateAndAssign = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cat = bulkNewCategory.trim().toLowerCase();
-    const val = bulkNewValue.trim();
-    if (!cat || !val || selectedExerciseIds.size === 0) return;
+    const tag = bulkNewTag.trim();
+    if (!tag || selectedExerciseIds.size === 0) return;
 
     setBatchSubmitting(true);
     try {
-      let targetTag = availableTags.find(
-        t => t.category.toLowerCase() === cat && t.value.toLowerCase() === val.toLowerCase()
-      );
-      if (!targetTag) {
-        targetTag = await api.createTag({
-          category: cat,
-          value: val,
-          description: bulkNewDesc.trim() || undefined,
-          color: bulkNewColor,
-        });
-        setAvailableTags(prev => [...prev, targetTag!]);
-      }
-
-      await api.batchAssignExerciseTag(
-        Array.from(selectedExerciseIds),
-        targetTag.category ? `${targetTag.category}:${targetTag.value}` : targetTag.value,
-        targetTag.id
-      );
-
-      setBulkNewValue('');
-      setBulkNewDesc('');
-      setBulkNewColor(null);
+      await api.batchAssignExerciseTag(Array.from(selectedExerciseIds), tag);
+      setBulkNewTag('');
       await loadExercises();
-      await loadAllTags();
     } catch (err: any) {
-      alert(err.message || 'Error al crear y asignar la etiqueta');
+      alert(err.message || 'Error al añadir la etiqueta');
     } finally {
       setBatchSubmitting(false);
     }
@@ -444,8 +375,6 @@ export const TeacherExercisesView: React.FC = () => {
       result = result.filter(
         (e) =>
           e.title.toLowerCase().includes(q) ||
-          e.slug.toLowerCase().includes(q) ||
-          e.tags?.some((t) => t.toLowerCase().includes(q))
           e.slug.toLowerCase().includes(q)
       );
     }
@@ -478,7 +407,6 @@ export const TeacherExercisesView: React.FC = () => {
       if (valA > valB) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [exercises, searchTerm, sortKey, sortDir]);
   }, [exercises, searchTerm, isTagExprActive, parsedTagExpr, sortKey, sortDir]);
 
   // Cantidad de ejercicios que coinciden con los criterios actuales
@@ -1051,19 +979,8 @@ export const TeacherExercisesView: React.FC = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
         {/* Search & Tag Expression Selection */}
         <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Buscar ejercicio por título o identificador (slug)..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-              className="input-field"
-              style={{ paddingLeft: '2.5rem' }}
-            />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
             {/* 1. Búsqueda Textual */}
             <div>
@@ -1241,7 +1158,7 @@ export const TeacherExercisesView: React.FC = () => {
 
                       return (
                         <div
-                          key={tagInfo.key}
+                          key={tagInfo.tag}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1254,11 +1171,7 @@ export const TeacherExercisesView: React.FC = () => {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
-                            <TagBadge
-                              category={tagInfo.category}
-                              value={tagInfo.value}
-                              color={tagInfo.color}
-                            />
+                            <TagBadge value={tagInfo.tag} />
 
                             <span
                               style={{
@@ -1282,7 +1195,7 @@ export const TeacherExercisesView: React.FC = () => {
                             <button
                               type="button"
                               disabled={batchSubmitting || isAll}
-                              onClick={() => handleBatchAssignTag(tagInfo.formattedTag, unassignedExercises, tagInfo.tagId)}
+                              onClick={() => handleBatchAssignTag(tagInfo.tag, unassignedExercises)}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1305,7 +1218,7 @@ export const TeacherExercisesView: React.FC = () => {
                             <button
                               type="button"
                               disabled={batchSubmitting}
-                              onClick={() => handleBatchRevokeTag(tagInfo.formattedTag, tagInfo.exerciseIdsWithTag, tagInfo.tagId)}
+                              onClick={() => handleBatchRevokeTag(tagInfo.tag, tagInfo.exerciseIdsWithTag)}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1331,7 +1244,7 @@ export const TeacherExercisesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* LADO DERECHO: Todas las etiquetas existentes que no tenga ninguno de los ejercicios seleccionados */}
+              {/* LADO DERECHO: Todas las etiquetas existentes en el catálogo que no tenga ninguno de los ejercicios seleccionados */}
               <div
                 style={{
                   background: '#f8fafc',
@@ -1349,7 +1262,7 @@ export const TeacherExercisesView: React.FC = () => {
                 </div>
 
                 {/* Buscador de etiquetas no asignadas */}
-                {availableTags.length > 5 && (
+                {allExerciseTags.length > 5 && (
                   <div style={{ marginBottom: '0.5rem' }}>
                     <input
                       type="text"
@@ -1365,12 +1278,12 @@ export const TeacherExercisesView: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 240, overflowY: 'auto' }}>
                   {unassignedAvailableTags.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
-                      {unassignedSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas existentes libres.'}
+                      {unassignedSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas existentes en otros ejercicios.'}
                     </div>
                   ) : (
                     unassignedAvailableTags.map(tag => (
                       <div
-                        key={tag.id}
+                        key={tag}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1382,23 +1295,12 @@ export const TeacherExercisesView: React.FC = () => {
                           gap: '0.5rem',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
-                          <TagBadge
-                            category={tag.category}
-                            value={tag.value}
-                            color={tag.color}
-                          />
-                          {tag.description && (
-                            <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
-                              ({tag.description})
-                            </span>
-                          )}
-                        </div>
+                        <TagBadge value={tag} />
 
                         <button
                           type="button"
                           disabled={batchSubmitting}
-                          onClick={() => handleBatchAssignTag(tag.category ? `${tag.category}:${tag.value}` : tag.value, Array.from(selectedExerciseIds), tag.id)}
+                          onClick={() => handleBatchAssignTag(tag, Array.from(selectedExerciseIds))}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1423,7 +1325,7 @@ export const TeacherExercisesView: React.FC = () => {
               </div>
             </div>
 
-            {/* PARTE INFERIOR: Espacio para crear etiqueta (categoria:valor) y asignarla a todos los seleccionados */}
+            {/* PARTE INFERIOR: Espacio para crear etiqueta y asignarla a todos los seleccionados */}
             <div
               style={{
                 background: '#f8fafc',
@@ -1432,77 +1334,32 @@ export const TeacherExercisesView: React.FC = () => {
               }}
             >
               <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e3a8a', marginBottom: '0.5rem' }}>
-                Crear nueva etiqueta y asignarla a la vez a todos los ejercicios seleccionados
+                Añadir nueva etiqueta a todos los ejercicios seleccionados
               </div>
               <form
                 onSubmit={handleBulkCreateAndAssign}
                 style={{
                   display: 'flex',
                   gap: '0.75rem',
-                  alignItems: 'flex-end',
+                  alignItems: 'center',
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ minWidth: 140, flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Categoría *
-                  </label>
+                <div style={{ minWidth: 240, flex: 1 }}>
                   <input
                     type="text"
                     required
-                    placeholder="ej. dificultad, tema, lenguaje"
-                    value={bulkNewCategory}
-                    onChange={e => setBulkNewCategory(e.target.value)}
+                    placeholder="Nueva etiqueta (ej. strings, bucles, recursividad)..."
+                    value={bulkNewTag}
+                    onChange={e => setBulkNewTag(e.target.value)}
                     className="input-field"
-                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
-                  />
-                </div>
-
-                <div style={{ minWidth: 140, flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Valor *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="ej. facil, bucles, python"
-                    value={bulkNewValue}
-                    onChange={e => setBulkNewValue(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
-                  />
-                </div>
-
-                <div style={{ minWidth: 160, flex: 1.5 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Descripción opcional
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="ej. Ejercicios de iniciación"
-                    value={bulkNewDesc}
-                    onChange={e => setBulkNewDesc(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.4rem 0.6rem' }}
-                  />
-                </div>
-
-                <div style={{ minWidth: 120 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Color
-                  </label>
-                  <TagColorPicker
-                    selectedColor={bulkNewColor}
-                    onChange={setBulkNewColor}
-                    category={bulkNewCategory}
-                    value={bulkNewValue}
-                    usedColors={usedTagColors}
+                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.45rem 0.75rem' }}
                   />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={batchSubmitting || !bulkNewCategory.trim() || !bulkNewValue.trim()}
+                  disabled={batchSubmitting || !bulkNewTag.trim()}
                   className="btn-primary"
                   style={{
                     display: 'inline-flex',
@@ -1513,7 +1370,7 @@ export const TeacherExercisesView: React.FC = () => {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <Plus size={14} /> Crear y Asignar
+                  <Plus size={14} /> Añadir a seleccionados
                 </button>
               </form>
             </div>
@@ -1623,27 +1480,12 @@ export const TeacherExercisesView: React.FC = () => {
                         <td style={{ padding: '0.875rem 1.25rem' }}>
                           {ex.tags && ex.tags.length > 0 ? (
                             <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                              {ex.tags.map((t, idx) => {
-                                let cat = '';
-                                let val = t;
-                                if (t.includes(':')) {
-                                  cat = t.substring(0, t.indexOf(':'));
-                                  val = t.substring(t.indexOf(':') + 1);
-                                }
-                                const matched = availableTags.find(at =>
-                                  at.category.toLowerCase() === cat.toLowerCase() &&
-                                  at.value.toLowerCase() === val.toLowerCase()
-                                ) || (!cat ? availableTags.find(at => at.value.toLowerCase() === val.toLowerCase()) : undefined);
-
-                                return (
-                                  <TagBadge
-                                    key={idx}
-                                    category={matched ? matched.category : cat}
-                                    value={matched ? matched.value : val}
-                                    color={matched?.color}
-                                  />
-                                );
-                              })}
+                              {ex.tags.map((t, idx) => (
+                                <TagBadge
+                                  key={idx}
+                                  value={t}
+                                />
+                              ))}
                             </div>
                           ) : (
                             <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8125rem' }}>Sin etiquetas</span>

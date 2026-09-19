@@ -78,14 +78,14 @@ public class TeacherContentController {
     @PostMapping("/exercises/batch-assign-tag")
     public ResponseEntity<Void> batchAssignTag(@Valid @RequestBody BatchExerciseTagRequest request) {
         User teacher = userService.getCurrentUser();
-        contentService.batchAssignTag(request.exerciseIds(), request.tag(), request.tagId(), teacher);
+        contentService.batchAssignTag(request.exerciseIds(), request.tag(), teacher);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/exercises/batch-revoke-tag")
     public ResponseEntity<Void> batchRevokeTag(@Valid @RequestBody BatchExerciseTagRequest request) {
         User teacher = userService.getCurrentUser();
-        contentService.batchRevokeTag(request.exerciseIds(), request.tag(), request.tagId(), teacher);
+        contentService.batchRevokeTag(request.exerciseIds(), request.tag(), teacher);
         return ResponseEntity.noContent().build();
     }
 

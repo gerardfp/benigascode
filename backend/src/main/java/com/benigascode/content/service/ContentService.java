@@ -9,9 +9,7 @@ import com.benigascode.content.dto.*;
 import com.benigascode.content.repository.*;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
-import com.benigascode.learning.domain.Tag;
 import com.benigascode.learning.domain.TeachingSpace;
-import com.benigascode.learning.repository.TagRepository;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -58,7 +56,6 @@ public class ContentService {
     private final SubmissionRepository submissionRepository;
     private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
-    private final TagRepository tagRepository;
     private final ContextService contextService;
     private final ObjectMapper objectMapper;
 
@@ -73,7 +70,6 @@ public class ContentService {
                           SubmissionRepository submissionRepository,
                           StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
-                          TagRepository tagRepository,
                           ContextService contextService,
                           ObjectMapper objectMapper) {
         this.collectionRepository = collectionRepository;
@@ -87,7 +83,6 @@ public class ContentService {
         this.submissionRepository = submissionRepository;
         this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
-        this.tagRepository = tagRepository;
         this.contextService = contextService;
         this.objectMapper = objectMapper;
     }
@@ -821,18 +816,9 @@ public class ContentService {
     }
 
     @Transactional
-    public void batchAssignTag(List<UUID> exerciseIds, String tagStr, UUID tagId, User teacher) {
-        if (exerciseIds == null || exerciseIds.isEmpty()) return;
-
-        String effectiveTag = tagStr;
-        if ((effectiveTag == null || effectiveTag.isBlank()) && tagId != null) {
-            Tag t = tagRepository.findById(tagId).orElse(null);
-            if (t != null) {
-                effectiveTag = t.getFormatted();
-            }
-        }
-        if (effectiveTag == null || effectiveTag.isBlank()) return;
-        final String finalTag = effectiveTag.trim();
+    public void batchAssignTag(List<UUID> exerciseIds, String tagStr, User teacher) {
+        if (exerciseIds == null || exerciseIds.isEmpty() || tagStr == null || tagStr.isBlank()) return;
+        final String finalTag = tagStr.trim();
 
         for (UUID exerciseId : exerciseIds) {
             Exercise exercise = exerciseRepository.findById(exerciseId)
@@ -863,20 +849,9 @@ public class ContentService {
     }
 
     @Transactional
-    public void batchRevokeTag(List<UUID> exerciseIds, String tagStr, UUID tagId, User teacher) {
-        if (exerciseIds == null || exerciseIds.isEmpty()) return;
-
-        String effectiveTag = tagStr;
-        Tag tagEntity = null;
-        if (tagId != null) {
-            tagEntity = tagRepository.findById(tagId).orElse(null);
-            if (tagEntity != null && (effectiveTag == null || effectiveTag.isBlank())) {
-                effectiveTag = tagEntity.getFormatted();
-            }
-        }
-
-        final String matchTag = effectiveTag != null ? effectiveTag.trim() : null;
-        final Tag finalTagEntity = tagEntity;
+    public void batchRevokeTag(List<UUID> exerciseIds, String tagStr, User teacher) {
+        if (exerciseIds == null || exerciseIds.isEmpty() || tagStr == null || tagStr.isBlank()) return;
+        final String finalTag = tagStr.trim();
 
         for (UUID exerciseId : exerciseIds) {
             Exercise exercise = exerciseRepository.findById(exerciseId)
@@ -896,19 +871,7 @@ public class ContentService {
                     continue;
                 }
 
-                boolean removed = tagsList.removeIf(t -> {
-                    if (matchTag != null && t.equalsIgnoreCase(matchTag)) return true;
-                    if (finalTagEntity != null) {
-                        if (t.equalsIgnoreCase(finalTagEntity.getValue())) return true;
-                        if (t.equalsIgnoreCase(finalTagEntity.getFormatted())) return true;
-                    }
-                    if (matchTag != null && matchTag.contains(":")) {
-                        String val = matchTag.substring(matchTag.indexOf(':') + 1);
-                        if (t.equalsIgnoreCase(val)) return true;
-                    }
-                    return false;
-                });
-
+                boolean removed = tagsList.removeIf(t -> t.equalsIgnoreCase(finalTag));
                 if (removed) {
                     try {
                         ev.setTags(objectMapper.writeValueAsString(tagsList));
