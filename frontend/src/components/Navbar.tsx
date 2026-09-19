@@ -133,7 +133,6 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               )}
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
                 <>
-                  <Link to="/teacher/collections" className={`nav-link ${isPathActive('/teacher/collections') ? 'active' : ''}`}>Colecciones</Link>
                   <Link
                     to="/teacher/collections"
                     onClick={() => {
@@ -144,7 +143,6 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                     Colecciones
                   </Link>
                   <Link to="/teacher/exercises" className={`nav-link ${isPathActive('/teacher/exercises') ? 'active' : ''}`}>Ejercicios</Link>
-                  <Link to="/teacher/spaces" className={`nav-link ${isPathActive('/teacher/spaces') ? 'active' : ''}`}>Espacios</Link>
                   <Link
                     to="/teacher/spaces"
                     onClick={() => {
