@@ -90,9 +90,6 @@ export interface TeachingSpace {
 
 export interface ContextPreviewDTO {
   contextName?: string;
-  requiredTagIds: string[];
-  matchedStudentsCount: number;
-  matchedStudents: {
   requiredTagIds?: string[];
   matchingStudentsCount?: number;
   matchingStudents?: {

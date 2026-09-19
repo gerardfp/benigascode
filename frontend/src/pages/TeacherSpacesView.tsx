@@ -7,6 +7,7 @@ import { TagColorPicker } from '../components/TagColorPicker';
 import {
   Layers, Plus, Trash2, Edit3, Users, BookOpen,
   Shield, Info, ArrowLeft, X
+  Shield, Info, X
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -652,26 +653,10 @@ export const TeacherSpacesView: React.FC = () => {
               </div>
 
               {/* Lista de Alumnos que tienen las etiquetas seleccionadas */}
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden' }}>
-                <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Users size={18} style={{ color: '#2563eb' }} />
-                    <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>
-                      Alumnos con las etiquetas seleccionadas
-                      {contextPreview !== null ? ` (${contextPreview.matchedStudentsCount})` : ''}
-                    </strong>
-                  </div>
-                  {previewLoading && (
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Calculando...</span>
-                  )}
-                </div>
               {(() => {
                 const matchedStudentsList = contextPreview?.matchingStudents ?? contextPreview?.matchedStudents ?? [];
                 const matchedStudentsCount = contextPreview?.matchingStudentsCount ?? contextPreview?.matchedStudentsCount ?? matchedStudentsList.length;
 
-                {selectedTagIds.length === 0 ? (
-                  <div style={{ padding: '1.5rem 1rem', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center' }}>
-                    No hay etiquetas seleccionadas. Asocia etiquetas arriba para ver los alumnos que coinciden.
                 return (
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden' }}>
                     <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -724,39 +709,6 @@ export const TeacherSpacesView: React.FC = () => {
                       </div>
                     )}
                   </div>
-                ) : previewLoading && !contextPreview ? (
-                  <div style={{ padding: '1.5rem 1rem', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center' }}>
-                    Cargando alumnos coincidentes...
-                  </div>
-                ) : contextPreview && contextPreview.matchedStudents.length === 0 ? (
-                  <div style={{ padding: '1.5rem 1rem', color: '#94a3b8', fontSize: '0.8125rem', textAlign: 'center', fontStyle: 'italic' }}>
-                    Ningún alumno posee actualmente todas las etiquetas seleccionadas.
-                  </div>
-                ) : (
-                  <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-                      <thead>
-                        <tr style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', color: '#64748b', textAlign: 'left' }}>
-                          <th style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>Nombre</th>
-                          <th style={{ padding: '0.5rem 0.75rem', fontWeight: 600 }}>Usuario / Email</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {contextPreview?.matchedStudents.map(student => (
-                          <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#ffffff' }}>
-                            <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: '#1e293b' }}>
-                              {student.fullName}
-                            </td>
-                            <td style={{ padding: '0.5rem 0.75rem', color: '#64748b' }}>
-                              {student.username}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
                 );
               })()}
             </div>
