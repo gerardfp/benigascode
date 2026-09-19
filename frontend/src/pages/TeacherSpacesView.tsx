@@ -6,8 +6,7 @@ import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import {
   Layers, Plus, Trash2, Edit3, Users, BookOpen,
-  Shield, Info, ArrowLeft, X
-  Shield, Info, X
+  Shield, Info, X, Check
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -36,11 +35,15 @@ export const TeacherSpacesView: React.FC = () => {
   const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
   const [spaceName, setSpaceName] = useState('');
   const [spaceDesc, setSpaceDesc] = useState('');
+  const [initialSpaceName, setInitialSpaceName] = useState('');
+  const [initialSpaceDesc, setInitialSpaceDesc] = useState('');
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
-  const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const isSpaceDirty = spaceName.trim() !== initialSpaceName.trim() || spaceDesc.trim() !== initialSpaceDesc.trim();
 
   // Live Context Preview
   const [contextPreview, setContextPreview] = useState<ContextPreviewDTO | null>(null);
@@ -134,11 +137,13 @@ export const TeacherSpacesView: React.FC = () => {
     setEditingSpaceId(null);
     setSpaceName('');
     setSpaceDesc('');
+    setInitialSpaceName('');
+    setInitialSpaceDesc('');
     setSelectedTagIds([]);
     setSelectedCollectionIds([]);
-    setSelectedTeacherIds([]);
     setContextPreview(null);
     setFormError(null);
+    setSaveSuccessMsg(null);
     setAvailableTagsSearch('');
     setNewTagCategory('');
     setNewTagValue('');
@@ -151,12 +156,14 @@ export const TeacherSpacesView: React.FC = () => {
     setEditingSpaceId(space.id);
     setSpaceName(space.name);
     setSpaceDesc(space.description || '');
+    setInitialSpaceName(space.name);
+    setInitialSpaceDesc(space.description || '');
     const tagIds = space.tags ? space.tags.map(t => t.id) : (space.contextConfig?.tagIds || []);
     setSelectedTagIds(tagIds);
     setSelectedCollectionIds(space.collections ? space.collections.map(c => c.id) : []);
-    setSelectedTeacherIds(space.teachers ? space.teachers.map(t => t.id) : []);
     setContextPreview(null);
     setFormError(null);
+    setSaveSuccessMsg(null);
     setAvailableTagsSearch('');
     setNewTagCategory('');
     setNewTagValue('');
@@ -165,19 +172,49 @@ export const TeacherSpacesView: React.FC = () => {
     setMode('editor');
   };
 
-  const handleToggleTag = (tagId: string) => {
-    setSelectedTagIds(prev =>
-      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
-    );
+  const handleToggleTag = async (tagId: string) => {
+    if (!editingSpaceId) return;
+    const isAssigned = selectedTagIds.includes(tagId);
+    const newTagIds = isAssigned
+      ? selectedTagIds.filter(id => id !== tagId)
+      : [...selectedTagIds, tagId];
+
+    setSelectedTagIds(newTagIds);
+    try {
+      await api.updateSpace(editingSpaceId, {
+        name: spaceName.trim(),
+        description: spaceDesc.trim() || undefined,
+        requiredTagIds: newTagIds,
+      });
+      loadData();
+    } catch (err: any) {
+      setSelectedTagIds(selectedTagIds);
+      alert(err.message || 'Error al actualizar las etiquetas del espacio');
+    }
   };
 
-  const handleToggleCollection = (colId: string) => {
-    setSelectedCollectionIds(prev =>
-      prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId]
-    );
+  const handleToggleCollection = async (colId: string) => {
+    if (!editingSpaceId) return;
+    const isSelected = selectedCollectionIds.includes(colId);
+    const newCollectionIds = isSelected
+      ? selectedCollectionIds.filter(id => id !== colId)
+      : [...selectedCollectionIds, colId];
+
+    setSelectedCollectionIds(newCollectionIds);
+    try {
+      if (isSelected) {
+        await api.removeSpaceCollection(editingSpaceId, colId);
+      } else {
+        await api.addSpaceCollection(editingSpaceId, colId);
+      }
+      loadData();
+    } catch (err: any) {
+      setSelectedCollectionIds(selectedCollectionIds);
+      alert(err.message || 'Error al actualizar la colección del espacio');
+    }
   };
 
-  const handleSaveSpace = async (e: React.FormEvent) => {
+  const handleCreateSpace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!spaceName.trim()) {
       setFormError('El nombre del espacio es obligatorio');
@@ -186,27 +223,52 @@ export const TeacherSpacesView: React.FC = () => {
     setFormSubmitting(true);
     setFormError(null);
     try {
-      if (editingSpaceId) {
-        await api.updateSpace(editingSpaceId, {
-          name: spaceName.trim(),
-          description: spaceDesc.trim() || undefined,
-          requiredTagIds: selectedTagIds,
-          collectionIds: selectedCollectionIds,
-          teacherIds: selectedTeacherIds,
-        });
-      } else {
-        await api.createSpace({
-          name: spaceName.trim(),
-          description: spaceDesc.trim() || undefined,
-          requiredTagIds: selectedTagIds,
-          collectionIds: selectedCollectionIds,
-          teacherIds: selectedTeacherIds,
-        });
-      }
-      setMode('list');
-      await loadData();
+      const created = await api.createSpace({
+        name: spaceName.trim(),
+        description: spaceDesc.trim() || undefined,
+        requiredTagIds: [],
+        collectionIds: [],
+        teacherIds: [],
+      });
+      setEditingSpaceId(created.id);
+      setSpaceName(created.name);
+      setSpaceDesc(created.description || '');
+      setInitialSpaceName(created.name);
+      setInitialSpaceDesc(created.description || '');
+      setSelectedTagIds(created.tags ? created.tags.map(t => t.id) : (created.contextConfig?.tagIds || []));
+      setSelectedCollectionIds(created.collections ? created.collections.map(c => c.id) : []);
+      setSaveSuccessMsg('Espacio creado correctamente. Ahora puedes asociar colecciones y etiquetas.');
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
+      loadData();
     } catch (err: any) {
-      setFormError(err.message || 'Error al guardar el espacio docente');
+      setFormError(err.message || 'Error al crear el espacio docente');
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleUpdateSpaceParams = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSpaceId) return;
+    if (!spaceName.trim()) {
+      setFormError('El nombre del espacio es obligatorio');
+      return;
+    }
+    setFormSubmitting(true);
+    setFormError(null);
+    try {
+      const updated = await api.updateSpace(editingSpaceId, {
+        name: spaceName.trim(),
+        description: spaceDesc.trim() || undefined,
+        requiredTagIds: selectedTagIds,
+      });
+      setInitialSpaceName(updated.name);
+      setInitialSpaceDesc(updated.description || '');
+      setSaveSuccessMsg('Parámetros actualizados correctamente');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
+      loadData();
+    } catch (err: any) {
+      setFormError(err.message || 'Error al actualizar el espacio docente');
     } finally {
       setFormSubmitting(false);
     }
@@ -236,11 +298,21 @@ export const TeacherSpacesView: React.FC = () => {
         color: newTagColor,
       });
       setAllTags(prev => [...prev, created]);
-      setSelectedTagIds(prev => [...prev, created.id]);
+      const nextTagIds = [...selectedTagIds, created.id];
+      setSelectedTagIds(nextTagIds);
       setNewTagCategory('');
       setNewTagValue('');
       setNewTagDesc('');
       setNewTagColor(null);
+
+      if (editingSpaceId) {
+        await api.updateSpace(editingSpaceId, {
+          name: spaceName.trim(),
+          description: spaceDesc.trim() || undefined,
+          requiredTagIds: nextTagIds,
+        });
+        loadData();
+      }
     } catch (err: any) {
       alert(err.message || 'Error al crear la etiqueta');
     } finally {
@@ -287,26 +359,20 @@ export const TeacherSpacesView: React.FC = () => {
   if (mode === 'editor') {
     return (
       <div className="app-container">
-        {/* Top Bar with Navigation */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={() => setMode('list')} className="btn-secondary">
-              <ArrowLeft size={16} /> Volver a la lista
-            </button>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
-              {editingSpaceId ? `Editar: ${spaceName || 'Espacio'}` : 'Nuevo Espacio'}
-            </h1>
-          </div>
-        </div>
-
         {formError && (
           <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.375rem', color: '#b91c1c', marginBottom: '1rem', fontSize: '0.875rem' }}>
             {formError}
           </div>
         )}
 
+        {saveSuccessMsg && (
+          <div style={{ padding: '0.75rem 1rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.375rem', color: '#166534', marginBottom: '1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Check size={16} /> {saveSuccessMsg}
+          </div>
+        )}
+
         <div className="card" style={{ padding: '1.5rem' }}>
-          <form onSubmit={handleSaveSpace}>
+          <form onSubmit={editingSpaceId ? handleUpdateSpaceParams : handleCreateSpace}>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>
                 Nombre del Espacio *
@@ -334,7 +400,55 @@ export const TeacherSpacesView: React.FC = () => {
                 style={{ width: '100%', minHeight: 60 }}
               />
             </div>
-            {/* 2. COLECCIONES DISPONIBLES */}
+
+            {/* BOTONES DE PARÁMETROS */}
+            {!editingSpaceId ? (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setMode('list')}
+                  className="btn-secondary"
+                  disabled={formSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={formSubmitting || !spaceName.trim()}
+                >
+                  {formSubmitting ? 'Creando...' : 'Crear Espacio'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid #e2e8f0' }}>
+                <button
+                  type="button"
+                  onClick={() => setMode('list')}
+                  className="btn-secondary"
+                  disabled={formSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={formSubmitting || !isSpaceDirty || !spaceName.trim()}
+                  style={{
+                    opacity: (!isSpaceDirty || !spaceName.trim()) ? 0.5 : 1,
+                    cursor: (!isSpaceDirty || !spaceName.trim()) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {formSubmitting ? 'Guardando...' : 'Actualizar'}
+                </button>
+              </div>
+            )}
+          </form>
+
+          {/* SOLO SE MUESTRAN COLECCIONES Y ETIQUETAS SI EL ESPACIO YA ESTÁ CREADO */}
+          {editingSpaceId && (
+            <>
+              {/* 2. COLECCIONES DISPONIBLES */}
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.375rem' }}>
                 Colecciones Disponibles en este Espacio
@@ -712,30 +826,12 @@ export const TeacherSpacesView: React.FC = () => {
                 );
               })()}
             </div>
-
-            {/* BOTONES DE ACCIÓN */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setMode('list')}
-                className="btn-secondary"
-                disabled={formSubmitting}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={formSubmitting}
-              >
-                {formSubmitting ? 'Guardando...' : editingSpaceId ? 'Actualizar Espacio' : 'Crear Espacio'}
-              </button>
-            </div>
-          </form>
-        </div>
+          </>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+};
 
   return (
     <div className="app-container">

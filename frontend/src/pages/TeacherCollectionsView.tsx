@@ -4,8 +4,8 @@ import { api } from '../services/api';
 import { Collection, Exercise, CollectionItemDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { 
-  Plus, Search, ArrowLeft, Save, Trash2, Download, 
-  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Layers, Edit3
+  Plus, Search, Trash2, Download, 
+  ArrowUp, ArrowDown, CheckCircle, AlertCircle, Folder, BookOpen, Edit3
 } from 'lucide-react';
 
 export const TeacherCollectionsView: React.FC = () => {
@@ -39,7 +39,18 @@ export const TeacherCollectionsView: React.FC = () => {
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
-  const [versionNumber, setVersionNumber] = useState(1);
+
+  // Initial values for dirty checking
+  const [initialTitle, setInitialTitle] = useState('');
+  const [initialSlug, setInitialSlug] = useState('');
+  const [initialDescription, setInitialDescription] = useState('');
+  const [initialVisibility, setInitialVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
+
+  const isCollectionDirty =
+    title.trim() !== initialTitle.trim() ||
+    slug.trim() !== initialSlug.trim() ||
+    description.trim() !== initialDescription.trim() ||
+    visibility !== initialVisibility;
 
   // Exercises inside this collection
   const [collectionExercises, setCollectionExercises] = useState<CollectionItemDTO[]>([]);
@@ -136,8 +147,11 @@ export const TeacherCollectionsView: React.FC = () => {
       setSlug(detail.slug || '');
       setDescription(detail.description || '');
       setVisibility(detail.visibility || 'PUBLIC');
-      setVersionNumber(detail.versionNumber || 1);
       setCollectionExercises(detail.exercises || []);
+      setInitialTitle(detail.title || '');
+      setInitialSlug(detail.slug || '');
+      setInitialDescription(detail.description || '');
+      setInitialVisibility(detail.visibility || 'PUBLIC');
       setMode('editor');
     } catch (err: any) {
       alert('Error cargando la colección: ' + err.message);
@@ -154,8 +168,11 @@ export const TeacherCollectionsView: React.FC = () => {
     setSlug('');
     setDescription('');
     setVisibility('PUBLIC');
-    setVersionNumber(1);
     setCollectionExercises([]);
+    setInitialTitle('');
+    setInitialSlug('');
+    setInitialDescription('');
+    setInitialVisibility('PUBLIC');
     setStatusMsg(null);
     setMode('editor');
   };
@@ -174,23 +191,55 @@ export const TeacherCollectionsView: React.FC = () => {
     }
   };
 
-  // Exercises reordering & removal
-  const handleMoveExercise = (index: number, direction: 'up' | 'down') => {
+  // Exercises reordering & removal with immediate save
+  const handleMoveExercise = async (index: number, direction: 'up' | 'down') => {
     const target = direction === 'up' ? index - 1 : index + 1;
     if (target < 0 || target >= collectionExercises.length) return;
     const updated = [...collectionExercises];
     const temp = updated[index];
     updated[index] = updated[target];
     updated[target] = temp;
-    setCollectionExercises(updated.map((ex, i) => ({ ...ex, orderIndex: i })));
+    const ordered = updated.map((ex, i) => ({ ...ex, orderIndex: i }));
+    setCollectionExercises(ordered);
+
+    if (selectedId) {
+      try {
+        await api.teacherSaveCollection({
+          title: title.trim(),
+          slug: slug.trim(),
+          description: description.trim() || undefined,
+          visibility,
+          exerciseIds: ordered.map((e) => e.exerciseId)
+        }, selectedId);
+      } catch (err: any) {
+        setCollectionExercises(collectionExercises);
+        setStatusMsg({ type: 'error', text: err.message || 'Error al reordenar ejercicios.' });
+      }
+    }
   };
 
-  const handleRemoveExercise = (index: number) => {
+  const handleRemoveExercise = async (index: number) => {
     const updated = collectionExercises.filter((_, i) => i !== index).map((ex, i) => ({ ...ex, orderIndex: i }));
     setCollectionExercises(updated);
+
+    if (selectedId) {
+      try {
+        await api.teacherSaveCollection({
+          title: title.trim(),
+          slug: slug.trim(),
+          description: description.trim() || undefined,
+          visibility,
+          exerciseIds: updated.map((e) => e.exerciseId)
+        }, selectedId);
+        loadCollections();
+      } catch (err: any) {
+        setCollectionExercises(collectionExercises);
+        setStatusMsg({ type: 'error', text: err.message || 'Error al quitar el ejercicio de la colección.' });
+      }
+    }
   };
 
-  const handleAddExercise = (exercise: Exercise) => {
+  const handleAddExercise = async (exercise: Exercise) => {
     if (collectionExercises.some((e) => e.exerciseId === exercise.id)) {
       return; // Already in collection
     }
@@ -200,7 +249,24 @@ export const TeacherCollectionsView: React.FC = () => {
       exerciseSlug: exercise.slug,
       orderIndex: collectionExercises.length
     };
-    setCollectionExercises([...collectionExercises, newItem]);
+    const updated = [...collectionExercises, newItem];
+    setCollectionExercises(updated);
+
+    if (selectedId) {
+      try {
+        await api.teacherSaveCollection({
+          title: title.trim(),
+          slug: slug.trim(),
+          description: description.trim() || undefined,
+          visibility,
+          exerciseIds: updated.map((e) => e.exerciseId)
+        }, selectedId);
+        loadCollections();
+      } catch (err: any) {
+        setCollectionExercises(collectionExercises);
+        setStatusMsg({ type: 'error', text: err.message || 'Error al añadir el ejercicio a la colección.' });
+      }
+    }
   };
 
   // Available exercises filtered for adding
@@ -242,9 +308,14 @@ export const TeacherCollectionsView: React.FC = () => {
       const result = await api.teacherSaveCollection(payload, selectedId || undefined);
       setSelectedId(result.id);
       setSlug(result.slug);
-      setVersionNumber(result.versionNumber);
       setCollectionExercises(result.exercises || []);
-      setStatusMsg({ type: 'success', text: `Colección "${result.title}" guardada correctamente (v${result.versionNumber}).` });
+      setInitialTitle(result.title);
+      setInitialSlug(result.slug);
+      setInitialDescription(result.description || '');
+      setInitialVisibility(result.visibility || 'PUBLIC');
+      setSearchParams({ collectionId: result.id });
+      setStatusMsg({ type: 'success', text: selectedId ? 'Parámetros actualizados correctamente.' : 'Colección creada correctamente. Ahora puedes añadir ejercicios.' });
+      setTimeout(() => setStatusMsg(null), 3500);
       loadCollections();
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: err.message || 'Error al guardar la colección.' });
@@ -414,49 +485,9 @@ export const TeacherCollectionsView: React.FC = () => {
     );
   }
 
-  // RENDER: SINGLE-SHEET EDITOR VIEW (PARÁMETROS ARRIBA, EJERCICIOS ABAJO)
+  // RENDER: SINGLE-SHEET EDITOR VIEW (PARÁMETROS ARRIBA, EJERCICIOS ABAJO DENTRO DE LA CARD)
   return (
     <div className="app-container">
-      {/* Top Bar with Navigation & Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={handleBackToList} className="btn-secondary">
-            <ArrowLeft size={16} /> Volver a la lista
-          </button>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
-              {selectedId ? `Editar: ${title || 'Colección'}` : 'Nueva Colección'}
-            </h1>
-            {selectedId && (
-              <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                Versión actual: v{versionNumber} • ID: {selectedId}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {selectedId && (
-            <a
-              href={api.teacherExportCollectionZipUrl(selectedId)}
-              download
-              className="btn-secondary"
-              style={{ textDecoration: 'none' }}
-            >
-              <Download size={16} /> Exportar ZIP
-            </a>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary"
-            style={{ padding: '0.625rem 1.25rem' }}
-          >
-            <Save size={16} /> {saving ? 'Guardando...' : 'Guardar Colección'}
-          </button>
-        </div>
-      </div>
-
       {/* Alert Banner */}
       {statusMsg && (
         <div
@@ -477,10 +508,10 @@ export const TeacherCollectionsView: React.FC = () => {
         </div>
       )}
 
-      {/* PARTE SUPERIOR: PARÁMETROS DE LA COLECCIÓN */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
+      {/* CARD: PARÁMETROS Y EJERCICIOS */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Layers size={18} color="#2563eb" /> Parámetros de la Colección
+          <Folder size={18} color="#2563eb" /> {selectedId ? 'Parámetros de la Colección' : 'Nueva Colección'}
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div>
@@ -537,189 +568,233 @@ export const TeacherCollectionsView: React.FC = () => {
             />
           </div>
         </div>
-      </div>
 
-      {/* PARTE INFERIOR: LISTA DE EJERCICIOS DE LA COLECCIÓN */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <BookOpen size={18} color="#2563eb" /> Ejercicios en esta Colección ({collectionExercises.length})
-            </h2>
-            <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-              Organiza y reordena los ejercicios que componen esta colección.
-            </span>
+        {/* BOTONES DE PARÁMETROS */}
+        {!selectedId ? (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+            <button
+              type="button"
+              onClick={handleBackToList}
+              className="btn-secondary"
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="btn-primary"
+              disabled={saving || !title.trim() || !slug.trim()}
+            >
+              {saving ? 'Creando...' : 'Crear Colección'}
+            </button>
           </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <a
+              href={api.teacherExportCollectionZipUrl(selectedId)}
+              download
+              className="btn-secondary"
+              style={{ textDecoration: 'none' }}
+              title="Exportar ZIP"
+            >
+              <Download size={16} /> Exportar ZIP
+            </a>
 
-          <button
-            type="button"
-            onClick={() => setShowAddPicker(!showAddPicker)}
-            className="btn-primary"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
-          >
-            <Plus size={16} /> {showAddPicker ? 'Cerrar Buscador' : 'Añadir Ejercicio'}
-          </button>
-        </div>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={handleBackToList}
+                className="btn-secondary"
+                disabled={saving}
+              >
+                Volver a la lista
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="btn-primary"
+                disabled={saving || !isCollectionDirty || !title.trim() || !slug.trim()}
+                style={{
+                  opacity: (!isCollectionDirty || !title.trim() || !slug.trim()) ? 0.5 : 1,
+                  cursor: (!isCollectionDirty || !title.trim() || !slug.trim()) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? 'Guardando...' : 'Actualizar'}
+              </button>
+            </div>
+          </div>
+        )}
 
-        {/* Drawer / Selector de Ejercicios Disponibles */}
-        {showAddPicker && (
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
-                Selecciona ejercicios del catálogo para añadir:
-              </span>
-              <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                {availableExercisesToAdd.length} disponibles
-              </span>
+        {/* LISTA DE EJERCICIOS DE LA COLECCIÓN (SOLO SI YA ESTÁ CREADA) */}
+        {selectedId && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <BookOpen size={18} color="#2563eb" /> Ejercicios en esta Colección ({collectionExercises.length})
+                </h3>
+                <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  Organiza y reordena los ejercicios que componen esta colección. Los cambios se guardan automáticamente.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddPicker(!showAddPicker)}
+                className="btn-primary"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+              >
+                <Plus size={16} /> {showAddPicker ? 'Cerrar Buscador' : 'Añadir Ejercicio'}
+              </button>
             </div>
 
-            <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.625rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-              <input
-                type="text"
-                placeholder="Buscar ejercicio para añadir..."
-                className="input-field"
-                value={exercisePickerSearch}
-                onChange={(e) => setExercisePickerSearch(e.target.value)}
-                style={{ paddingLeft: '2.25rem', fontSize: '0.8125rem' }}
-              />
-            </div>
-
-            <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.375rem', backgroundColor: '#ffffff' }}>
-              {availableExercisesToAdd.length === 0 ? (
-                <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.8125rem' }}>
-                  No hay más ejercicios disponibles con ese criterio.
+            {/* Drawer / Selector de Ejercicios Disponibles */}
+            {showAddPicker && (
+              <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
+                    Selecciona ejercicios del catálogo para añadir:
+                  </span>
+                  <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                    {availableExercisesToAdd.length} disponibles
+                  </span>
                 </div>
-              ) : (
-                availableExercisesToAdd.slice(0, 30).map((ex) => (
+
+                <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '0.625rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar ejercicio para añadir..."
+                    className="input-field"
+                    value={exercisePickerSearch}
+                    onChange={(e) => setExercisePickerSearch(e.target.value)}
+                    style={{ paddingLeft: '2.25rem', fontSize: '0.8125rem' }}
+                  />
+                </div>
+
+                <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '0.375rem', backgroundColor: '#ffffff' }}>
+                  {availableExercisesToAdd.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.8125rem' }}>
+                      No hay más ejercicios disponibles con ese criterio.
+                    </div>
+                  ) : (
+                    availableExercisesToAdd.slice(0, 30).map((ex) => (
+                      <div
+                        key={ex.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.5rem 0.75rem',
+                          borderBottom: '1px solid #f1f5f9'
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: '0.8125rem', color: '#1e293b' }}>{ex.title}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{ex.slug}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddExercise(ex)}
+                          className="btn-secondary"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb' }}
+                        >
+                          <Plus size={12} /> Añadir
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* List of exercises inside collection */}
+            {collectionExercises.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2.5rem', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '0.5rem', color: '#64748b' }}>
+                Esta colección aún no tiene ejercicios. Haz clic en "Añadir Ejercicio" para seleccionarlos.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {collectionExercises.map((item, index) => (
                   <div
-                    key={ex.id}
+                    key={item.exerciseId}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      padding: '0.5rem 0.75rem',
-                      borderBottom: '1px solid #f1f5f9'
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 500, fontSize: '0.8125rem', color: '#1e293b' }}>{ex.title}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{ex.slug}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', width: '24px' }}>
+                        #{index + 1}
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+                          {item.exerciseTitle}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
+                          {item.exerciseSlug}
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleAddExercise(ex)}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb' }}
-                    >
-                      <Plus size={12} /> Añadir
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* List of exercises inside collection */}
-        {collectionExercises.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2.5rem', backgroundColor: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '0.5rem', color: '#64748b' }}>
-            Esta colección aún no tiene ejercicios. Haz clic en "Añadir Ejercicio" para seleccionarlos.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {collectionExercises.map((item, index) => (
-              <div
-                key={item.exerciseId}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0.75rem 1rem',
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.375rem',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#64748b', width: '24px' }}>
-                    #{index + 1}
-                  </span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
-                      {item.exerciseTitle}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
-                      {item.exerciseSlug}
+                    {/* Reorder, Edit, and Delete Actions */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = selectedId 
+                            ? `/teacher/exercises?exerciseId=${item.exerciseId}&collectionId=${selectedId}`
+                            : `/teacher/exercises?exerciseId=${item.exerciseId}`;
+                          navigate(url);
+                        }}
+                        className="btn-secondary"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        title="Editar este ejercicio en el editor completo"
+                      >
+                        <Edit3 size={13} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveExercise(index, 'up')}
+                        disabled={index === 0}
+                        className="btn-secondary"
+                        style={{ padding: '0.25rem 0.4rem', opacity: index === 0 ? 0.3 : 1 }}
+                        title="Mover arriba"
+                      >
+                        <ArrowUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveExercise(index, 'down')}
+                        disabled={index === collectionExercises.length - 1}
+                        className="btn-secondary"
+                        style={{ padding: '0.25rem 0.4rem', opacity: index === collectionExercises.length - 1 ? 0.3 : 1 }}
+                        title="Mover abajo"
+                      >
+                        <ArrowDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExercise(index)}
+                        className="btn-secondary"
+                        style={{ padding: '0.25rem 0.5rem', color: '#dc2626' }}
+                        title="Quitar de esta colección"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Reorder, Edit, and Delete Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = selectedId 
-                        ? `/teacher/exercises?exerciseId=${item.exerciseId}&collectionId=${selectedId}`
-                        : `/teacher/exercises?exerciseId=${item.exerciseId}`;
-                      navigate(url);
-                    }}
-                    className="btn-secondary"
-                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                    title="Editar este ejercicio en el editor completo"
-                  >
-                    <Edit3 size={13} /> Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveExercise(index, 'up')}
-                    disabled={index === 0}
-                    className="btn-secondary"
-                    style={{ padding: '0.25rem 0.4rem', opacity: index === 0 ? 0.3 : 1 }}
-                    title="Mover arriba"
-                  >
-                    <ArrowUp size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveExercise(index, 'down')}
-                    disabled={index === collectionExercises.length - 1}
-                    className="btn-secondary"
-                    style={{ padding: '0.25rem 0.4rem', opacity: index === collectionExercises.length - 1 ? 0.3 : 1 }}
-                    title="Mover abajo"
-                  >
-                    <ArrowDown size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveExercise(index)}
-                    className="btn-secondary"
-                    style={{ padding: '0.25rem 0.5rem', color: '#dc2626' }}
-                    title="Quitar de esta colección"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
-      </div>
-
-      {/* Bottom Save Bar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 0' }}>
-        <button onClick={handleBackToList} className="btn-secondary">
-          Cancelar
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary"
-          style={{ padding: '0.625rem 1.5rem', fontSize: '0.9375rem' }}
-        >
-          <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Colección'}
-        </button>
       </div>
     </div>
   );
