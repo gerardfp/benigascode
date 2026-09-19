@@ -14,6 +14,7 @@ import {
   Upload, FileText, Archive, Code, Tag as TagIcon, Check
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
+import { parseTagExpression } from '../utils/tagExpression';
 import { CodeEditor } from '../components/CodeEditor';
 
 export const TeacherExercisesView: React.FC = () => {
@@ -40,6 +41,16 @@ export const TeacherExercisesView: React.FC = () => {
   const [bulkNewDesc, setBulkNewDesc] = useState('');
   const [bulkNewColor, setBulkNewColor] = useState<string | null>(null);
   const tagPanelRef = useRef<HTMLDivElement>(null);
+
+  // Tag expression search & selection
+  const [tagExpression, setTagExpression] = useState('');
+  const lastAppliedTagExprRef = useRef<string | null>(null);
+
+  const parsedTagExpr = useMemo(() => {
+    return parseTagExpression(tagExpression);
+  }, [tagExpression]);
+
+  const isTagExprActive = !parsedTagExpr.isEmpty && parsedTagExpr.isValid && !!parsedTagExpr.evaluate;
 
   // Sorting state
   type ExerciseSortKey = 'title' | 'slug' | 'tags' | 'collections' | 'createdAt';
@@ -426,6 +437,8 @@ export const TeacherExercisesView: React.FC = () => {
   // Filter and sort exercises
   const filteredExercises = useMemo(() => {
     let result = exercises;
+
+    // 1. Búsqueda textual (título, identificador / slug)
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       result = result.filter(
@@ -433,8 +446,15 @@ export const TeacherExercisesView: React.FC = () => {
           e.title.toLowerCase().includes(q) ||
           e.slug.toLowerCase().includes(q) ||
           e.tags?.some((t) => t.toLowerCase().includes(q))
+          e.slug.toLowerCase().includes(q)
       );
     }
+
+    // 2. Selección / filtrado por expresión booleana de etiquetas
+    if (isTagExprActive && parsedTagExpr.evaluate) {
+      result = result.filter((e) => parsedTagExpr.evaluate!(e.tags || []));
+    }
+
     return [...result].sort((a, b) => {
       let valA: string | number = '';
       let valB: string | number = '';
@@ -459,6 +479,44 @@ export const TeacherExercisesView: React.FC = () => {
       return 0;
     });
   }, [exercises, searchTerm, sortKey, sortDir]);
+  }, [exercises, searchTerm, isTagExprActive, parsedTagExpr, sortKey, sortDir]);
+
+  // Cantidad de ejercicios que coinciden con los criterios actuales
+  const matchingCount = useMemo(() => {
+    if (!isTagExprActive || !parsedTagExpr.evaluate) return 0;
+    return exercises.filter((e) => {
+      if (!parsedTagExpr.evaluate!(e.tags || [])) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        return e.title.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q);
+      }
+      return true;
+    }).length;
+  }, [exercises, isTagExprActive, parsedTagExpr, searchTerm]);
+
+  // Selección automática cuando la expresión de etiquetas es válida
+  useEffect(() => {
+    if (isTagExprActive && parsedTagExpr.evaluate) {
+      const matchingIds = new Set<string>();
+      for (const e of exercises) {
+        if (!parsedTagExpr.evaluate(e.tags || [])) continue;
+        if (searchTerm.trim()) {
+          const q = searchTerm.toLowerCase();
+          if (!e.title.toLowerCase().includes(q) && !e.slug.toLowerCase().includes(q)) {
+            continue;
+          }
+        }
+        matchingIds.add(e.id);
+      }
+      lastAppliedTagExprRef.current = tagExpression;
+      setSelectedExerciseIds(matchingIds);
+    } else if (parsedTagExpr.isEmpty) {
+      if (lastAppliedTagExprRef.current !== null) {
+        lastAppliedTagExprRef.current = null;
+        setSelectedExerciseIds(new Set());
+      }
+    }
+  }, [tagExpression, isTagExprActive, parsedTagExpr, exercises, searchTerm]);
 
   // Exercises list for navigation
   const navigationExercises = useMemo(() => {
@@ -994,6 +1052,7 @@ export const TeacherExercisesView: React.FC = () => {
         </div>
 
         {/* Search Bar */}
+        {/* Search & Tag Expression Selection */}
         <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
           <div style={{ position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
@@ -1005,6 +1064,84 @@ export const TeacherExercisesView: React.FC = () => {
               className="input-field"
               style={{ paddingLeft: '2.5rem' }}
             />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem', alignItems: 'flex-start' }}>
+            {/* 1. Búsqueda Textual */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.375rem' }}>
+                Búsqueda textual
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por título o identificador (slug)..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', paddingRight: searchTerm ? '2rem' : '0.75rem', width: '100%' }}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchTerm(''); setPage(1); }}
+                    style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
+                    title="Limpiar búsqueda textual"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Selección por Etiquetas */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                  Selección por etiquetas
+                </label>
+                {tagExpression.trim() && (
+                  parsedTagExpr.isValid ? (
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Check size={12} /> Expresión válida ({matchingCount} {matchingCount === 1 ? 'ejercicio seleccionado' : 'ejercicios seleccionados'})
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.25rem' }} title={parsedTagExpr.error || ''}>
+                      <AlertCircle size={12} /> {parsedTagExpr.error || 'Expresión incompleta'}
+                    </span>
+                  )
+                )}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <TagIcon size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: tagExpression.trim() ? (parsedTagExpr.isValid ? '#2563eb' : '#dc2626') : '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Expresión booleana, ej. (strings && arrays) || !variables"
+                  value={tagExpression}
+                  onChange={(e) => { setTagExpression(e.target.value); setPage(1); }}
+                  className="input-field"
+                  style={{
+                    paddingLeft: '2.5rem',
+                    paddingRight: tagExpression ? '2rem' : '0.75rem',
+                    width: '100%',
+                    borderColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#86efac' : '#fca5a5') : undefined,
+                    backgroundColor: tagExpression.trim() ? (parsedTagExpr.isValid ? '#f0fdf4' : '#fff5f5') : undefined,
+                  }}
+                />
+                {tagExpression && (
+                  <button
+                    type="button"
+                    onClick={() => { setTagExpression(''); setPage(1); }}
+                    style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.25rem' }}
+                    title="Limpiar expresión de etiquetas"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: '#64748b', marginTop: '0.25rem' }}>
+                Soporta <code style={{ color: '#0f172a', fontWeight: 600 }}>&&</code>, <code style={{ color: '#0f172a', fontWeight: 600 }}>||</code>, <code style={{ color: '#0f172a', fontWeight: 600 }}>!</code> y paréntesis <code style={{ color: '#0f172a', fontWeight: 600 }}>( )</code>.
+              </div>
+            </div>
           </div>
         </div>
 
