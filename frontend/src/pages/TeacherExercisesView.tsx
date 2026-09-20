@@ -573,7 +573,6 @@ export const TeacherExercisesView: React.FC = () => {
         testCases: detail.testCases || []
       });
 
-      setMarkdownText(serialized);
       originalPublishedMarkdownRef.current = serialized;
 
       if (detail.hasDraft && detail.draftMarkdown) {
@@ -916,7 +915,6 @@ export const TeacherExercisesView: React.FC = () => {
     };
   }, [mode]);
 
-  // Save exercise directly from Markdown text
   // Warning when closing or reloading the tab with unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1078,7 +1076,6 @@ export const TeacherExercisesView: React.FC = () => {
 
       setVersionNumber(result.versionNumber || 1);
       setAssets(result.assets || []);
-      setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" guardado correctamente (v${result.versionNumber || 1}).` });
       setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" publicado correctamente (v${result.versionNumber || 1}).` });
 
       loadExercises();
@@ -1598,7 +1595,6 @@ export const TeacherExercisesView: React.FC = () => {
                           style={{ padding: '0.875rem 1.25rem', fontWeight: 600, color: '#1e293b', cursor: 'pointer' }}
                           title="Editar ejercicio"
                         >
-                          <div style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{ex.title}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                             <span style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>
                               {ex.title}
@@ -1937,19 +1933,6 @@ export const TeacherExercisesView: React.FC = () => {
                 )}
 
                 {selectedId && (
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '0.15rem 0.4rem',
-                      fontWeight: 600,
-                      backgroundColor: '#e2e8f0',
-                      color: '#475569',
-                      borderRadius: '0.25rem'
-                    }}
-                    title={`Versión actual: v${versionNumber}`}
-                  >
-                    v{versionNumber}
-                  </span>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span
                       style={{
@@ -1994,7 +1977,6 @@ export const TeacherExercisesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Derecha: Subir imagen, Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar */}
               {/* Derecha: Estado borrador, Descartar borrador, Subir imagen, Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar Borrador, Publicar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
                 {/* Indicador de estado de guardado de borrador / publicación */}
@@ -2131,31 +2113,24 @@ export const TeacherExercisesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving}
                   disabled={!canPublish}
                   className="btn-primary"
                   style={{
-                    padding: '0.3rem 0.5rem',
                     padding: '0.3rem 0.65rem',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: saving ? 0.6 : 1,
-                    cursor: saving ? 'not-allowed' : 'pointer'
                     gap: '0.35rem',
                     fontSize: '0.8rem',
                     fontWeight: 600,
                     opacity: !canPublish ? 0.45 : 1,
                     cursor: !canPublish ? 'not-allowed' : 'pointer'
                   }}
-                  title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
                   title={
                     !canPublish
                       ? (selectedId ? 'No hay modificaciones pendientes de publicar' : 'Introduce título y slug para publicar')
                       : (saving ? 'Publicando nueva versión...' : 'Publicar nueva versión')
                   }
                 >
-                  <Save size={16} />
                   <Check size={16} />
                   <span>{saving ? 'Publicando...' : 'Publicar'}</span>
                 </button>
