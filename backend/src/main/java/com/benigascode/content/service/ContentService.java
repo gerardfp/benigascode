@@ -50,6 +50,7 @@ public class ContentService {
     private final ExerciseRepository exerciseRepository;
     private final ExerciseVersionRepository exerciseVersionRepository;
     private final ExerciseAssetRepository exerciseAssetRepository;
+    private final ExerciseDraftRepository exerciseDraftRepository;
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
@@ -64,6 +65,7 @@ public class ContentService {
                           ExerciseRepository exerciseRepository,
                           ExerciseVersionRepository exerciseVersionRepository,
                           ExerciseAssetRepository exerciseAssetRepository,
+                          ExerciseDraftRepository exerciseDraftRepository,
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
@@ -77,6 +79,7 @@ public class ContentService {
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
         this.exerciseAssetRepository = exerciseAssetRepository;
+        this.exerciseDraftRepository = exerciseDraftRepository;
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
@@ -629,6 +632,8 @@ public class ContentService {
             }
         }
 
+        Set<UUID> draftExerciseIds = new HashSet<>(exerciseDraftRepository.findAllExerciseIdsWithDraft());
+
         for (Exercise ex : all) {
             Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
             if (latest.isPresent()) {
@@ -645,6 +650,8 @@ public class ContentService {
                     List<String> collections = exerciseSlugToCollections.getOrDefault(ex.getSlug().toLowerCase(), new ArrayList<>());
                     collections.sort(String.CASE_INSENSITIVE_ORDER);
 
+                    boolean hasDraft = draftExerciseIds.contains(ex.getId());
+
                     result.add(new ExerciseDTO(
                             ex.getId(),
                             ex.getId(),
@@ -657,7 +664,8 @@ public class ContentService {
                             null,
                             tagsList,
                             collections,
-                            ex.getCreatedAt()
+                            ex.getCreatedAt(),
+                            hasDraft
                     ));
                 }
             }
@@ -747,6 +755,11 @@ public class ContentService {
             }
         } catch (Exception ignored) {}
 
+        Optional<ExerciseDraft> draftOpt = exerciseDraftRepository.findByExerciseId(exercise.getId());
+        boolean hasDraft = draftOpt.isPresent();
+        String draftMarkdown = draftOpt.map(ExerciseDraft::getMarkdown).orElse(null);
+        Instant draftUpdatedAt = draftOpt.map(ExerciseDraft::getUpdatedAt).orElse(null);
+
         return new TeacherExerciseDetailDTO(
                 exercise.getId(),
                 exercise.getSlug(),
@@ -765,7 +778,10 @@ public class ContentService {
                 tests,
                 tests,
                 assets,
-                ev.getCreatedAt()
+                ev.getCreatedAt(),
+                hasDraft,
+                draftMarkdown,
+                draftUpdatedAt
         );
     }
 
@@ -804,7 +820,35 @@ public class ContentService {
         ExerciseVersion version = buildExerciseVersion(exercise, nextVersion, req);
         exerciseVersionRepository.save(version);
 
+        // Cuando se publique el ejercicio el draft desaparece
+        exerciseDraftRepository.deleteByExerciseId(exercise.getId());
+
         return getTeacherExerciseDetail(exercise.getId());
+    }
+
+    @Transactional
+    public ExerciseDraftDTO saveExerciseDraft(UUID exerciseId, String markdown, User teacher) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        ExerciseDraft draft = exerciseDraftRepository.findByExerciseId(exercise.getId())
+                .orElseGet(() -> new ExerciseDraft(exercise, markdown, teacher));
+
+        draft.setMarkdown(markdown);
+        draft.setUpdatedBy(teacher);
+        draft.setUpdatedAt(Instant.now());
+        draft = exerciseDraftRepository.save(draft);
+
+        return new ExerciseDraftDTO(draft.getId(), exercise.getId(), draft.getMarkdown(), draft.getUpdatedAt());
+    }
+
+    @Transactional
+    public void deleteExerciseDraft(UUID exerciseId, User teacher) {
+        Exercise exercise = exerciseRepository.findById(exerciseId)
+                .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+        exerciseDraftRepository.deleteByExerciseId(exercise.getId());
     }
 
     @Transactional

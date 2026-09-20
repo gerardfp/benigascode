@@ -69,6 +69,14 @@ export const TeacherExercisesView: React.FC = () => {
   const [versionNumber, setVersionNumber] = useState<number>(1);
   const [assets, setAssets] = useState<AssetDTO[]>([]);
 
+  // Draft & Version State
+  const [hasDraft, setHasDraft] = useState<boolean>(false);
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'published' | 'error'>('idle');
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+  const originalPublishedMarkdownRef = useRef<string>('');
+  const lastSavedDraftMarkdownRef = useRef<string | null>(null);
+  const autoSaveTimerRef = useRef<any>(null);
+
   // Markdown Editor State
   const [markdownText, setMarkdownText] = useState<string>('');
   const [markdownPreview, setMarkdownPreview] = useState<boolean>(true);
@@ -172,6 +180,28 @@ export const TeacherExercisesView: React.FC = () => {
   const liveParsedMarkdown = useMemo(() => {
     return parseExerciseMarkdown(markdownText);
   }, [markdownText]);
+
+  // Whether current markdown has modifications compared to the latest published baseline
+  const isModifiedFromPublished = useMemo(() => {
+    if (!selectedId) {
+      return Boolean(liveParsedMarkdown.exercise.title?.trim() && liveParsedMarkdown.exercise.slug?.trim());
+    }
+    return markdownText !== originalPublishedMarkdownRef.current;
+  }, [selectedId, markdownText, liveParsedMarkdown]);
+
+  const canPublish = isModifiedFromPublished && !saving && !detailLoading;
+
+  // Unsaved changes check (for warnings when navigating away)
+  const isUnsaved = useMemo(() => {
+    if (mode !== 'editor') return false;
+    if (saving) return true;
+    if (draftStatus === 'saving') return true;
+    if (!selectedId) {
+      return markdownText.trim().length > 0 && markdownText !== CANONICAL_EXERCISE_EXAMPLE;
+    }
+    const savedBaseline = lastSavedDraftMarkdownRef.current ?? originalPublishedMarkdownRef.current;
+    return markdownText !== savedBaseline;
+  }, [mode, saving, draftStatus, selectedId, markdownText]);
 
   // Load exercises list
   const loadExercises = async () => {
@@ -466,6 +496,11 @@ export const TeacherExercisesView: React.FC = () => {
   const hasNextExercise = currentExerciseIndex >= 0 && currentExerciseIndex < navigationExercises.length - 1;
 
   const handleNavigateExercise = (direction: 'prev' | 'next') => {
+    if (isUnsaved) {
+      if (!confirm('Tienes cambios pendientes de guardar en el borrador. Si cambias de ejercicio, se perderán las últimas modificaciones no guardadas. ¿Deseas continuar de todos modos?')) {
+        return;
+      }
+    }
     const targetIndex = direction === 'prev' ? currentExerciseIndex - 1 : currentExerciseIndex + 1;
     if (targetIndex < 0 || targetIndex >= navigationExercises.length) return;
     const target = navigationExercises[targetIndex];
@@ -473,6 +508,11 @@ export const TeacherExercisesView: React.FC = () => {
   };
 
   const handleBack = () => {
+    if (isUnsaved) {
+      if (!confirm('Tienes cambios pendientes de guardar en el borrador. Si sales ahora, se perderán las últimas modificaciones no guardadas. ¿Deseas salir de todos modos?')) {
+        return;
+      }
+    }
     if (collectionIdParam) {
       navigate(`/teacher/collections?collectionId=${collectionIdParam}`);
     } else {
@@ -534,6 +574,24 @@ export const TeacherExercisesView: React.FC = () => {
       });
 
       setMarkdownText(serialized);
+      originalPublishedMarkdownRef.current = serialized;
+
+      if (detail.hasDraft && detail.draftMarkdown) {
+        setMarkdownText(detail.draftMarkdown);
+        markdownTextRef.current = detail.draftMarkdown;
+        lastSavedDraftMarkdownRef.current = detail.draftMarkdown;
+        setHasDraft(true);
+        setDraftStatus('saved');
+        setDraftSavedAt(detail.draftUpdatedAt ? new Date(detail.draftUpdatedAt) : null);
+      } else {
+        setMarkdownText(serialized);
+        markdownTextRef.current = serialized;
+        lastSavedDraftMarkdownRef.current = null;
+        setHasDraft(false);
+        setDraftStatus('idle');
+        setDraftSavedAt(null);
+      }
+
       setAssets(detail.assets || []);
       setVersionNumber(detail.versionNumber || 1);
       setMode('editor');
@@ -551,6 +609,12 @@ export const TeacherExercisesView: React.FC = () => {
     setAssets([]);
     setVersionNumber(1);
     setMarkdownText(CANONICAL_EXERCISE_EXAMPLE);
+    markdownTextRef.current = CANONICAL_EXERCISE_EXAMPLE;
+    originalPublishedMarkdownRef.current = '';
+    lastSavedDraftMarkdownRef.current = null;
+    setHasDraft(false);
+    setDraftStatus('idle');
+    setDraftSavedAt(null);
     setStatusMsg(null);
     setMode('editor');
   };
@@ -853,6 +917,117 @@ export const TeacherExercisesView: React.FC = () => {
   }, [mode]);
 
   // Save exercise directly from Markdown text
+  // Warning when closing or reloading the tab with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isUnsaved) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isUnsaved]);
+
+  // Keyboard shortcut Ctrl+S / Cmd+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        if (mode === 'editor') {
+          e.preventDefault();
+          if (selectedId) {
+            handleSaveDraft();
+          } else if (canPublish) {
+            handleSave();
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode, selectedId, markdownText, canPublish]);
+
+  // Auto-save draft effect with 1500ms debounce
+  useEffect(() => {
+    if (mode !== 'editor' || !selectedId || detailLoading || saving) {
+      return;
+    }
+
+    const baseline = lastSavedDraftMarkdownRef.current ?? originalPublishedMarkdownRef.current;
+    if (markdownText === baseline) {
+      return;
+    }
+
+    setDraftStatus('saving');
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const saved = await api.teacherSaveExerciseDraft(selectedId, markdownText);
+        lastSavedDraftMarkdownRef.current = markdownText;
+        setHasDraft(true);
+        setDraftStatus('saved');
+        setDraftSavedAt(new Date(saved.updatedAt));
+      } catch (err) {
+        console.error('Error auto-saving draft:', err);
+        setDraftStatus('error');
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [markdownText, mode, selectedId, detailLoading, saving]);
+
+  // Manual save draft
+  const handleSaveDraft = async () => {
+    if (!selectedId) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    setDraftStatus('saving');
+    try {
+      const saved = await api.teacherSaveExerciseDraft(selectedId, markdownText);
+      lastSavedDraftMarkdownRef.current = markdownText;
+      setHasDraft(true);
+      setDraftStatus('saved');
+      setDraftSavedAt(new Date(saved.updatedAt));
+    } catch (err: any) {
+      console.error('Error saving draft:', err);
+      setDraftStatus('error');
+      setStatusMsg({ type: 'error', text: 'Error al guardar el borrador: ' + (err.message || 'Error de red') });
+    }
+  };
+
+  // Discard draft and revert to latest published version
+  const handleDiscardDraft = async () => {
+    if (!selectedId || !hasDraft) return;
+    if (!confirm(`¿Deseas descartar el borrador y volver a la última versión publicada (v${versionNumber})? Se perderán las modificaciones no publicadas.`)) {
+      return;
+    }
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    try {
+      await api.teacherDeleteExerciseDraft(selectedId);
+      setMarkdownText(originalPublishedMarkdownRef.current);
+      markdownTextRef.current = originalPublishedMarkdownRef.current;
+      lastSavedDraftMarkdownRef.current = null;
+      setHasDraft(false);
+      setDraftStatus('idle');
+      setDraftSavedAt(null);
+      setStatusMsg({ type: 'info', text: 'Borrador descartado. Se ha restaurado la versión publicada.' });
+    } catch (err: any) {
+      alert('Error descartando borrador: ' + err.message);
+    }
+  };
+
+  // Save exercise directly from Markdown text (Publicar nueva versión)
   const handleSave = async () => {
     const parsed = parseExerciseMarkdown(markdownText);
     if (!parsed.exercise.title || !parsed.exercise.title.trim()) {
@@ -887,14 +1062,24 @@ export const TeacherExercisesView: React.FC = () => {
       };
 
       const result = await api.teacherSaveExercise(payload, selectedId || undefined);
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
       if (!selectedId) {
         setSelectedId(result.id);
         setSearchParams(collectionIdParam ? { exerciseId: result.id, collectionId: collectionIdParam } : { exerciseId: result.id });
       }
 
+      originalPublishedMarkdownRef.current = markdownText;
+      lastSavedDraftMarkdownRef.current = null;
+      setHasDraft(false);
+      setDraftStatus('published');
+      setDraftSavedAt(null);
+
       setVersionNumber(result.versionNumber || 1);
       setAssets(result.assets || []);
       setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" guardado correctamente (v${result.versionNumber || 1}).` });
+      setStatusMsg({ type: 'success', text: `Ejercicio "${result.title}" publicado correctamente (v${result.versionNumber || 1}).` });
 
       loadExercises();
     } catch (err: any) {
@@ -1414,6 +1599,29 @@ export const TeacherExercisesView: React.FC = () => {
                           title="Editar ejercicio"
                         >
                           <div style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>{ex.title}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <span style={{ textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.15s' }}>
+                              {ex.title}
+                            </span>
+                            {ex.hasDraft && (
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  padding: '0.1rem 0.35rem',
+                                  fontWeight: 600,
+                                  backgroundColor: '#fef3c7',
+                                  color: '#b45309',
+                                  border: '1px solid #fde68a',
+                                  borderRadius: '0.25rem',
+                                  lineHeight: 1.2,
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Este ejercicio tiene cambios en borrador no publicados"
+                              >
+                                Borrador
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '0.875rem 1.25rem' }}>
                           {ex.tags && ex.tags.length > 0 ? (
@@ -1742,6 +1950,37 @@ export const TeacherExercisesView: React.FC = () => {
                   >
                     v{versionNumber}
                   </span>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        padding: '0.15rem 0.4rem',
+                        fontWeight: 600,
+                        backgroundColor: '#e2e8f0',
+                        color: '#475569',
+                        borderRadius: '0.25rem'
+                      }}
+                      title={`Versión actual publicada: v${versionNumber}`}
+                    >
+                      v{versionNumber}
+                    </span>
+                    {hasDraft && (
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.15rem 0.4rem',
+                          fontWeight: 600,
+                          backgroundColor: '#fef3c7',
+                          color: '#b45309',
+                          border: '1px solid #fde68a',
+                          borderRadius: '0.25rem'
+                        }}
+                        title="Modificaciones en borrador no publicadas"
+                      >
+                        Borrador
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 {activeCollection && (
@@ -1756,7 +1995,51 @@ export const TeacherExercisesView: React.FC = () => {
               </div>
 
               {/* Derecha: Subir imagen, Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar */}
+              {/* Derecha: Estado borrador, Descartar borrador, Subir imagen, Plantilla ejemplo, Cargar, Descargar, Exportar ZIP, Vista previa, Guardar Borrador, Publicar */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap' }}>
+                {/* Indicador de estado de guardado de borrador / publicación */}
+                {draftStatus === 'saving' && (
+                  <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    💾 Guardando borrador...
+                  </span>
+                )}
+                {draftStatus === 'saved' && (
+                  <span style={{ fontSize: '0.8rem', color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    ✓ Borrador guardado {draftSavedAt ? `(${draftSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})` : ''}
+                  </span>
+                )}
+                {draftStatus === 'published' && (
+                  <span style={{ fontSize: '0.8rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    ✓ Publicado v{versionNumber}
+                  </span>
+                )}
+                {draftStatus === 'error' && (
+                  <span style={{ fontSize: '0.8rem', color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    ⚠️ Error al guardar borrador
+                  </span>
+                )}
+
+                {/* Descartar borrador si existe */}
+                {selectedId && hasDraft && (
+                  <button
+                    type="button"
+                    onClick={handleDiscardDraft}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.3rem 0.5rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#dc2626',
+                      borderColor: '#fca5a5',
+                      backgroundColor: '#fef2f2'
+                    }}
+                    title="Descartar borrador y volver a la versión publicada"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => imageFileInputRef.current?.click()}
@@ -1820,22 +2103,61 @@ export const TeacherExercisesView: React.FC = () => {
                 >
                   <Columns size={16} />
                 </button>
+
+                {/* Guardar borrador manual */}
+                {selectedId && (
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    disabled={draftStatus === 'saving' || !isModifiedFromPublished}
+                    className="btn-secondary"
+                    style={{
+                      padding: '0.3rem 0.55rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      fontSize: '0.8rem',
+                      opacity: (draftStatus === 'saving' || !isModifiedFromPublished) ? 0.45 : 1,
+                      cursor: (draftStatus === 'saving' || !isModifiedFromPublished) ? 'not-allowed' : 'pointer'
+                    }}
+                    title="Guardar borrador manualmente (Ctrl+S)"
+                  >
+                    <Save size={15} />
+                    <span>Borrador</span>
+                  </button>
+                )}
+
+                {/* Publicar nueva versión */}
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
+                  disabled={!canPublish}
                   className="btn-primary"
                   style={{
                     padding: '0.3rem 0.5rem',
+                    padding: '0.3rem 0.65rem',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     opacity: saving ? 0.6 : 1,
                     cursor: saving ? 'not-allowed' : 'pointer'
+                    gap: '0.35rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    opacity: !canPublish ? 0.45 : 1,
+                    cursor: !canPublish ? 'not-allowed' : 'pointer'
                   }}
                   title={saving ? 'Guardando ejercicio...' : 'Guardar ejercicio'}
+                  title={
+                    !canPublish
+                      ? (selectedId ? 'No hay modificaciones pendientes de publicar' : 'Introduce título y slug para publicar')
+                      : (saving ? 'Publicando nueva versión...' : 'Publicar nueva versión')
+                  }
                 >
                   <Save size={16} />
+                  <Check size={16} />
+                  <span>{saving ? 'Publicando...' : 'Publicar'}</span>
                 </button>
               </div>
             </div>

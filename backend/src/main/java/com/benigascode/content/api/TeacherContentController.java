@@ -68,6 +68,20 @@ public class TeacherContentController {
         return ResponseEntity.ok(contentService.updateExercise(id, request, teacher));
     }
 
+    @PutMapping("/exercises/{id}/draft")
+    public ResponseEntity<ExerciseDraftDTO> saveExerciseDraft(@PathVariable UUID id,
+                                                              @Valid @RequestBody SaveExerciseDraftRequest request) {
+        User teacher = userService.getCurrentUser();
+        return ResponseEntity.ok(contentService.saveExerciseDraft(id, request.markdown(), teacher));
+    }
+
+    @DeleteMapping("/exercises/{id}/draft")
+    public ResponseEntity<Void> deleteExerciseDraft(@PathVariable UUID id) {
+        User teacher = userService.getCurrentUser();
+        contentService.deleteExerciseDraft(id, teacher);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/exercises/{id}")
     public ResponseEntity<Void> deleteExercise(@PathVariable UUID id) {
         User teacher = userService.getCurrentUser();

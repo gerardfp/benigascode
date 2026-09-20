@@ -393,6 +393,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  teacherSaveExerciseDraft: (id: string, markdown: string): Promise<{ id: string; exerciseId: string; markdown: string; updatedAt: string }> =>
+    request<{ id: string; exerciseId: string; markdown: string; updatedAt: string }>(`/teacher/exercises/${id}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ markdown }),
+    }),
+
+  teacherDeleteExerciseDraft: (id: string): Promise<void> =>
+    request<void>(`/teacher/exercises/${id}/draft`, { method: 'DELETE' }),
+
   teacherDeleteExercise: (id: string): Promise<void> =>
     request<void>(`/teacher/exercises/${id}`, { method: 'DELETE' }),
 

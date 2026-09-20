@@ -33,6 +33,7 @@ export interface Exercise {
   createdAt?: string;
   starterTemplates?: Record<string, string>;
   defaultLanguage?: string;
+  hasDraft?: boolean;
 }
 
 export interface PublicTest {
@@ -335,6 +336,9 @@ export interface TeacherExerciseDetail {
   tags?: string[];
   testCases: TestCaseDTO[];
   assets: AssetDTO[];
+  hasDraft?: boolean;
+  draftMarkdown?: string | null;
+  draftUpdatedAt?: string | null;
 }
 
 export interface SaveExerciseRequest {

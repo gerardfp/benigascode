@@ -18,8 +18,11 @@ import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.benigascode.content.domain.Exercise;
+import com.benigascode.content.domain.ExerciseDraft;
 import com.benigascode.content.domain.ExerciseVersion;
+import com.benigascode.content.dto.ExerciseDraftDTO;
 import com.benigascode.content.dto.SaveExerciseRequest;
+import com.benigascode.content.dto.TeacherExerciseDetailDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +68,8 @@ class ContentServiceTest {
     private TeachingSpaceRepository teachingSpaceRepository;
     @Mock
     private ExerciseAssetRepository exerciseAssetRepository;
+    @Mock
+    private ExerciseDraftRepository exerciseDraftRepository;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -315,6 +320,112 @@ class ContentServiceTest {
         Map<String, String> parsedTemplates = objectMapper.readValue(saved.getTemplatesConfig(), Map.class);
         assertEquals(1, parsedTemplates.size());
         assertEquals("class Solution {}", parsedTemplates.get("java"));
+    }
+
+    @Test
+    void saveExerciseDraft_CreatesOrUpdatesDraft() {
+        UUID exId = UUID.randomUUID();
+        Exercise exercise = new Exercise("draft-slug");
+        exercise.setId(exId);
+
+        when(exerciseRepository.findById(exId)).thenReturn(Optional.of(exercise));
+        when(exerciseDraftRepository.findByExerciseId(exId)).thenReturn(Optional.empty());
+        when(exerciseDraftRepository.save(any(ExerciseDraft.class))).thenAnswer(inv -> {
+            ExerciseDraft ed = inv.getArgument(0);
+            ed.setId(UUID.randomUUID());
+            return ed;
+        });
+
+        ExerciseDraftDTO result = contentService.saveExerciseDraft(exId, "# Draft Title\nContenido borrador", teacher);
+
+        assertNotNull(result);
+        assertEquals(exId, result.exerciseId());
+        assertEquals("# Draft Title\nContenido borrador", result.markdown());
+        verify(exerciseDraftRepository).save(any(ExerciseDraft.class));
+    }
+
+    @Test
+    void deleteExerciseDraft_DeletesDraft() {
+        UUID exId = UUID.randomUUID();
+        Exercise exercise = new Exercise("draft-slug");
+        exercise.setId(exId);
+
+        when(exerciseRepository.findById(exId)).thenReturn(Optional.of(exercise));
+
+        contentService.deleteExerciseDraft(exId, teacher);
+
+        verify(exerciseDraftRepository).deleteByExerciseId(exId);
+    }
+
+    @Test
+    void getTeacherExerciseDetail_WithDraft_ReturnsDraftInfo() {
+        UUID exId = UUID.randomUUID();
+        Exercise exercise = new Exercise("test-slug");
+        exercise.setId(exId);
+
+        ExerciseVersion version = new ExerciseVersion();
+        version.setExercise(exercise);
+        version.setTitle("Published Title");
+        version.setStatement("Published Statement");
+        version.setLanguage("java");
+        version.setRuntimeId("java-26");
+        version.setVersionNumber(1);
+
+        ExerciseDraft draft = new ExerciseDraft(exercise, "# Draft Title\nDraft Statement", teacher);
+
+        when(exerciseRepository.findById(exId)).thenReturn(Optional.of(exercise));
+        when(exerciseVersionRepository.findLatestByExerciseId(exId)).thenReturn(Optional.of(version));
+        when(exerciseAssetRepository.findByExerciseId(exId)).thenReturn(List.of());
+        when(exerciseDraftRepository.findByExerciseId(exId)).thenReturn(Optional.of(draft));
+
+        TeacherExerciseDetailDTO detail = contentService.getTeacherExerciseDetail(exId);
+
+        assertNotNull(detail);
+        assertTrue(detail.hasDraft());
+        assertEquals("# Draft Title\nDraft Statement", detail.draftMarkdown());
+        assertNotNull(detail.draftUpdatedAt());
+    }
+
+    @Test
+    void updateExercise_DeletesDraftOnPublish() {
+        UUID exId = UUID.randomUUID();
+        Exercise exercise = new Exercise("test-slug");
+        exercise.setId(exId);
+
+        ExerciseVersion existingVersion = new ExerciseVersion();
+        existingVersion.setExercise(exercise);
+        existingVersion.setVersionNumber(1);
+        existingVersion.setTitle("Old Title");
+        existingVersion.setStatement("Old Statement");
+        existingVersion.setLanguage("java");
+        existingVersion.setRuntimeId("java-26");
+
+        SaveExerciseRequest req = new SaveExerciseRequest(
+                "test-slug",
+                "New Title",
+                "New Statement",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of("java", "class Solution {}"),
+                List.of(),
+                List.of(),
+                List.of()
+        );
+
+        when(exerciseRepository.findById(exId)).thenReturn(Optional.of(exercise));
+        when(exerciseVersionRepository.findLatestByExerciseId(exId)).thenReturn(Optional.of(existingVersion));
+        when(exerciseAssetRepository.findByExerciseId(exId)).thenReturn(List.of());
+        when(exerciseDraftRepository.findByExerciseId(exId)).thenReturn(Optional.empty());
+
+        contentService.updateExercise(exId, req, teacher);
+
+        verify(exerciseDraftRepository).deleteByExerciseId(exId);
+        verify(exerciseVersionRepository).save(any(ExerciseVersion.class));
     }
 }
 
