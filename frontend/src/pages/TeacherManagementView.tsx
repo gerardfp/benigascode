@@ -10,8 +10,7 @@ interface TeacherManagementProps {
 export const TeacherManagementView: React.FC<TeacherManagementProps> = ({ embedded = false }) => {
   const [teachers, setTeachers] = useState<AuthorizedTeacherDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [githubUsername, setGithubUsername] = useState('');
-  const [notes, setNotes] = useState('');
+  const [bulkText, setBulkText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -64,26 +63,53 @@ export const TeacherManagementView: React.FC<TeacherManagementProps> = ({ embedd
     loadTeachers();
   }, []);
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleBulkAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUser = githubUsername.trim().replace(/^@/, '');
-    if (!cleanUser) {
-      setError('Introduce un nombre de usuario de GitHub válido');
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) {
+      setError('Introduce al menos un profesor para autorizar');
       return;
     }
+
+    const items = lines.map(line => {
+      let user = line;
+      let note = '';
+      if (line.includes(':')) {
+        const parts = line.split(':');
+        user = parts[0].trim();
+        note = parts.slice(1).join(':').trim();
+      } else if (line.includes(',')) {
+        const parts = line.split(',');
+        user = parts[0].trim();
+        note = parts.slice(1).join(',').trim();
+      }
+      user = user.replace(/^@/, '').trim();
+      return { githubUsername: user, notes: note || undefined };
+    });
 
     setSubmitting(true);
     setError(null);
     setSuccessMsg(null);
 
     try {
-      const added = await api.addAuthorizedTeacher(cleanUser, notes.trim() || undefined);
-      setSuccessMsg(`Profesor @${added.githubUsername} autorizado correctamente.`);
-      setGithubUsername('');
-      setNotes('');
+      const res = await api.bulkAddTeachers(items);
+      let msg = '';
+      if (res.added.length > 0) {
+        msg += `${res.added.length} profesor(es) autorizado(s) correctamente. `;
+      }
+      if (res.skipped.length > 0) {
+        msg += `Omitidos (${res.skipped.length} ya autorizados): ${res.skipped.join(', ')}. `;
+      }
+      if (res.errors.length > 0) {
+        setError(res.errors.join(' | '));
+      }
+      if (msg) {
+        setSuccessMsg(msg.trim());
+      }
+      setBulkText('');
       await loadTeachers();
     } catch (err: any) {
-      setError(err.message || 'Error al autorizar profesor');
+      setError(err.message || 'Error al autorizar profesores');
     } finally {
       setSubmitting(false);
     }
@@ -148,41 +174,30 @@ export const TeacherManagementView: React.FC<TeacherManagementProps> = ({ embedd
           borderBottom: '1px solid #e2e8f0',
           backgroundColor: '#ffffff',
         }}>
-          <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ flex: '1 1 220px' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <span style={{ position: 'absolute', left: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>@</span>
-                <input
-                  type="text"
-                  required
-                  className="input-field"
-                  style={{ paddingLeft: '2rem', fontSize: '0.875rem' }}
-                  placeholder="Usuario de GitHub: ej. octocat"
-                  value={githubUsername}
-                  onChange={(e) => setGithubUsername(e.target.value)}
-                />
-              </div>
+          <form onSubmit={handleBulkAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <textarea
+              rows={3}
+              className="input-field"
+              style={{
+                width: '100%',
+                fontFamily: 'monospace',
+                fontSize: '0.875rem',
+                resize: 'vertical',
+              }}
+              placeholder={`username:notes (ej: octocat:Profesor de DAM)\notro_usuario`}
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="submit"
+                disabled={submitting || !bulkText.trim()}
+                className="btn-primary"
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
+              >
+                {submitting ? 'Autorizando...' : 'Autorizar Profesores'}
+              </button>
             </div>
-
-            <div style={{ flex: '2 1 280px' }}>
-              <input
-                type="text"
-                className="input-field"
-                style={{ fontSize: '0.875rem' }}
-                placeholder="Notas: ej. Profesor de DAM"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary"
-              style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
-            >
-              {submitting ? 'Añadiendo...' : '+ Autorizar Profesor'}
-            </button>
           </form>
         </div>
 

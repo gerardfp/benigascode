@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse } from '../types';
 
 
 
@@ -534,6 +534,12 @@ export const api = {
       body: JSON.stringify({ githubUsername, notes }),
     }),
 
+  bulkAddTeachers: (items: { githubUsername: string; notes?: string }[]): Promise<BulkAddTeacherResponse> =>
+    request<BulkAddTeacherResponse>('/teacher/teachers/bulk', {
+      method: 'POST',
+      body: JSON.stringify(items),
+    }),
+
   removeAuthorizedTeacher: (id: string): Promise<void> =>
     request<void>(`/teacher/teachers/${id}`, {
       method: 'DELETE',
@@ -563,6 +569,12 @@ export const api = {
     request<User>('/teacher/students', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  bulkCreateStudents: (items: BulkCreateStudentItem[]): Promise<BulkCreateStudentResponse> =>
+    request<BulkCreateStudentResponse>('/teacher/students/bulk', {
+      method: 'POST',
+      body: JSON.stringify(items),
     }),
 
   deleteStudentAccount: (studentId: string): Promise<void> =>

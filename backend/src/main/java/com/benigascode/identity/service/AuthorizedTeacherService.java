@@ -7,6 +7,7 @@ import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.dto.AddAuthorizedTeacherRequest;
 import com.benigascode.identity.dto.AuthorizedTeacherDTO;
+import com.benigascode.identity.dto.BulkAddTeacherResponse;
 import com.benigascode.identity.repository.AuthorizedTeacherRepository;
 import com.benigascode.identity.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -164,6 +165,53 @@ public class AuthorizedTeacherService {
             avatarUrl,
             getInitialUsernames().contains(clean)
         );
+    }
+
+    @Transactional
+    public BulkAddTeacherResponse addAuthorizedTeachersBulk(List<AddAuthorizedTeacherRequest> requests, User creator) {
+        if (requests == null || requests.isEmpty()) {
+            return new BulkAddTeacherResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<AuthorizedTeacherDTO> added = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < requests.size(); i++) {
+            AddAuthorizedTeacherRequest req = requests.get(i);
+            if (req == null) {
+                continue;
+            }
+
+            String raw = req.githubUsername();
+            if (raw == null || raw.trim().isBlank()) {
+                errors.add("Fila " + (i + 1) + ": el nombre de usuario de GitHub es obligatorio");
+                continue;
+            }
+
+            String clean = raw.trim().toLowerCase();
+            if (clean.startsWith("@")) {
+                clean = clean.substring(1).trim();
+            }
+            if (clean.isBlank()) {
+                errors.add("Fila " + (i + 1) + ": el nombre de usuario de GitHub no es válido");
+                continue;
+            }
+
+            if (isAuthorized(clean)) {
+                skipped.add("@" + clean);
+                continue;
+            }
+
+            try {
+                AuthorizedTeacherDTO dto = addAuthorizedTeacher(new AddAuthorizedTeacherRequest(clean, req.notes()), creator);
+                added.add(dto);
+            } catch (Exception ex) {
+                errors.add("@" + clean + ": " + ex.getMessage());
+            }
+        }
+
+        return new BulkAddTeacherResponse(added, skipped, errors);
     }
 
     @Transactional

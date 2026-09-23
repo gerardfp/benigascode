@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { TeacherStudent } from '../types';
+import { TeacherStudent, BulkCreateStudentItem, CreatedStudentItem } from '../types';
 import { TeacherManagementView } from './TeacherManagementView';
 import { TeacherInvitationsView } from './TeacherInvitationsView';
 import { GitSyncView } from './GitSyncView';
@@ -13,14 +13,12 @@ import {
   Key, 
   RefreshCw, 
   ShieldCheck, 
-  Eye, 
-  EyeOff, 
-  Dices, 
   Trash2, 
   Search, 
   AlertCircle,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  Copy
 } from 'lucide-react';
 
 export const TeacherAdminView: React.FC = () => {
@@ -77,14 +75,12 @@ export const TeacherAdminView: React.FC = () => {
     }
   };
 
-  // Modal para creación manual de alumno
-  const [showCreateStudentModal, setShowCreateStudentModal] = useState(false);
-  const [newStudentFullName, setNewStudentFullName] = useState('');
-  const [newStudentUsername, setNewStudentUsername] = useState('');
-  const [newStudentPassword, setNewStudentPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [creatingStudent, setCreatingStudent] = useState(false);
-  const [createModalError, setCreateModalError] = useState<string | null>(null);
+  // Creación masiva de alumnos (CSV)
+  const [bulkStudentText, setBulkStudentText] = useState('');
+  const [submittingBulkStudents, setSubmittingBulkStudents] = useState(false);
+  const [bulkStudentErrors, setBulkStudentErrors] = useState<string[]>([]);
+  const [createdCredentials, setCreatedCredentials] = useState<CreatedStudentItem[] | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
 
   // Alumno a eliminar
   const [studentToDelete, setStudentToDelete] = useState<TeacherStudent | null>(null);
@@ -109,44 +105,54 @@ export const TeacherAdminView: React.FC = () => {
     }
   }, [activeTab, activeSubtab]);
 
-  // Generador de contraseña aleatoria segura
-  const generateRandomPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
-    let res = '';
-    for (let i = 0; i < 10; i++) {
-      res += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setNewStudentPassword(res);
-  };
-
-  const handleCreateStudent = async (e: React.FormEvent) => {
+  const handleBulkCreateStudents = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStudentFullName.trim() || !newStudentUsername.trim() || !newStudentPassword) {
-      setCreateModalError('Por favor completa todos los campos requeridos');
+    const lines = bulkStudentText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) {
+      setStudentError('Introduce al menos un alumno para crear');
       return;
     }
 
-    setCreatingStudent(true);
-    setCreateModalError(null);
+    const items: BulkCreateStudentItem[] = lines.map(line => {
+      const parts = line.split(',').map(p => p.trim());
+      return {
+        fullName: parts[0] || '',
+        username: parts[1] || undefined,
+        password: parts[2] || undefined,
+      };
+    });
+
+    setSubmittingBulkStudents(true);
+    setStudentError(null);
+    setStudentSuccess(null);
+    setBulkStudentErrors([]);
 
     try {
-      await api.createStudentAccount({
-        fullName: newStudentFullName.trim(),
-        username: newStudentUsername.trim(),
-        password: newStudentPassword,
-      });
-
-      setStudentSuccess(`Cuenta para "${newStudentFullName.trim()}" creada exitosamente.`);
-      setShowCreateStudentModal(false);
-      setNewStudentFullName('');
-      setNewStudentUsername('');
-      setNewStudentPassword('');
+      const res = await api.bulkCreateStudents(items);
+      if (res.created.length > 0) {
+        setStudentSuccess(`${res.created.length} alumno(s) creado(s) correctamente.`);
+        setCreatedCredentials(res.created);
+      }
+      if (res.errors.length > 0) {
+        setBulkStudentErrors(res.errors);
+      }
+      setBulkStudentText('');
       await loadStudents();
     } catch (err: any) {
-      setCreateModalError(err.message || 'Error al crear la cuenta de alumno');
+      setStudentError(err.message || 'Error al crear alumnos');
     } finally {
-      setCreatingStudent(false);
+      setSubmittingBulkStudents(false);
     }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!createdCredentials || createdCredentials.length === 0) return;
+    const text = createdCredentials
+      .map(c => `${c.fullName}\t${c.username}\t${c.password}`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    setCopiedCredentials(true);
+    setTimeout(() => setCopiedCredentials(false), 2500);
   };
 
   const handleConfirmDeleteStudent = async () => {
@@ -196,10 +202,7 @@ export const TeacherAdminView: React.FC = () => {
     });
   }, [students, searchTerm, sortKey, sortDir]);
 
-  // KPIs
   const totalStudents = students.length;
-  const githubStudents = students.filter(s => !!s.githubUsername).length;
-  const localStudents = students.filter(s => !s.githubUsername).length;
 
   return (
     <div className="app-container" style={{ paddingBottom: '3rem' }}>
@@ -406,76 +409,123 @@ export const TeacherAdminView: React.FC = () => {
               {/* SECCIÓN 1: CUENTAS REGISTRADAS & ALTA */}
               {activeStudentSection === 'accounts' && (
                 <div>
-                  {/* Tarjetas KPI de Alumnos */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-                    <div className="card" style={{ padding: '0.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-                      <div style={{ fontSize: '1.75rem' }}>🎓</div>
-                      <div>
-                        <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#0f172a' }}>{totalStudents}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Total Alumnos</div>
+                  {/* Creación Masiva de Alumnos (CSV) */}
+                  <div className="card" style={{ padding: '0.875rem 1.25rem', marginBottom: '1.25rem' }}>
+                    <form onSubmit={handleBulkCreateStudents} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <textarea
+                        rows={3}
+                        className="input-field"
+                        style={{
+                          width: '100%',
+                          fontFamily: 'monospace',
+                          fontSize: '0.875rem',
+                          resize: 'vertical',
+                        }}
+                        placeholder={`Nombre Completo, username/email, contraseña (ej: María Lopez, mlopez@centro.edu, pass1234)\nJuan Pérez\nAna Gómez, agomez`}
+                        value={bulkStudentText}
+                        onChange={e => setBulkStudentText(e.target.value)}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="submit"
+                          disabled={submittingBulkStudents || !bulkStudentText.trim()}
+                          className="btn-primary"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
+                        >
+                          <UserPlus size={16} />
+                          {submittingBulkStudents ? 'Creando...' : 'Crear Alumnos'}
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="card" style={{ padding: '0.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-                      <div style={{ fontSize: '1.75rem' }}>🐙</div>
-                      <div>
-                        <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#2563eb' }}>{githubStudents}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Vía GitHub OAuth</div>
-                      </div>
-                    </div>
-
-                    <div className="card" style={{ padding: '0.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-                      <div style={{ fontSize: '1.75rem' }}>🔑</div>
-                      <div>
-                        <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#16a34a' }}>{localStudents}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Cuentas Locales</div>
-                      </div>
-                    </div>
+                    </form>
                   </div>
 
-                  {/* Barra de Búsqueda y Botón Crear Alumno */}
+                  {bulkStudentErrors.length > 0 && (
+                    <div style={{
+                      backgroundColor: '#fee2e2',
+                      color: '#b91c1c',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.375rem',
+                      marginBottom: '1rem',
+                      fontSize: '0.875rem',
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Errores durante la creación:</div>
+                      <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                        {bulkStudentErrors.map((err, idx) => (
+                          <li key={idx}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {createdCredentials && createdCredentials.length > 0 && (
+                    <div className="card" style={{ padding: '0.875rem 1.25rem', marginBottom: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+                          Credenciales Creadas ({createdCredentials.length})
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={handleCopyCredentials}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            <Copy size={13} />
+                            {copiedCredentials ? 'Copiado' : 'Copiar Credenciales'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCreatedCredentials(null)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '1rem', lineHeight: 1 }}
+                            title="Cerrar"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ overflowX: 'auto', maxHeight: 220, overflowY: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                              <th style={{ padding: '0.4rem 0.6rem' }}>Nombre</th>
+                              <th style={{ padding: '0.4rem 0.6rem' }}>Usuario / Email</th>
+                              <th style={{ padding: '0.4rem 0.6rem' }}>Contraseña</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {createdCredentials.map(c => (
+                              <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '0.4rem 0.6rem', fontWeight: 500 }}>{c.fullName}</td>
+                                <td style={{ padding: '0.4rem 0.6rem', fontFamily: 'monospace' }}>{c.username}</td>
+                                <td style={{ padding: '0.4rem 0.6rem', fontFamily: 'monospace', color: '#0f766e' }}>{c.password}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Barra de Búsqueda */}
                   <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
                     <div
                       style={{
                         padding: '0.875rem 1.25rem',
                         borderBottom: '1px solid #e2e8f0',
                         backgroundColor: '#ffffff',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '0.75rem',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 260px' }}>
-                        <div style={{ position: 'relative', width: '100%' }}>
-                          <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                          <input
-                            type="text"
-                            placeholder="Buscar alumno por nombre, usuario o GitHub..."
-                            className="input-field"
-                            style={{ paddingLeft: '2.25rem', fontSize: '0.875rem', width: '100%' }}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                          />
-                        </div>
+                      <div style={{ position: 'relative', width: '100%' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                        <input
+                          type="text"
+                          placeholder="Buscar alumno por nombre, usuario o GitHub..."
+                          className="input-field"
+                          style={{ paddingLeft: '2.25rem', fontSize: '0.875rem', width: '100%' }}
+                          value={searchTerm}
+                          onChange={e => setSearchTerm(e.target.value)}
+                        />
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewStudentFullName('');
-                          setNewStudentUsername('');
-                          setNewStudentPassword('');
-                          setCreateModalError(null);
-                          setShowCreateStudentModal(true);
-                        }}
-                        className="btn-primary"
-                        style={{ fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
-                      >
-                        <UserPlus size={16} />
-                        + Crear Cuenta de Alumno
-                      </button>
                     </div>
 
                     {/* Tabla de Alumnos */}
@@ -659,132 +709,7 @@ export const TeacherAdminView: React.FC = () => {
         </div>
       )}
 
-      {/* ==================== MODAL: CREAR ALUMNO LOCAL ==================== */}
-      {showCreateStudentModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-          }}
-        >
-          <div className="card" style={{ maxWidth: 460, width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ background: '#eff6ff', color: '#2563eb', padding: '0.5rem', borderRadius: '0.375rem' }}>
-                <UserPlus size={20} />
-              </div>
-              <div>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>Crear Cuenta de Alumno</h2>
-              </div>
-            </div>
 
-            {createModalError && (
-              <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.875rem', marginBottom: '1rem' }}>
-                {createModalError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Nombre Completo *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ej. María López"
-                  className="input-field"
-                  value={newStudentFullName}
-                  onChange={e => setNewStudentFullName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Nombre de Usuario o Email *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ej. mlopez o mlopez@centro.edu"
-                  className="input-field"
-                  value={newStudentUsername}
-                  onChange={e => setNewStudentUsername(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Contraseña Inicial *
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      placeholder="Mínimo 6 caracteres"
-                      className="input-field"
-                      style={{ paddingRight: '2.5rem', width: '100%', fontFamily: showPassword ? 'monospace' : undefined }}
-                      value={newStudentPassword}
-                      onChange={e => setNewStudentPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(prev => !prev)}
-                      style={{
-                        position: 'absolute',
-                        right: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#64748b',
-                        padding: '0.25rem',
-                      }}
-                      title={showPassword ? 'Ocultar' : 'Mostrar'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={generateRandomPassword}
-                    className="btn-secondary"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
-                    title="Generar contraseña aleatoria"
-                  >
-                    <Dices size={14} />
-                    Aleatoria
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateStudentModal(false)}
-                  className="btn-secondary"
-                  disabled={creatingStudent}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" disabled={creatingStudent} className="btn-primary">
-                  {creatingStudent ? 'Creando...' : 'Crear Alumno'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ==================== MODAL: CONFIRMAR ELIMINACIÓN DE ALUMNO ==================== */}
       {studentToDelete && (

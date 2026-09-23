@@ -2,6 +2,8 @@ package com.benigascode.identity.api;
 
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.dto.BulkCreateStudentItem;
+import com.benigascode.identity.dto.BulkCreateStudentResponse;
 import com.benigascode.identity.dto.CreateStudentRequest;
 import com.benigascode.identity.dto.StudentTagRequest;
 import com.benigascode.identity.dto.TeacherStudentDTO;
@@ -51,6 +53,12 @@ public class TeacherStudentController {
                 Role.STUDENT
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BulkCreateStudentResponse> createStudentsBulk(
+            @RequestBody List<BulkCreateStudentItem> items) {
+        return ResponseEntity.ok(studentService.createStudentsBulk(items));
     }
 
     @DeleteMapping("/{studentId}")

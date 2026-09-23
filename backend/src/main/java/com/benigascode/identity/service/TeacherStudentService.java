@@ -4,6 +4,8 @@ import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.common.exception.ValidationException;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.dto.BulkCreateStudentItem;
+import com.benigascode.identity.dto.BulkCreateStudentResponse;
 import com.benigascode.identity.dto.TeacherStudentDTO;
 import com.benigascode.identity.repository.UserRepository;
 import com.benigascode.learning.domain.StudentTag;
@@ -15,14 +17,20 @@ import com.benigascode.learning.repository.TagRepository;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
 import com.benigascode.learning.service.TagService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.*;
 
 @Service
 public class TeacherStudentService {
+
+    private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private final UserRepository userRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
@@ -30,19 +38,22 @@ public class TeacherStudentService {
     private final StudentTagRepository studentTagRepository;
     private final ContextService contextService;
     private final TagService tagService;
+    private final PasswordEncoder passwordEncoder;
 
     public TeacherStudentService(UserRepository userRepository,
                                  TeachingSpaceRepository teachingSpaceRepository,
                                  TagRepository tagRepository,
                                  StudentTagRepository studentTagRepository,
                                  ContextService contextService,
-                                 TagService tagService) {
+                                 TagService tagService,
+                                 PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.tagRepository = tagRepository;
         this.studentTagRepository = studentTagRepository;
         this.contextService = contextService;
         this.tagService = tagService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
@@ -234,5 +245,115 @@ public class TeacherStudentService {
             throw new ValidationException("Solo se pueden eliminar cuentas con rol de alumno");
         }
         userRepository.delete(student);
+    }
+
+    @Transactional
+    public BulkCreateStudentResponse createStudentsBulk(List<BulkCreateStudentItem> items) {
+        if (items == null || items.isEmpty()) {
+            return new BulkCreateStudentResponse(Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<BulkCreateStudentResponse.CreatedStudentItem> created = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < items.size(); i++) {
+            BulkCreateStudentItem item = items.get(i);
+            if (item == null) {
+                continue;
+            }
+
+            String fullName = item.fullName() != null ? item.fullName().trim() : "";
+            if (fullName.isBlank()) {
+                errors.add("Fila " + (i + 1) + ": el nombre completo es obligatorio");
+                continue;
+            }
+
+            boolean generatedUsername = false;
+            String username = item.username() != null ? item.username().trim() : "";
+            if (username.isBlank()) {
+                username = generateUniqueUsername(fullName);
+                generatedUsername = true;
+            } else {
+                if (userRepository.existsByUsername(username)) {
+                    errors.add(fullName + ": el nombre de usuario o email '" + username + "' ya está registrado");
+                    continue;
+                }
+            }
+
+            boolean generatedPassword = false;
+            String password = item.password() != null ? item.password().trim() : "";
+            if (password.isBlank()) {
+                password = generateRandomPassword();
+                generatedPassword = true;
+            }
+
+            String encoded = passwordEncoder.encode(password);
+            User user = new User(username, encoded, fullName, Role.STUDENT);
+            user = userRepository.save(user);
+
+            created.add(new BulkCreateStudentResponse.CreatedStudentItem(
+                    user.getId(),
+                    user.getFullName(),
+                    user.getUsername(),
+                    password,
+                    generatedUsername,
+                    generatedPassword
+            ));
+        }
+
+        return new BulkCreateStudentResponse(created, errors);
+    }
+
+    private String generateUniqueUsername(String fullName) {
+        String normalized = Normalizer.normalize(fullName.trim().toLowerCase(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        normalized = normalized.replaceAll("[^a-z0-9\\s]", " ").trim();
+        String[] parts = normalized.split("\\s+");
+
+        String base;
+        if (parts.length == 0 || parts[0].isBlank()) {
+            base = "alumno";
+        } else if (parts.length == 1) {
+            base = parts[0];
+        } else {
+            char firstInitial = parts[0].charAt(0);
+            String surname = parts[1];
+            Set<String> particles = Set.of("de", "del", "la", "el", "los", "las", "da", "di", "y");
+            for (int i = 1; i < parts.length; i++) {
+                if (!particles.contains(parts[i]) && parts[i].length() > 1) {
+                    surname = parts[i];
+                    break;
+                }
+            }
+            base = ("" + firstInitial + surname).replaceAll("[^a-z0-9]", "");
+            if (base.isBlank()) {
+                base = parts[0];
+            }
+        }
+
+        if (base.isBlank()) {
+            base = "alumno";
+        }
+
+        if (base.length() > 80) {
+            base = base.substring(0, 80);
+        }
+
+        String candidate = base;
+        int counter = 1;
+        while (userRepository.existsByUsername(candidate)) {
+            candidate = base + counter;
+            counter++;
+        }
+
+        return candidate;
+    }
+
+    private String generateRandomPassword() {
+        StringBuilder sb = new StringBuilder(10);
+        for (int i = 0; i < 10; i++) {
+            sb.append(PASSWORD_CHARS.charAt(secureRandom.nextInt(PASSWORD_CHARS.length())));
+        }
+        return sb.toString();
     }
 }

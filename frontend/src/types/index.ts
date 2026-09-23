@@ -696,3 +696,30 @@ export interface AddAuthorizedTeacherRequest {
   notes?: string;
 }
 
+export interface BulkCreateStudentItem {
+  fullName: string;
+  username?: string;
+  password?: string;
+}
+
+export interface CreatedStudentItem {
+  id: string;
+  fullName: string;
+  username: string;
+  password: string;
+  generatedUsername: boolean;
+  generatedPassword: boolean;
+}
+
+export interface BulkCreateStudentResponse {
+  created: CreatedStudentItem[];
+  errors: string[];
+}
+
+export interface BulkAddTeacherResponse {
+  added: AuthorizedTeacherDTO[];
+  skipped: string[];
+  errors: string[];
+}
+
+

@@ -3,6 +3,7 @@ package com.benigascode.identity.api;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.dto.AddAuthorizedTeacherRequest;
 import com.benigascode.identity.dto.AuthorizedTeacherDTO;
+import com.benigascode.identity.dto.BulkAddTeacherResponse;
 import com.benigascode.identity.service.AuthorizedTeacherService;
 import com.benigascode.identity.service.UserService;
 import jakarta.validation.Valid;
@@ -37,6 +38,12 @@ public class TeacherManagementController {
         User teacher = userService.getCurrentUser();
         AuthorizedTeacherDTO created = authorizedTeacherService.addAuthorizedTeacher(request, teacher);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<BulkAddTeacherResponse> addTeachersBulk(@RequestBody List<AddAuthorizedTeacherRequest> requests) {
+        User teacher = userService.getCurrentUser();
+        return ResponseEntity.ok(authorizedTeacherService.addAuthorizedTeachersBulk(requests, teacher));
     }
 
     @DeleteMapping("/{id}")
