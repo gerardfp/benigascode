@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { TeacherStudent } from '../types';
 import { TeacherManagementView } from './TeacherManagementView';
@@ -20,8 +20,7 @@ import {
   Search, 
   AlertCircle,
   CheckCircle2,
-  ExternalLink,
-  Layers
+  ExternalLink
 } from 'lucide-react';
 
 export const TeacherAdminView: React.FC = () => {
@@ -204,16 +203,6 @@ export const TeacherAdminView: React.FC = () => {
 
   return (
     <div className="app-container" style={{ paddingBottom: '3rem' }}>
-      {/* Cabecera Principal de Administración */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.625rem', fontWeight: 700, margin: '0 0 0.35rem', color: '#0f172a' }}>
-          Administración
-        </h1>
-        <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
-          Gestión centralizada de cuentas de profesores y alumnos, e importación/exportación de catálogos y ejercicios.
-        </p>
-      </div>
-
       {/* Pestañas Principales: Cuentas | Importar / Exportar */}
       <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '1.5rem', gap: '0.5rem' }}>
         <button
@@ -326,60 +315,12 @@ export const TeacherAdminView: React.FC = () => {
 
           {/* SUBTAB: PROFESORES */}
           {activeSubtab === 'teachers' && (
-            <div>
-              <div style={{ marginBottom: '1rem' }}>
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.25rem', color: '#1e293b' }}>
-                  Autorización de Profesores
-                </h2>
-                <p style={{ color: '#64748b', margin: 0, fontSize: '0.8125rem' }}>
-                  Gestiona las cuentas de GitHub autorizadas para acceder a la plataforma con rol de profesor.
-                </p>
-              </div>
-              <TeacherManagementView embedded={true} />
-            </div>
+            <TeacherManagementView embedded={true} />
           )}
 
           {/* SUBTAB: ALUMNOS */}
           {activeSubtab === 'students' && (
             <div>
-              {/* Notificación informativa: Organización en Espacios se mantiene en Alumnos */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.75rem 1rem',
-                  background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: '0.5rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.8125rem',
-                  color: '#1e40af',
-                  gap: '0.75rem',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Layers size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
-                  <span>
-                    <strong>Organización de Alumnos:</strong> Para agrupar a los alumnos mediante etiquetas y asignarlos a espacios docentes, utiliza la sección principal.
-                  </span>
-                </div>
-                <Link
-                  to="/teacher/students"
-                  style={{
-                    color: '#2563eb',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                  }}
-                >
-                  Ir a Alumnos &rarr;
-                </Link>
-              </div>
-
               {/* Sub-sección pills: Cuentas Registradas & Alta | Claves de Invitación */}
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
                 <button
@@ -742,7 +683,6 @@ export const TeacherAdminView: React.FC = () => {
               </div>
               <div>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>Crear Cuenta de Alumno</h2>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Alta directa de cuenta local con contraseña</div>
               </div>
             </div>
 
@@ -779,9 +719,6 @@ export const TeacherAdminView: React.FC = () => {
                   value={newStudentUsername}
                   onChange={e => setNewStudentUsername(e.target.value)}
                 />
-                <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                  Se utilizará para iniciar sesión en la plataforma.
-                </span>
               </div>
 
               <div>
@@ -913,3 +850,4 @@ export const TeacherAdminView: React.FC = () => {
     </div>
   );
 };
+

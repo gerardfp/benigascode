@@ -16,3 +16,4 @@ public record CreateStudentRequest(
     @Size(min = 6, max = 100, message = "La contraseña debe tener al menos 6 caracteres")
     String password
 ) {}
+
