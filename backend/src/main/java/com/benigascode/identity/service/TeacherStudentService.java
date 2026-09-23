@@ -249,6 +249,11 @@ public class TeacherStudentService {
 
     @Transactional
     public BulkCreateStudentResponse createStudentsBulk(List<BulkCreateStudentItem> items) {
+        return createStudentsBulk(items, null, null);
+    }
+
+    @Transactional
+    public BulkCreateStudentResponse createStudentsBulk(List<BulkCreateStudentItem> items, List<UUID> tagIds, User teacher) {
         if (items == null || items.isEmpty()) {
             return new BulkCreateStudentResponse(Collections.emptyList(), Collections.emptyList());
         }
@@ -299,6 +304,21 @@ public class TeacherStudentService {
                     generatedUsername,
                     generatedPassword
             ));
+        }
+
+        if (tagIds != null && !tagIds.isEmpty() && !created.isEmpty()) {
+            List<UUID> createdIds = created.stream()
+                    .map(BulkCreateStudentResponse.CreatedStudentItem::id)
+                    .toList();
+            for (UUID tagId : tagIds) {
+                if (tagId != null) {
+                    try {
+                        tagService.batchAssignTag(createdIds, tagId, teacher, Instant.now(), null);
+                    } catch (Exception e) {
+                        errors.add("Error al asignar etiqueta (" + tagId + "): " + e.getMessage());
+                    }
+                }
+            }
         }
 
         return new BulkCreateStudentResponse(created, errors);

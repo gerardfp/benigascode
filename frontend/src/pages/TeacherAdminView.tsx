@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { TeacherStudent, BulkCreateStudentItem, CreatedStudentItem } from '../types';
+import { TeacherStudent, BulkCreateStudentItem, CreatedStudentItem, Tag } from '../types';
+import { TagBadge } from '../components/TagBadge';
 import { TeacherManagementView } from './TeacherManagementView';
 import { TeacherInvitationsView } from './TeacherInvitationsView';
 import { GitSyncView } from './GitSyncView';
@@ -18,7 +19,10 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
-  Copy
+  Copy,
+  Tag as TagIcon,
+  Plus,
+  X
 } from 'lucide-react';
 
 export const TeacherAdminView: React.FC = () => {
@@ -82,6 +86,16 @@ export const TeacherAdminView: React.FC = () => {
   const [createdCredentials, setCreatedCredentials] = useState<CreatedStudentItem[] | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
 
+  // Asignación de etiquetas para nuevos alumnos
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [showTagPanel, setShowTagPanel] = useState(false);
+  const [unassignedTagSearch, setUnassignedTagSearch] = useState('');
+  const [newTagCategory, setNewTagCategory] = useState('');
+  const [newTagValue, setNewTagValue] = useState('');
+  const [newTagDescription, setNewTagDescription] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
+
   // Alumno a eliminar
   const [studentToDelete, setStudentToDelete] = useState<TeacherStudent | null>(null);
   const [deletingStudent, setDeletingStudent] = useState(false);
@@ -90,8 +104,12 @@ export const TeacherAdminView: React.FC = () => {
     setLoadingStudents(true);
     setStudentError(null);
     try {
-      const data = await api.listTeacherStudents();
+      const [data, tags] = await Promise.all([
+        api.listTeacherStudents(),
+        api.listTags().catch(() => [] as Tag[])
+      ]);
       setStudents(data);
+      setAvailableTags(tags);
     } catch (err: any) {
       setStudentError(err.message || 'Error al cargar la lista de alumnos');
     } finally {
@@ -104,6 +122,71 @@ export const TeacherAdminView: React.FC = () => {
       loadStudents();
     }
   }, [activeTab, activeSubtab]);
+
+  // Tags seleccionados para asignar
+  const selectedTags = useMemo(() => {
+    return availableTags.filter(t => selectedTagIds.has(t.id));
+  }, [availableTags, selectedTagIds]);
+
+  // Tags disponibles no seleccionados con búsqueda
+  const unassignedTags = useMemo(() => {
+    let list = availableTags.filter(t => !selectedTagIds.has(t.id));
+    const q = unassignedTagSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(t =>
+        t.category.toLowerCase().includes(q) ||
+        t.value.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q))
+      );
+    }
+    return list.sort((a, b) => a.category.localeCompare(b.category) || a.value.localeCompare(b.value));
+  }, [availableTags, selectedTagIds, unassignedTagSearch]);
+
+  // Categorías existentes para el datalist
+  const existingCategories = useMemo(() => {
+    return Array.from(new Set(availableTags.map(t => t.category))).sort();
+  }, [availableTags]);
+
+  const handleToggleTag = (tagId: string) => {
+    setSelectedTagIds(prev => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return next;
+    });
+  };
+
+  const handleClearTagSelection = () => {
+    setSelectedTagIds(new Set());
+  };
+
+  const handleCreateAndSelectTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cat = newTagCategory.trim();
+    const val = newTagValue.trim();
+    if (!cat || !val) return;
+
+    setCreatingTag(true);
+    try {
+      const tag = await api.createTag({
+        category: cat,
+        value: val,
+        description: newTagDescription.trim() || undefined,
+      });
+      setAvailableTags(prev => [...prev, tag]);
+      setSelectedTagIds(prev => new Set(prev).add(tag.id));
+      setNewTagCategory('');
+      setNewTagValue('');
+      setNewTagDescription('');
+    } catch (err: any) {
+      alert(err.message || 'Error al crear etiqueta');
+    } finally {
+      setCreatingTag(false);
+    }
+  };
 
   const handleBulkCreateStudents = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,9 +211,11 @@ export const TeacherAdminView: React.FC = () => {
     setBulkStudentErrors([]);
 
     try {
-      const res = await api.bulkCreateStudents(items);
+      const tagIdsToSend = Array.from(selectedTagIds);
+      const res = await api.bulkCreateStudents(items, tagIdsToSend);
       if (res.created.length > 0) {
-        setStudentSuccess(`${res.created.length} alumno(s) creado(s) correctamente.`);
+        const tagMsg = tagIdsToSend.length > 0 ? ` con ${tagIdsToSend.length} etiqueta(s)` : '';
+        setStudentSuccess(`${res.created.length} alumno(s) creado(s) correctamente${tagMsg}.`);
         setCreatedCredentials(res.created);
       }
       if (res.errors.length > 0) {
@@ -425,7 +510,39 @@ export const TeacherAdminView: React.FC = () => {
                         value={bulkStudentText}
                         onChange={e => setBulkStudentText(e.target.value)}
                       />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowTagPanel(prev => !prev)}
+                            className={showTagPanel || selectedTagIds.size > 0 ? "btn-primary" : "btn-secondary"}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8125rem',
+                              padding: '0.45rem 0.85rem',
+                            }}
+                          >
+                            <TagIcon size={14} />
+                            Asignar etiquetas {selectedTagIds.size > 0 ? `(${selectedTagIds.size})` : ''}
+                          </button>
+
+                          {selectedTags.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              {selectedTags.map(tag => (
+                                <TagBadge
+                                  key={tag.id}
+                                  category={tag.category}
+                                  value={tag.value}
+                                  color={tag.color}
+                                  onRemove={() => handleToggleTag(tag.id)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
                         <button
                           type="submit"
                           disabled={submittingBulkStudents || !bulkStudentText.trim()}
@@ -438,6 +555,333 @@ export const TeacherAdminView: React.FC = () => {
                       </div>
                     </form>
                   </div>
+
+                  {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Análogo a /teacher/students) */}
+                  {showTagPanel && (
+                    <div
+                      className="card"
+                      style={{
+                        marginBottom: '1.25rem',
+                        border: '2px solid #2563eb',
+                        borderRadius: '0.75rem',
+                        padding: 0,
+                        overflow: 'hidden',
+                        boxShadow: '0 4px 14px -2px rgba(37, 99, 235, 0.15)',
+                        background: '#ffffff',
+                      }}
+                    >
+                      {/* Cabecera del Marco */}
+                      <div
+                        style={{
+                          padding: '0.875rem 1.25rem',
+                          background: '#eff6ff',
+                          borderBottom: '1px solid #bfdbfe',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                          <div style={{ background: '#2563eb', color: '#fff', borderRadius: '0.375rem', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <TagIcon size={16} />
+                          </div>
+                          <div>
+                            <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#1e3a8a' }}>
+                              Asignación de etiquetas para nuevos alumnos
+                            </h2>
+                            <div style={{ fontSize: '0.8125rem', color: '#1d4ed8' }}>
+                              <strong>{selectedTagIds.size} {selectedTagIds.size === 1 ? 'etiqueta seleccionada' : 'etiquetas seleccionadas'}</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {selectedTagIds.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={handleClearTagSelection}
+                              className="btn-secondary"
+                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: '#ffffff' }}
+                            >
+                              Deseleccionar todas
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowTagPanel(false)}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: '#ffffff' }}
+                          >
+                            Cerrar panel
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Contenido: 2 Columnas */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                          gap: '1.25rem',
+                          padding: '1.25rem',
+                        }}
+                      >
+                        {/* LADO IZQUIERDO: Etiquetas seleccionadas */}
+                        <div
+                          style={{
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                              Etiquetas seleccionadas ({selectedTags.length})
+                            </h3>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 250, overflowY: 'auto' }}>
+                            {selectedTags.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem' }}>
+                                Ninguna etiqueta seleccionada
+                              </div>
+                            ) : (
+                              selectedTags.map(tag => (
+                                <div
+                                  key={tag.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: '#ffffff',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '0.375rem',
+                                    padding: '0.4rem 0.625rem',
+                                    gap: '0.5rem',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
+                                    <TagBadge
+                                      category={tag.category}
+                                      value={tag.value}
+                                      color={tag.color}
+                                    />
+                                    {tag.description && (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                        ({tag.description})
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleTag(tag.id)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 26,
+                                      height: 26,
+                                      borderRadius: '0.25rem',
+                                      border: '1px solid #fecaca',
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Quitar de la selección"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* LADO DERECHO: Etiquetas disponibles */}
+                        <div
+                          style={{
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
+                            <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                              Etiquetas disponibles ({unassignedTags.length})
+                            </h3>
+                          </div>
+
+                          {availableTags.length > 4 && (
+                            <div style={{ marginBottom: '0.5rem' }}>
+                              <input
+                                type="text"
+                                placeholder="Buscar etiqueta..."
+                                value={unassignedTagSearch}
+                                onChange={e => setUnassignedTagSearch(e.target.value)}
+                                className="input-field"
+                                style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                              />
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 220, overflowY: 'auto' }}>
+                            {unassignedTags.length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
+                                {unassignedTagSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas disponibles.'}
+                              </div>
+                            ) : (
+                              unassignedTags.map(tag => (
+                                <div
+                                  key={tag.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: '#ffffff',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '0.375rem',
+                                    padding: '0.4rem 0.625rem',
+                                    gap: '0.5rem',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
+                                    <TagBadge
+                                      category={tag.category}
+                                      value={tag.value}
+                                      color={tag.color}
+                                    />
+                                    {tag.description && (
+                                      <span style={{ color: '#94a3b8', fontSize: '0.75rem', marginLeft: '0.25rem' }}>
+                                        ({tag.description})
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleTag(tag.id)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 26,
+                                      height: 26,
+                                      borderRadius: '0.25rem',
+                                      border: '1px solid #bfdbfe',
+                                      background: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Añadir a la selección"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* PARTE INFERIOR: Formulario para crear etiqueta (categoria:valor) */}
+                      <div
+                        style={{
+                          background: '#f8fafc',
+                          borderTop: '1px solid #e2e8f0',
+                          padding: '0.875rem 1.25rem',
+                        }}
+                      >
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
+                          Crear nueva etiqueta
+                        </div>
+                        <form
+                          onSubmit={handleCreateAndSelectTag}
+                          style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            alignItems: 'flex-end',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <div style={{ minWidth: 140, flex: 1 }}>
+                            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                              Categoría *
+                            </label>
+                            <input
+                              type="text"
+                              list="admin-tag-categories"
+                              placeholder="ej. group, año..."
+                              value={newTagCategory}
+                              onChange={e => setNewTagCategory(e.target.value)}
+                              className="input-field"
+                              style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                              required
+                            />
+                            <datalist id="admin-tag-categories">
+                              {existingCategories.map(cat => (
+                                <option key={cat} value={cat} />
+                              ))}
+                            </datalist>
+                          </div>
+
+                          <div style={{ minWidth: 160, flex: 1.5 }}>
+                            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                              Valor *
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="ej. DAM2, 2026-2027..."
+                              value={newTagValue}
+                              onChange={e => setNewTagValue(e.target.value)}
+                              className="input-field"
+                              style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                              required
+                            />
+                          </div>
+
+                          <div style={{ minWidth: 160, flex: 1.5 }}>
+                            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
+                              Descripción (opcional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="ej. Grupo de refuerzo"
+                              value={newTagDescription}
+                              onChange={e => setNewTagDescription(e.target.value)}
+                              className="input-field"
+                              style={{ width: '100%', fontSize: '0.8125rem', padding: '0.35rem 0.5rem' }}
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={creatingTag || !newTagCategory.trim() || !newTagValue.trim()}
+                            className="btn-primary"
+                            style={{
+                              fontSize: '0.8125rem',
+                              padding: '0.45rem 1rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <Plus size={14} />
+                            {creatingTag ? 'Creando...' : 'Crear y seleccionar'}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  )}
 
                   {bulkStudentErrors.length > 0 && (
                     <div style={{
@@ -620,6 +1064,23 @@ export const TeacherAdminView: React.FC = () => {
                                         <div style={{ fontWeight: 600, color: '#1e293b' }}>
                                           {student.fullName}
                                         </div>
+                                        {student.activeTags && student.activeTags.length > 0 && (
+                                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                                            {student.activeTags.map(st => {
+                                              const cat = st.category || st.tag?.category || '';
+                                              const val = st.value || st.tag?.value || '';
+                                              const tagColor = st.color || st.tag?.color;
+                                              return (
+                                                <TagBadge
+                                                  key={st.id || `${cat}:${val}`}
+                                                  category={cat}
+                                                  value={val}
+                                                  color={tagColor}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </td>

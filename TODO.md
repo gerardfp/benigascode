@@ -9,9 +9,9 @@
 - en les llista de espacios i colecciones que pose només el nom
 - en la llista de colecciones i ejercicios, que el slug siga un enllaç
 
-- diferencia entre logearse con github i conectar github
 
 - en la llista de espacios i alumnos, te que haver un enllaç a "insigths"
 
 - els insights tinc que poder vore'ls per etiqueta
+
 - en els insights de un espacio tinc que poder vore com va cada alumno en cada coleccio asignada

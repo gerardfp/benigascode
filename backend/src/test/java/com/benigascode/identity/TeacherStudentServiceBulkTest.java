@@ -118,5 +118,24 @@ class TeacherStudentServiceBulkTest {
         assertTrue(response.errors().get(0).contains("nombre completo es obligatorio"));
         assertTrue(response.errors().get(1).contains("ya está registrado"));
     }
+
+    @Test
+    void createStudentsBulk_AssignsSelectedTagsToCreatedStudents() {
+        when(userRepository.existsByUsername("plopez")).thenReturn(false);
+
+        UUID tagId1 = UUID.randomUUID();
+        UUID tagId2 = UUID.randomUUID();
+        User teacher = new User("teacher1", "pass", "Profesor Test", Role.TEACHER);
+
+        BulkCreateStudentItem item = new BulkCreateStudentItem("Pedro López", null, null);
+        BulkCreateStudentResponse response = studentService.createStudentsBulk(List.of(item), List.of(tagId1, tagId2), teacher);
+
+        assertEquals(1, response.created().size());
+        assertEquals(0, response.errors().size());
+        UUID createdStudentId = response.created().get(0).id();
+
+        verify(tagService, times(1)).batchAssignTag(eq(List.of(createdStudentId)), eq(tagId1), eq(teacher), any(), isNull());
+        verify(tagService, times(1)).batchAssignTag(eq(List.of(createdStudentId)), eq(tagId2), eq(teacher), any(), isNull());
+    }
 }
 

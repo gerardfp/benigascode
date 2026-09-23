@@ -571,11 +571,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  bulkCreateStudents: (items: BulkCreateStudentItem[]): Promise<BulkCreateStudentResponse> =>
-    request<BulkCreateStudentResponse>('/teacher/students/bulk', {
+  bulkCreateStudents: (items: BulkCreateStudentItem[], tagIds?: string[]): Promise<BulkCreateStudentResponse> => {
+    const qs = tagIds && tagIds.length > 0 ? `?tagIds=${tagIds.map(encodeURIComponent).join(',')}` : '';
+    return request<BulkCreateStudentResponse>(`/teacher/students/bulk${qs}`, {
       method: 'POST',
       body: JSON.stringify(items),
-    }),
+    });
+  },
 
   deleteStudentAccount: (studentId: string): Promise<void> =>
     request<void>(`/teacher/students/${studentId}`, {

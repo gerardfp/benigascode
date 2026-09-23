@@ -57,8 +57,10 @@ public class TeacherStudentController {
 
     @PostMapping("/bulk")
     public ResponseEntity<BulkCreateStudentResponse> createStudentsBulk(
-            @RequestBody List<BulkCreateStudentItem> items) {
-        return ResponseEntity.ok(studentService.createStudentsBulk(items));
+            @RequestBody List<BulkCreateStudentItem> items,
+            @RequestParam(required = false) List<UUID> tagIds) {
+        User teacher = userService.getCurrentUser();
+        return ResponseEntity.ok(studentService.createStudentsBulk(items, tagIds, teacher));
     }
 
     @DeleteMapping("/{studentId}")
