@@ -494,6 +494,9 @@ export const TeacherAdminView: React.FC = () => {
               {/* SECCIÓN 1: CUENTAS REGISTRADAS & ALTA */}
               {activeStudentSection === 'accounts' && (
                 <div>
+                  {/* Creación Masiva de Alumnos (CSV) */}
+                  <div className="card" style={{ padding: '0.875rem 1.25rem', marginBottom: '1.25rem' }}>
+                    <form onSubmit={handleBulkCreateStudents} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {/* Panel integrado de Creación Masiva y Asignación de Etiquetas (Una única card) */}
                   <div className="card" style={{ padding: 0, marginBottom: '1.25rem', overflow: 'hidden' }}>
                     <div style={{ padding: '0.875rem 1.25rem' }}>
@@ -557,10 +560,18 @@ export const TeacherAdminView: React.FC = () => {
                     </form>
                   </div>
 
+                  {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Análogo a /teacher/students) */}
                   {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Integrado en la misma card) */}
                   {showTagPanel && (
                     <div
+                      className="card"
                       style={{
+                        marginBottom: '1.25rem',
+                        border: '2px solid #2563eb',
+                        borderRadius: '0.75rem',
+                        padding: 0,
+                        overflow: 'hidden',
+                        boxShadow: '0 4px 14px -2px rgba(37, 99, 235, 0.15)',
                         borderTop: '1px solid #bfdbfe',
                         background: '#ffffff',
                       }}
