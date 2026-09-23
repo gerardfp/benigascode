@@ -4,7 +4,11 @@ import { api } from '../services/api';
 import { InvitationCode } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 
-export const TeacherInvitationsView: React.FC = () => {
+interface TeacherInvitationsProps {
+  embedded?: boolean;
+}
+
+export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embedded = false }) => {
   const [invitations, setInvitations] = useState<InvitationCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -130,28 +134,52 @@ export const TeacherInvitationsView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="app-container">
+      <div className={embedded ? undefined : "app-container"}>
         <p style={{ color: '#64748b' }}>Cargando claves de invitación...</p>
       </div>
     );
   }
 
   return (
-    <div className="app-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <Link to="/teacher" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
-            &larr; Volver al Panel Docente
-          </Link>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0 0.25rem' }}>
-            Claves de Invitación para Alumnos
-          </h1>
-          <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
-            Genera códigos para que tus alumnos puedan registrarse con su cuenta de GitHub. Puedes desactivar una clave en cualquier momento.
-          </p>
-        </div>
+    <div className={embedded ? undefined : "app-container"}>
+      {!embedded ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <Link to="/teacher" style={{ color: '#64748b', textDecoration: 'none', fontSize: '0.875rem' }}>
+              &larr; Volver al Panel Docente
+            </Link>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0 0.25rem' }}>
+              Claves de Invitación para Alumnos
+            </h1>
+            <p style={{ color: '#64748b', margin: 0, fontSize: '0.875rem' }}>
+              Genera códigos para que tus alumnos puedan registrarse con su cuenta de GitHub. Puedes desactivar una clave en cualquier momento.
+            </p>
+          </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                setCode('');
+                setDescription('');
+                setError(null);
+                setShowCreateModal(true);
+              }}
+              className="btn-primary"
+            >
+              + Nueva Clave de Invitación
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.25rem' }}>
+              Claves de Invitación para Registro con GitHub
+            </h2>
+            <p style={{ color: '#64748b', margin: 0, fontSize: '0.8125rem' }}>
+              Genera códigos para que los alumnos se registren ellos mismos mediante su cuenta de GitHub.
+            </p>
+          </div>
           <button
             onClick={() => {
               setCode('');
@@ -160,11 +188,12 @@ export const TeacherInvitationsView: React.FC = () => {
               setShowCreateModal(true);
             }}
             className="btn-primary"
+            style={{ fontSize: '0.875rem' }}
           >
             + Nueva Clave de Invitación
           </button>
         </div>
-      </div>
+      )}
 
       {/* Tarjetas KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>

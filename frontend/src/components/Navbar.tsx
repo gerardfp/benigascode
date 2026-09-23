@@ -71,8 +71,8 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     if (path === '/') {
       return location.pathname === '/';
     }
-    if (path === '/teacher/teachers' || path === '/teacher/management') {
-      return location.pathname.startsWith('/teacher/teachers') || location.pathname.startsWith('/teacher/management');
+    if (path === '/teacher/admin') {
+      return location.pathname.startsWith('/teacher/admin') || location.pathname.startsWith('/teacher/teachers') || location.pathname.startsWith('/teacher/sync') || location.pathname.startsWith('/teacher/invitations');
     }
     return location.pathname.startsWith(path);
   };
@@ -153,11 +153,10 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                     Espacios
                   </Link>
                   <Link to="/teacher/students" className={`nav-link ${isPathActive('/teacher/students') ? 'active' : ''}`}>Alumnos</Link>
-                  <Link to="/teacher/teachers" className={`nav-link ${isPathActive('/teacher/teachers') ? 'active' : ''}`}>Profesores</Link>
                   <Link to="/teacher/activities" className={`nav-link ${isPathActive('/teacher/activities') ? 'active' : ''}`}>Actividades</Link>
                   <Link to="/teacher/insights" className={`nav-link ${isPathActive('/teacher/insights') ? 'active' : ''}`}>Insights</Link>
                   <Link to="/teacher/submissions" className={`nav-link ${isPathActive('/teacher/submissions') ? 'active' : ''}`}>Envíos</Link>
-                  <Link to="/teacher/sync" className={`nav-link ${isPathActive('/teacher/sync') ? 'active' : ''}`}>Importar / Exportar</Link>
+                  <Link to="/teacher/admin" className={`nav-link ${isPathActive('/teacher/admin') ? 'active' : ''}`}>Admin</Link>
                 </>
               )}
             </nav>

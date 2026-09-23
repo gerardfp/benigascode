@@ -225,4 +225,14 @@ public class TeacherStudentService {
                 .sorted()
                 .toList();
     }
+
+    @Transactional
+    public void deleteStudent(UUID studentId) {
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Alumno no encontrado: " + studentId));
+        if (student.getRole() != Role.STUDENT) {
+            throw new ValidationException("Solo se pueden eliminar cuentas con rol de alumno");
+        }
+        userRepository.delete(student);
+    }
 }

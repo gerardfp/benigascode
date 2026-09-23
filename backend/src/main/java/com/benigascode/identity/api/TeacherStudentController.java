@@ -1,11 +1,15 @@
 package com.benigascode.identity.api;
 
+import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.dto.CreateStudentRequest;
 import com.benigascode.identity.dto.StudentTagRequest;
 import com.benigascode.identity.dto.TeacherStudentDTO;
+import com.benigascode.identity.dto.UserDTO;
 import com.benigascode.identity.service.TeacherStudentService;
 import com.benigascode.identity.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +40,23 @@ public class TeacherStudentController {
             @RequestParam(required = false) String search) {
         UUID effectiveSpaceId = spaceId != null ? spaceId : courseId;
         return ResponseEntity.ok(studentService.listStudents(effectiveSpaceId, tag, category, value, search));
+    }
+
+    @PostMapping
+    public ResponseEntity<UserDTO> createStudent(@Valid @RequestBody CreateStudentRequest request) {
+        UserDTO created = userService.createUser(
+                request.username().trim(),
+                request.password(),
+                request.fullName().trim(),
+                Role.STUDENT
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @DeleteMapping("/{studentId}")
+    public ResponseEntity<Void> deleteStudent(@PathVariable UUID studentId) {
+        studentService.deleteStudent(studentId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{studentId}/courses/{courseId}")

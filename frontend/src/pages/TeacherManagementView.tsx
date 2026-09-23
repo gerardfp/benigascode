@@ -3,7 +3,11 @@ import { api } from '../services/api';
 import { AuthorizedTeacherDTO } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 
-export const TeacherManagementView: React.FC = () => {
+interface TeacherManagementProps {
+  embedded?: boolean;
+}
+
+export const TeacherManagementView: React.FC<TeacherManagementProps> = ({ embedded = false }) => {
   const [teachers, setTeachers] = useState<AuthorizedTeacherDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [githubUsername, setGithubUsername] = useState('');
@@ -102,14 +106,14 @@ export const TeacherManagementView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="app-container">
+      <div className={embedded ? undefined : "app-container"}>
         <p style={{ color: '#64748b' }}>Cargando profesores autorizados...</p>
       </div>
     );
   }
 
   return (
-    <div className="app-container">
+    <div className={embedded ? undefined : "app-container"}>
       {error && (
         <div style={{
           backgroundColor: '#fee2e2',

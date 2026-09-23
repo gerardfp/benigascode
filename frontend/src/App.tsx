@@ -14,7 +14,6 @@ import { TeacherActivityView } from './pages/TeacherActivityView';
 import { TeacherSpacesView } from './pages/TeacherSpacesView';
 import { TeacherActivitiesView } from './pages/TeacherActivitiesView';
 import { CollectionDetailView } from './pages/CollectionDetailView';
-import { GitSyncView } from './pages/GitSyncView';
 import { GitHubCallbackView } from './pages/GitHubCallbackView';
 import { TeacherExercisesView } from './pages/TeacherExercisesView';
 import { TeacherCollectionsView } from './pages/TeacherCollectionsView';
@@ -22,9 +21,8 @@ import { StudentInsightsView } from './pages/StudentInsightsView';
 import { TeacherInsightsView } from './pages/TeacherInsightsView';
 import { TeacherSubmissionsView } from './pages/TeacherSubmissionsView';
 import { RegisterPage } from './pages/RegisterPage';
-import { TeacherInvitationsView } from './pages/TeacherInvitationsView';
 import { TeacherStudentsView } from './pages/TeacherStudentsView';
-import { TeacherManagementView } from './pages/TeacherManagementView';
+import { TeacherAdminView } from './pages/TeacherAdminView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -183,10 +181,10 @@ export const App: React.FC = () => {
             }
           />
           <Route
-            path="/teacher/invitations"
+            path="/teacher/admin"
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
-                <TeacherInvitationsView />
+                <TeacherAdminView />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -196,7 +194,27 @@ export const App: React.FC = () => {
             path="/teacher/teachers"
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
-                <TeacherManagementView />
+                <Navigate to="/teacher/admin?tab=accounts&subtab=teachers" replace />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/invitations"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <Navigate to="/teacher/admin?tab=accounts&subtab=students&section=invitations" replace />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/teacher/sync"
+            element={
+              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
+                <Navigate to="/teacher/admin?tab=sync" replace />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -217,16 +235,6 @@ export const App: React.FC = () => {
             element={
               user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
                 <TeacherActivityView />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
-          <Route
-            path="/teacher/sync"
-            element={
-              user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? (
-                <GitSyncView />
               ) : (
                 <Navigate to="/" replace />
               )

@@ -12,7 +12,11 @@ import {
   CatalogExportPushResultDTO,
 } from '../types';
 
-export const GitSyncView: React.FC = () => {
+interface GitSyncViewProps {
+  embedded?: boolean;
+}
+
+export const GitSyncView: React.FC<GitSyncViewProps> = ({ embedded = false }) => {
   // Pestaña principal activa: 'import' | 'export' | 'sync'
   const [mainTab, setMainTab] = useState<'import' | 'export' | 'sync'>('import');
 
@@ -399,7 +403,7 @@ export const GitSyncView: React.FC = () => {
   };
 
   return (
-    <div className="app-container" style={{ paddingBottom: '3rem' }}>
+    <div className={embedded ? undefined : "app-container"} style={{ paddingBottom: '3rem' }}>
       {/* Cabecera */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         {/* Tarjeta compacta de estado de conexión GitHub */}

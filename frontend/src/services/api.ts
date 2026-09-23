@@ -559,6 +559,17 @@ export const api = {
       method: 'DELETE',
     }),
 
+  createStudentAccount: (data: { username: string; fullName: string; password: string }): Promise<User> =>
+    request<User>('/teacher/students', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteStudentAccount: (studentId: string): Promise<void> =>
+    request<void>(`/teacher/students/${studentId}`, {
+      method: 'DELETE',
+    }),
+
   // Gestión de Alumnos y Etiquetas (Profesor)
   listTeacherStudents: (
     paramsOrCourseId?: { spaceId?: string; courseId?: string; tag?: string; search?: string; category?: string; value?: string } | string,
