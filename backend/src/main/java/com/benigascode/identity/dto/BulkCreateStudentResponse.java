@@ -16,3 +16,4 @@ public record BulkCreateStudentResponse(
         boolean generatedPassword
     ) {}
 }
+

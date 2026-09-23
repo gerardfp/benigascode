@@ -7,3 +7,4 @@ public record BulkAddTeacherResponse(
     List<String> skipped,
     List<String> errors
 ) {}
+

@@ -38,6 +38,14 @@ class GitHubIntegrationTest {
         String url = oauthService.buildAuthorizeUrl();
         assertTrue(url.contains("github.com/login/oauth/authorize"));
         assertTrue(url.contains("dummy-client-id"));
+        assertTrue(url.contains("scope="));
+
+        // When client_id starts with Iv (GitHub App), scope must NOT be included
+        ReflectionTestUtils.setField(oauthService, "clientId", "Iv23liWUUGpPYvhF5mUz");
+        String ghAppUrl = oauthService.buildStudentAuthorizeUrl("login", null);
+        assertTrue(ghAppUrl.contains("client_id=Iv23liWUUGpPYvhF5mUz"));
+        assertFalse(ghAppUrl.contains("scope="), "GitHub Apps must not include scope parameter");
+        assertTrue(ghAppUrl.contains("state=login"));
     }
 
     @Test

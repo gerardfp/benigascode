@@ -53,13 +53,22 @@ public class GitHubOAuthService {
         return redirectUri;
     }
 
+    public boolean isGitHubApp() {
+        return clientId != null && clientId.startsWith("Iv");
+    }
+
     public String buildAuthorizeUrl() {
         if (!isConfigured()) {
             throw new ValidationException("GitHub OAuth no está configurado en el servidor (faltan client-id / client-secret).");
         }
-        String scope = URLEncoder.encode("repo,read:user", StandardCharsets.UTF_8);
         String encodedRedirect = URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
-        return "https://github.com/login/oauth/authorize?client_id=" + clientId + "&scope=" + scope + "&redirect_uri=" + encodedRedirect + "&state=sync";
+        StringBuilder sb = new StringBuilder("https://github.com/login/oauth/authorize?client_id=").append(clientId);
+        if (!isGitHubApp()) {
+            String scope = URLEncoder.encode("repo,read:user", StandardCharsets.UTF_8);
+            sb.append("&scope=").append(scope);
+        }
+        sb.append("&redirect_uri=").append(encodedRedirect).append("&state=sync");
+        return sb.toString();
     }
 
 
@@ -68,13 +77,17 @@ public class GitHubOAuthService {
             throw new ValidationException("GitHub OAuth no está configurado en el servidor (faltan client-id / client-secret).");
         }
         String redirect = (redirectUriOverride != null && !redirectUriOverride.isBlank()) ? redirectUriOverride : redirectUri;
-        String scope = URLEncoder.encode("read:user,user:email", StandardCharsets.UTF_8);
         String encodedRedirect = URLEncoder.encode(redirect, StandardCharsets.UTF_8);
-        String url = "https://github.com/login/oauth/authorize?client_id=" + clientId + "&scope=" + scope + "&redirect_uri=" + encodedRedirect;
-        if (state != null && !state.isBlank()) {
-            url += "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
+        StringBuilder url = new StringBuilder("https://github.com/login/oauth/authorize?client_id=").append(clientId);
+        if (!isGitHubApp()) {
+            String scope = URLEncoder.encode("read:user,user:email", StandardCharsets.UTF_8);
+            url.append("&scope=").append(scope);
         }
-        return url;
+        url.append("&redirect_uri=").append(encodedRedirect);
+        if (state != null && !state.isBlank()) {
+            url.append("&state=").append(URLEncoder.encode(state, StandardCharsets.UTF_8));
+        }
+        return url.toString();
     }
 
     public Map<String, Object> exchangeCodeForToken(String code) {
