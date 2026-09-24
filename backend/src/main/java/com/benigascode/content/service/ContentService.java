@@ -1092,13 +1092,55 @@ public class ContentService {
 
                         UUID exId = null;
                         String title = slug;
-                        Optional<Exercise> exOpt = exerciseRepository.findBySlug(slug);
-                        if (exOpt.isPresent()) {
-                            exId = exOpt.get().getId();
+
+                        // 1. Intentar resolver por exerciseId si está presente en el JSON
+                        if (it.hasNonNull("exerciseId")) {
+                            try {
+                                UUID parsedId = UUID.fromString(it.path("exerciseId").asText());
+                                Optional<Exercise> exById = exerciseRepository.findById(parsedId)
+                                        .or(() -> exerciseVersionRepository.findById(parsedId).map(ExerciseVersion::getExercise));
+                                if (exById.isPresent()) {
+                                    exId = exById.get().getId();
+                                    slug = exById.get().getSlug();
+                                }
+                            } catch (Exception ignored) {}
+                        }
+
+                        // 2. Si no se resolvió por UUID, buscar por slug
+                        if (exId == null && slug != null && !slug.isBlank()) {
+                            Optional<Exercise> exOpt = exerciseRepository.findBySlug(slug);
+                            if (exOpt.isEmpty()) {
+                                try {
+                                    UUID parsedId = UUID.fromString(slug);
+                                    exOpt = exerciseRepository.findById(parsedId)
+                                            .or(() -> exerciseVersionRepository.findById(parsedId).map(ExerciseVersion::getExercise));
+                                } catch (Exception ignored) {}
+                            }
+                            if (exOpt.isEmpty() && it.hasNonNull("exerciseSlug")) {
+                                exOpt = exerciseRepository.findBySlug(it.path("exerciseSlug").asText());
+                            }
+                            if (exOpt.isEmpty() && slug.contains("-")) {
+                                String suffix = slug.replaceFirst("^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+-", "");
+                                if (!suffix.equals(slug)) {
+                                    exOpt = exerciseRepository.findBySlug(suffix);
+                                }
+                            }
+                            if (exOpt.isPresent()) {
+                                exId = exOpt.get().getId();
+                                slug = exOpt.get().getSlug();
+                            }
+                        }
+
+                        // 3. Resolver título del ejercicio
+                        if (exId != null) {
                             Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(exId);
-                            if (evOpt.isPresent()) {
+                            if (evOpt.isPresent() && evOpt.get().getTitle() != null && !evOpt.get().getTitle().isBlank()) {
                                 title = evOpt.get().getTitle();
                             }
+                        } else if (it.hasNonNull("title") && !it.path("title").asText().isBlank()) {
+                            title = it.path("title").asText();
+                        } else if (it.hasNonNull("exerciseTitle") && !it.path("exerciseTitle").asText().isBlank()) {
+                            title = it.path("exerciseTitle").asText();
                         }
 
                         items.add(new CollectionItemDTO(type, slug, exId, title, pos, req, wt));
@@ -1187,6 +1229,9 @@ public class ContentService {
             } else if (req.exerciseIds() != null) {
                 int pos = 1;
                 for (UUID exId : req.exerciseIds()) {
+                    if (exId == null) {
+                        continue;
+                    }
                     Optional<Exercise> exOpt = exerciseRepository.findById(exId)
                             .or(() -> exerciseVersionRepository.findById(exId).map(ExerciseVersion::getExercise));
                     if (exOpt.isPresent()) {
@@ -1197,6 +1242,20 @@ public class ContentService {
                         itemsToSave.add(new CollectionItemDTO("EXERCISE", ex.getSlug(), ex.getId(), exTitle, pos, true, 1.0));
                         pos++;
                     }
+                }
+            } else if (col != null && col.getId() != null) {
+                // Si no se proporcionaron items ni exerciseIds al actualizar parámetros, mantener los existentes
+                Optional<CollectionVersion> latest = collectionVersionRepository.findLatestByCollectionId(col.getId());
+                if (latest.isPresent() && latest.get().getItems() != null && !latest.get().getItems().isBlank()) {
+                    try {
+                        List<CollectionItemDTO> existingItems = objectMapper.readValue(
+                                latest.get().getItems(),
+                                new TypeReference<List<CollectionItemDTO>>() {}
+                        );
+                        if (existingItems != null) {
+                            itemsToSave.addAll(existingItems);
+                        }
+                    } catch (Exception ignored) {}
                 }
             }
 
@@ -1210,7 +1269,6 @@ public class ContentService {
             cv.setDescription(req.description() != null ? req.description().trim() : "");
             cv.setItems(itemsJson);
             cv.setTemplatesConfig(templatesJson);
-            cv.setTemplatesConfig("{}");
             return cv;
         } catch (Exception e) {
             throw new RuntimeException("Error al serializar colección", e);

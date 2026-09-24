@@ -228,7 +228,7 @@ export const TeacherCollectionsView: React.FC = () => {
           slug: slug.trim(),
           description: description.trim() || undefined,
           visibility,
-          exerciseIds: ordered.map((e) => e.exerciseId)
+          exerciseIds: ordered.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
         }, selectedId);
       } catch (err: any) {
         setCollectionExercises(collectionExercises);
@@ -257,7 +257,7 @@ export const TeacherCollectionsView: React.FC = () => {
           slug: slug.trim(),
           description: description.trim() || undefined,
           visibility,
-          exerciseIds: ordered.map((e) => e.exerciseId)
+          exerciseIds: ordered.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
         }, selectedId);
       } catch (err: any) {
         setCollectionExercises(collectionExercises);
@@ -285,7 +285,7 @@ export const TeacherCollectionsView: React.FC = () => {
           slug: slug.trim(),
           description: description.trim() || undefined,
           visibility,
-          exerciseIds: ordered.map((e) => e.exerciseId)
+          exerciseIds: ordered.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
         }, selectedId);
         loadCollections();
       } catch (err: any) {
@@ -306,7 +306,7 @@ export const TeacherCollectionsView: React.FC = () => {
           slug: slug.trim(),
           description: description.trim() || undefined,
           visibility,
-          exerciseIds: updated.map((e) => e.exerciseId)
+          exerciseIds: updated.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
         }, selectedId);
         loadCollections();
       } catch (err: any) {
@@ -336,7 +336,7 @@ export const TeacherCollectionsView: React.FC = () => {
           slug: slug.trim(),
           description: description.trim() || undefined,
           visibility,
-          exerciseIds: updated.map((e) => e.exerciseId)
+          exerciseIds: updated.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
         }, selectedId);
         loadCollections();
       } catch (err: any) {
@@ -379,7 +379,7 @@ export const TeacherCollectionsView: React.FC = () => {
         slug: slug.trim(),
         description: description.trim() || undefined,
         visibility,
-        exerciseIds: collectionExercises.map((e) => e.exerciseId)
+        exerciseIds: collectionExercises.map((e) => e.exerciseId).filter((id): id is string => Boolean(id))
       };
 
       const result = await api.teacherSaveCollection(payload, selectedId || undefined);
