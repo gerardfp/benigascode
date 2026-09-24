@@ -569,6 +569,7 @@ export interface InvitationCode {
   active: boolean;
   createdByUsername: string | null;
   createdByFullName: string | null;
+  tags?: Tag[];
   createdAt: string;
   updatedAt: string;
 }

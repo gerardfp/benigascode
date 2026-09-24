@@ -168,6 +168,11 @@ public class AuthController {
                 user.setRole(Role.TEACHER);
             }
             user = userRepository.save(user);
+
+            // Si un alumno existente accede con una clave de invitación, aplicar sus etiquetas
+            if (user.getRole() == Role.STUDENT && request.invitationCode() != null && !request.invitationCode().isBlank()) {
+                invitationService.applyInvitationTags(request.invitationCode(), user);
+            }
         } else {
             // Usuario NUEVO
             // A) ¿Es un profesor autorizado (ej. gerardfp o añadido por un profesor)?
@@ -212,6 +217,9 @@ public class AuthController {
                     profile.avatarUrl()
                 );
                 user = userRepository.save(user);
+
+                // Asignar automáticamente etiquetas asociadas a la clave de invitación
+                invitationService.applyInvitationTags(request.invitationCode(), user);
             }
         }
 

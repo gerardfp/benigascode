@@ -1,7 +1,10 @@
 package com.benigascode.identity.domain;
 
+import com.benigascode.learning.domain.Tag;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -24,6 +27,15 @@ public class InvitationCode {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id", nullable = false)
     private User createdBy;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "invitation_code_tags",
+        joinColumns = @JoinColumn(name = "invitation_code_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    @OrderBy("category ASC, value ASC")
+    private Set<Tag> tags = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -81,6 +93,14 @@ public class InvitationCode {
 
     public void setCreatedBy(User createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Set<Tag> getTags() {
+        return tags;
+    }
+
+    public void setTags(Set<Tag> tags) {
+        this.tags = tags;
     }
 
     public Instant getCreatedAt() {

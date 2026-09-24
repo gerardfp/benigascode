@@ -494,9 +494,6 @@ export const TeacherAdminView: React.FC = () => {
               {/* SECCIÓN 1: CUENTAS REGISTRADAS & ALTA */}
               {activeStudentSection === 'accounts' && (
                 <div>
-                  {/* Creación Masiva de Alumnos (CSV) */}
-                  <div className="card" style={{ padding: '0.875rem 1.25rem', marginBottom: '1.25rem' }}>
-                    <form onSubmit={handleBulkCreateStudents} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {/* Panel integrado de Creación Masiva y Asignación de Etiquetas (Una única card) */}
                   <div className="card" style={{ padding: 0, marginBottom: '1.25rem', overflow: 'hidden' }}>
                     <div style={{ padding: '0.875rem 1.25rem' }}>

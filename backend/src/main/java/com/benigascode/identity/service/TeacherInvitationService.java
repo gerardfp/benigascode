@@ -8,20 +8,32 @@ import com.benigascode.identity.dto.CreateInvitationRequest;
 import com.benigascode.identity.dto.InvitationCodeDTO;
 import com.benigascode.identity.dto.ValidateInvitationResponse;
 import com.benigascode.identity.repository.InvitationCodeRepository;
+import com.benigascode.learning.domain.Tag;
+import com.benigascode.learning.repository.TagRepository;
+import com.benigascode.learning.service.TagService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class TeacherInvitationService {
 
     private final InvitationCodeRepository invitationRepository;
+    private final TagRepository tagRepository;
+    private final TagService tagService;
 
-    public TeacherInvitationService(InvitationCodeRepository invitationRepository) {
+    public TeacherInvitationService(InvitationCodeRepository invitationRepository,
+                                  TagRepository tagRepository,
+                                  TagService tagService) {
         this.invitationRepository = invitationRepository;
+        this.tagRepository = tagRepository;
+        this.tagService = tagService;
     }
 
     @Transactional(readOnly = true)
@@ -48,6 +60,12 @@ public class TeacherInvitationService {
             active,
             teacher
         );
+
+        if (request.tagIds() != null && !request.tagIds().isEmpty()) {
+            Set<Tag> tags = new HashSet<>(tagRepository.findAllById(request.tagIds()));
+            entity.setTags(tags);
+        }
+
         entity = invitationRepository.save(entity);
         return InvitationCodeDTO.fromEntity(entity);
     }
@@ -87,5 +105,28 @@ public class TeacherInvitationService {
 
         return new ValidateInvitationResponse(true, ic.getCode(), ic.getDescription(), "Clave de invitación válida.");
     }
-}
 
+    @Transactional
+    public void applyInvitationTags(String code, User student) {
+        if (code == null || code.trim().isBlank() || student == null) {
+            return;
+        }
+
+        Optional<InvitationCode> opt = invitationRepository.findWithTagsByCodeAndActiveTrue(code.trim());
+        if (opt.isEmpty()) {
+            return;
+        }
+
+        InvitationCode ic = opt.get();
+        if (ic.getTags() != null && !ic.getTags().isEmpty()) {
+            Instant now = Instant.now();
+            for (Tag tag : ic.getTags()) {
+                try {
+                    tagService.assignTag(student.getId(), tag.getId(), ic.getCreatedBy(), now, null);
+                } catch (Exception ignored) {
+                    // Si ya está asignada o falla puntualmente, no interrumpir el registro del alumno
+                }
+            }
+        }
+    }
+}

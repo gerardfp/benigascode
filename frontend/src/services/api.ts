@@ -549,10 +549,10 @@ export const api = {
   listTeacherInvitations: (): Promise<InvitationCode[]> =>
     request<InvitationCode[]>('/teacher/invitations'),
 
-  createTeacherInvitation: (code: string, description?: string, active?: boolean): Promise<InvitationCode> =>
+  createTeacherInvitation: (code: string, description?: string, active?: boolean, tagIds?: string[]): Promise<InvitationCode> =>
     request<InvitationCode>('/teacher/invitations', {
       method: 'POST',
-      body: JSON.stringify({ code, description, active }),
+      body: JSON.stringify({ code, description, active, tagIds }),
     }),
 
   toggleTeacherInvitation: (id: string): Promise<InvitationCode> =>
