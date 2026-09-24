@@ -237,10 +237,6 @@ public class TeachingSpaceService {
     }
 
     private TeachingSpaceDTO toDTO(TeachingSpace space) {
-        List<UUID> reqTagIds = space.getRequiredTagIds();
-        List<Tag> tags = (!reqTagIds.isEmpty()) ? tagRepository.findAllByIdIn(reqTagIds) : Collections.emptyList();
-        List<TagDTO> tagDTOs = tags.stream().map(TagDTO::fromEntity).toList();
-        int studentCount = contextService.countMatchingStudents(reqTagIds);
         return toDTO(space, true);
     }
 

@@ -97,7 +97,7 @@ public class TeachingSpace {
         if (this.contextConfig == null) {
             this.contextConfig = new HashMap<>();
         }
-        List<String> ids = tagIds != null ? tagIds.stream().map(UUID::toString).toList() : new ArrayList<>();
+        List<String> ids = tagIds != null ? tagIds.stream().filter(Objects::nonNull).map(UUID::toString).toList() : new ArrayList<>();
         this.contextConfig.put("tagIds", ids);
         this.updatedAt = Instant.now();
     }

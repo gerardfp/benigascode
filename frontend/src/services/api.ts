@@ -187,25 +187,29 @@ export const api = {
   getSpace: (id: string): Promise<TeachingSpace> =>
     request<TeachingSpace>(`/teacher/spaces/${id}`),
 
-  createSpace: (space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
-    request<TeachingSpace>('/teacher/spaces', {
+  createSpace: (space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> => {
+    const tagIds = space.contextTagIds ?? space.requiredTagIds ?? [];
+    return request<TeachingSpace>('/teacher/spaces', {
       method: 'POST',
       body: JSON.stringify({
         ...space,
-        contextTagIds: space.contextTagIds || space.requiredTagIds,
-        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+        contextTagIds: tagIds,
+        requiredTagIds: tagIds,
       }),
-    }),
+    });
+  },
 
-  updateSpace: (id: string, space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
-    request<TeachingSpace>(`/teacher/spaces/${id}`, {
+  updateSpace: (id: string, space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> => {
+    const tagIds = space.contextTagIds ?? space.requiredTagIds;
+    return request<TeachingSpace>(`/teacher/spaces/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
         ...space,
-        contextTagIds: space.contextTagIds || space.requiredTagIds,
-        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+        contextTagIds: tagIds,
+        requiredTagIds: tagIds,
       }),
-    }),
+    });
+  },
 
   deleteSpace: (id: string): Promise<void> =>
     request<void>(`/teacher/spaces/${id}`, { method: 'DELETE' }),
