@@ -120,6 +120,22 @@ services:
           memory: 2048M
           cpus: '1.0'
 
+  sandbox-java26:
+    image: benigascode-sandbox-java26:latest
+    build:
+      context: ../runner/runtimes/java26
+      dockerfile: Dockerfile.runtime
+    restart: "no"
+    entrypoint: ["true"]
+
+  sandbox-python:
+    image: benigascode-sandbox-python:latest
+    build:
+      context: ../runner/runtimes/python3
+      dockerfile: Dockerfile.runtime
+    restart: "no"
+    entrypoint: ["true"]
+
 networks:
   benigascode-prod-net:
     driver: bridge

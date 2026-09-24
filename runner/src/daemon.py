@@ -5,6 +5,7 @@ import json
 import signal
 import logging
 import threading
+import subprocess
 from typing import Optional, Dict, Any
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
@@ -181,9 +182,65 @@ class RunnerDaemon:
             if self.running:
                 logger.error(f"Error en servidor HTTP de Runner: {e}")
 
+    def _ensure_sandbox_images(self):
+        """
+        Verifica que las imágenes requeridas para los sandboxes (Java 26 y Python)
+        existan en el daemon de Docker. Si no existen, las construye automáticamente
+        a partir de sus Dockerfile.runtime para evitar errores de pull en entornos nuevos.
+        """
+        if not self.sandbox.docker_available:
+            return
+
+        images_to_check = [
+            ("benigascode-sandbox-java26:latest", "runtimes/java26/Dockerfile.runtime", "runtimes/java26"),
+            ("benigascode-sandbox-python:latest", "runtimes/python3/Dockerfile.runtime", "runtimes/python3"),
+        ]
+
+        base_dirs = [
+            "/app",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
+        ]
+
+        for image_name, rel_dockerfile, rel_context in images_to_check:
+            try:
+                res = subprocess.run(["docker", "image", "inspect", image_name], capture_output=True, timeout=5)
+                if res.returncode == 0:
+                    logger.info(f"Imagen de sandbox verificada: {image_name}")
+                    continue
+
+                found_dockerfile = None
+                found_context = None
+                for base in base_dirs:
+                    df = os.path.join(base, rel_dockerfile)
+                    ctx = os.path.join(base, rel_context)
+                    if os.path.isfile(df) and os.path.isdir(ctx):
+                        found_dockerfile = df
+                        found_context = ctx
+                        break
+
+                if found_dockerfile and found_context:
+                    logger.info(f"Imagen {image_name} no encontrada localmente. Construyendo automáticamente desde {found_dockerfile}...")
+                    build_res = subprocess.run(
+                        ["docker", "build", "-t", image_name, "-f", found_dockerfile, found_context],
+                        capture_output=True,
+                        text=True,
+                        timeout=300
+                    )
+                    if build_res.returncode == 0:
+                        logger.info(f"Imagen {image_name} construida exitosamente.")
+                    else:
+                        logger.error(f"Error construyendo {image_name}: {build_res.stderr}")
+                else:
+                    logger.warning(f"No se encontró el Dockerfile para construir {image_name}")
+            except Exception as e:
+                logger.error(f"Error al verificar/construir imagen {image_name}: {e}")
+
     def start(self):
         logger.info(f"RunnerDaemon Java 26 iniciado. WorkerID: {self.worker_id}, API: {self.api_url}")
         logger.info(f"Modo de aislamiento: {'Docker Container Sandbox' if self.sandbox.docker_available else 'Local Fallback'}")
+
+        self._ensure_sandbox_images()
 
         # Iniciar servidor HTTP en hilo en segundo plano
         http_thread = threading.Thread(target=self._start_http_server, daemon=True)
