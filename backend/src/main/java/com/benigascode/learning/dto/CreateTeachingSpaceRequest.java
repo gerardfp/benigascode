@@ -14,12 +14,18 @@ public record CreateTeachingSpaceRequest(
 
     String description,
 
-    @JsonAlias({"requiredTagIds", "contextTagIds"})
     List<UUID> contextTagIds,
+
+    List<UUID> requiredTagIds,
 
     List<UUID> teacherIds,
 
     List<UUID> collectionIds
 ) {
+    public List<UUID> getEffectiveTagIds() {
+        if (contextTagIds != null) return contextTagIds;
+        if (requiredTagIds != null) return requiredTagIds;
+        return List.of();
+    }
 }
 

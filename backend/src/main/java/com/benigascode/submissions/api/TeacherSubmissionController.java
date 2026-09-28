@@ -5,10 +5,12 @@ import com.benigascode.identity.service.UserService;
 import com.benigascode.submissions.dto.*;
 import com.benigascode.submissions.service.StudentProgressService;
 import com.benigascode.submissions.service.SubmissionService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,13 +45,16 @@ public class TeacherSubmissionController {
     @GetMapping("/submissions")
     public ResponseEntity<List<TeacherSubmissionItemDTO>> getSubmissions(
             @RequestParam(required = false) UUID courseId,
+            @RequestParam(required = false) UUID spaceId,
             @RequestParam(required = false) UUID groupId,
             @RequestParam(required = false) UUID studentId,
             @RequestParam(required = false) UUID exerciseId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since) {
         User teacher = userService.getCurrentUser();
-        return ResponseEntity.ok(submissionService.getTeacherSubmissions(courseId, groupId, studentId, exerciseId, status, search, teacher));
+        UUID effectiveSpaceId = spaceId != null ? spaceId : courseId;
+        return ResponseEntity.ok(submissionService.getTeacherSubmissions(effectiveSpaceId, groupId, studentId, exerciseId, status, search, since, teacher));
     }
 
     // 3. Detalle completo de una entrega con código y tests

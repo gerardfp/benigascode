@@ -12,8 +12,10 @@ import com.benigascode.learning.dto.CreateTagRequest;
 import com.benigascode.learning.dto.StudentTagDTO;
 import com.benigascode.learning.dto.TagDTO;
 import com.benigascode.learning.dto.UpdateTagRequest;
+import com.benigascode.learning.domain.TeachingSpace;
 import com.benigascode.learning.repository.StudentTagRepository;
 import com.benigascode.learning.repository.TagRepository;
+import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.util.TagColorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TagService {
@@ -29,13 +33,16 @@ public class TagService {
     private final TagRepository tagRepository;
     private final StudentTagRepository studentTagRepository;
     private final UserRepository userRepository;
+    private final TeachingSpaceRepository teachingSpaceRepository;
 
     public TagService(TagRepository tagRepository,
                       StudentTagRepository studentTagRepository,
-                      UserRepository userRepository) {
+                      UserRepository userRepository,
+                      TeachingSpaceRepository teachingSpaceRepository) {
         this.tagRepository = tagRepository;
         this.studentTagRepository = studentTagRepository;
         this.userRepository = userRepository;
+        this.teachingSpaceRepository = teachingSpaceRepository;
     }
 
     @Transactional(readOnly = true)
@@ -188,6 +195,54 @@ public class TagService {
                 st.setValidUntil(now);
                 studentTagRepository.save(st);
             });
+        }
+    }
+
+    @Transactional
+    public void batchAssignSpace(List<UUID> studentIds, UUID spaceId, User teacher, Instant validFrom, Instant validUntil) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        TeachingSpace space = teachingSpaceRepository.findById(spaceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Espacio docente no encontrado: " + spaceId));
+        List<UUID> tagIds = space.getRequiredTagIds();
+        for (UUID tagId : tagIds) {
+            batchAssignTag(studentIds, tagId, teacher, validFrom, validUntil);
+        }
+    }
+
+    @Transactional
+    public void batchRevokeSpace(List<UUID> studentIds, UUID spaceId, User teacher) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        TeachingSpace space = teachingSpaceRepository.findById(spaceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Espacio docente no encontrado: " + spaceId));
+        List<UUID> targetTagIds = space.getRequiredTagIds();
+        if (targetTagIds.isEmpty()) return;
+
+        List<TeachingSpace> allSpaces = teachingSpaceRepository.findAll();
+        Instant now = Instant.now();
+
+        for (UUID studentId : studentIds) {
+            List<StudentTag> activeTags = studentTagRepository.findActiveByStudentId(studentId, now);
+            Set<UUID> studentTagIds = activeTags.stream()
+                .map(st -> st.getTag().getId())
+                .collect(Collectors.toSet());
+
+            Set<UUID> tagsKeptByOtherSpaces = allSpaces.stream()
+                .filter(s -> !s.getId().equals(spaceId))
+                .filter(s -> {
+                    List<UUID> req = s.getRequiredTagIds();
+                    return !req.isEmpty() && studentTagIds.containsAll(req);
+                })
+                .flatMap(s -> s.getRequiredTagIds().stream())
+                .collect(Collectors.toSet());
+
+            for (UUID tagId : targetTagIds) {
+                if (!tagsKeptByOtherSpaces.contains(tagId)) {
+                    studentTagRepository.findActiveByStudentIdAndTagId(studentId, tagId).ifPresent(st -> {
+                        st.setValidUntil(now);
+                        studentTagRepository.save(st);
+                    });
+                }
+            }
         }
     }
 }

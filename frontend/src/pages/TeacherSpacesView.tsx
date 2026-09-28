@@ -6,7 +6,7 @@ import { TagBadge } from '../components/TagBadge';
 import { TagColorPicker } from '../components/TagColorPicker';
 import {
   Layers, Plus, Trash2, Edit3, Users, BookOpen,
-  Shield, X, Check
+  Shield, X, Check, Search
 } from 'lucide-react';
 
 export const TeacherSpacesView: React.FC = () => {
@@ -42,6 +42,7 @@ export const TeacherSpacesView: React.FC = () => {
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [spaceSearchTerm, setSpaceSearchTerm] = useState('');
 
   const isSpaceDirty = spaceName.trim() !== initialSpaceName.trim() || spaceDesc.trim() !== initialSpaceDesc.trim();
 
@@ -337,28 +338,34 @@ export const TeacherSpacesView: React.FC = () => {
   };
 
 
-  // Sorted list of spaces
+  // Sorted and filtered list of spaces
   const sortedSpaces = useMemo(() => {
-    return [...spaces].sort((a, b) => {
+    let list = spaces;
+    if (spaceSearchTerm.trim()) {
+      const q = spaceSearchTerm.toLowerCase();
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.description && s.description.toLowerCase().includes(q))
+      );
+    }
+    return [...list].sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'name') {
         cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       } else if (sortKey === 'tags') {
-        cmp = (a.tags?.length || 0) - (b.tags?.length || 0);
         cmp = ((a.contextTags || a.tags)?.length || 0) - ((b.contextTags || b.tags)?.length || 0);
       } else if (sortKey === 'collections') {
         cmp = (a.collections?.length || 0) - (b.collections?.length || 0);
       } else if (sortKey === 'teachers') {
         cmp = (a.teachers?.length || 0) - (b.teachers?.length || 0);
       } else if (sortKey === 'students') {
-        cmp = (a.matchedStudentsCount || 0) - (b.matchedStudentsCount || 0);
         cmp = (a.studentCount ?? a.matchedStudentsCount ?? 0) - (b.studentCount ?? b.matchedStudentsCount ?? 0);
       } else if (sortKey === 'createdAt') {
         cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [spaces, sortKey, sortDir]);
+  }, [spaces, spaceSearchTerm, sortKey, sortDir]);
 
   if (mode === 'editor') {
     return (
@@ -495,7 +502,7 @@ export const TeacherSpacesView: React.FC = () => {
             {/* 3. ETIQUETAS Y LISTA DE ALUMNOS */}
             <div style={{ marginBottom: '1.25rem' }}>
               {/* Panel de Etiquetas */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden', marginBottom: '1.25rem' }}>
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'visible', marginBottom: '1.25rem' }}>
                 {/* Cabecera del Panel */}
                 <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
                   <strong style={{ fontSize: '0.9375rem', color: '#1e293b' }}>Etiquetas</strong>
@@ -676,33 +683,27 @@ export const TeacherSpacesView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* PARTE INFERIOR: Opción de crear una nueva etiqueta (como en el panel de alumnos) */}
+                {/* PARTE INFERIOR: Opción de crear una nueva etiqueta */}
                 <div
                   style={{
                     background: '#f8fafc',
                     borderTop: '1px solid #e2e8f0',
-                    padding: '0.875rem 1.25rem',
+                    padding: '0.75rem 1.25rem',
                   }}
                 >
-                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                    Crear nueva etiqueta y asociarla al espacio
-                  </div>
                   <div
                     style={{
                       display: 'flex',
-                      gap: '0.75rem',
-                      alignItems: 'flex-end',
+                      gap: '0.5rem',
+                      alignItems: 'center',
                       flexWrap: 'wrap',
                     }}
                   >
-                    <div style={{ minWidth: 140, flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                        Categoría *
-                      </label>
+                    <div style={{ minWidth: 130, flex: 1 }}>
                       <input
                         type="text"
                         list="space-new-tag-categories"
-                        placeholder="ej. group, año..."
+                        placeholder="Categoría: grupo, año..."
                         value={newTagCategory}
                         onChange={e => setNewTagCategory(e.target.value)}
                         className="input-field"
@@ -715,13 +716,10 @@ export const TeacherSpacesView: React.FC = () => {
                       </datalist>
                     </div>
 
-                    <div style={{ minWidth: 160, flex: 1.5 }}>
-                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                        Valor *
-                      </label>
+                    <div style={{ minWidth: 130, flex: 1 }}>
                       <input
                         type="text"
-                        placeholder="ej. DAM2, 2026-2027..."
+                        placeholder="Valor: DAM, 2026..."
                         value={newTagValue}
                         onChange={e => setNewTagValue(e.target.value)}
                         className="input-field"
@@ -730,12 +728,9 @@ export const TeacherSpacesView: React.FC = () => {
                     </div>
 
                     <div style={{ minWidth: 160, flex: 1.5 }}>
-                      <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                        Descripción (opcional)
-                      </label>
                       <input
                         type="text"
-                        placeholder="ej. Grupo de refuerzo"
+                        placeholder="Descripción (opcional): Grupo de refuerzo"
                         value={newTagDesc}
                         onChange={e => setNewTagDesc(e.target.value)}
                         className="input-field"
@@ -743,34 +738,31 @@ export const TeacherSpacesView: React.FC = () => {
                       />
                     </div>
 
-                    <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <TagColorPicker
-                        selectedColor={newTagColor}
-                        onChange={setNewTagColor}
-                        category={newTagCategory}
-                        value={newTagValue}
-                        usedColors={usedTagColors}
-                      />
+                    <TagColorPicker
+                      selectedColor={newTagColor}
+                      onChange={setNewTagColor}
+                      category={newTagCategory}
+                      value={newTagValue}
+                      usedColors={usedTagColors}
+                    />
 
-                      <button
-                        type="button"
-                        onClick={() => handleCreateInlineTag()}
-                        disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
-                        className="btn-primary"
-                        style={{
-                          padding: '0.45rem 0.875rem',
-                          fontSize: '0.8125rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.375rem',
-                          whiteSpace: 'nowrap',
-                          marginLeft: 'auto',
-                        }}
-                      >
-                        <Plus size={14} />
-                        {inlineTagSubmitting ? 'Creando...' : 'Crear y asociar'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateInlineTag()}
+                      disabled={inlineTagSubmitting || !newTagCategory.trim() || !newTagValue.trim()}
+                      className="btn-primary"
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        fontSize: '0.875rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Crear y asociar etiqueta"
+                    >
+                      <Plus size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -857,10 +849,24 @@ export const TeacherSpacesView: React.FC = () => {
           borderBottom: '1px solid #e2e8f0',
           backgroundColor: '#ffffff',
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap',
         }}>
-          <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+          <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: 450 }}>
+            <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Buscar espacio docente..."
+              value={spaceSearchTerm}
+              onChange={(e) => setSpaceSearchTerm(e.target.value)}
+              className="input-field"
+              style={{ paddingLeft: '2.5rem', width: '100%', fontSize: '0.875rem' }}
+            />
+          </div>
+
+          <button onClick={handleOpenCreate} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
             <Plus size={16} /> Crear Espacio
           </button>
         </div>
@@ -871,13 +877,14 @@ export const TeacherSpacesView: React.FC = () => {
         ) : spaces.length === 0 ? (
           <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
             <Layers size={48} style={{ color: '#cbd5e1', marginBottom: '1rem' }} />
-            <p style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 0.5rem' }}>No hay espacios creados</p>
-            <p style={{ fontSize: '0.875rem', margin: '0 0 1.5rem' }}>
-              Crea tu primer espacio definiendo su contexto de etiquetas para asociar colecciones y alumnos.
-            </p>
+            <p style={{ fontSize: '1.125rem', fontWeight: 600, margin: '0 0 1.5rem' }}>No hay espacios creados</p>
             <button onClick={handleOpenCreate} className="btn-primary">
               Crear Primer Espacio
             </button>
+          </div>
+        ) : sortedSpaces.length === 0 ? (
+          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
+            No se encontraron espacios que coincidan con la búsqueda.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>

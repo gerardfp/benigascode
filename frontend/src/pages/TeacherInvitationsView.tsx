@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
-import { InvitationCode, Tag } from '../types';
+import { InvitationCode, Tag, TeachingSpace } from '../types';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
+import { TagColorPicker } from '../components/TagColorPicker';
 import { 
   Tag as TagIcon, 
   Plus, 
   X, 
   AlertCircle, 
   Copy, 
-  Check 
+  Check,
+  Layers
 } from 'lucide-react';
 
 interface TeacherInvitationsProps {
@@ -27,6 +29,7 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Asignación de etiquetas para la clave de invitación
+  const [spaces, setSpaces] = useState<TeachingSpace[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [showTagPanel, setShowTagPanel] = useState(false);
@@ -34,6 +37,7 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
   const [newTagCategory, setNewTagCategory] = useState('');
   const [newTagValue, setNewTagValue] = useState('');
   const [newTagDescription, setNewTagDescription] = useState('');
+  const [newTagColor, setNewTagColor] = useState<string | null>(null);
   const [creatingTag, setCreatingTag] = useState(false);
 
   // Sorting
@@ -74,12 +78,14 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
 
   const loadData = async () => {
     try {
-      const [invData, tagData] = await Promise.all([
+      const [invData, tagData, spacesData] = await Promise.all([
         api.listTeacherInvitations(),
-        api.listTags().catch(() => [] as Tag[])
+        api.listTags().catch(() => [] as Tag[]),
+        api.listSpaces().catch(() => [] as TeachingSpace[])
       ]);
       setInvitations(invData);
       setAvailableTags(tagData);
+      setSpaces(spacesData);
     } catch (err: any) {
       console.error('Error al cargar invitaciones y etiquetas:', err);
     } finally {
@@ -115,6 +121,58 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
     return Array.from(new Set(availableTags.map(t => t.category))).sort();
   }, [availableTags]);
 
+  // Colores ya usados en etiquetas existentes
+  const usedTagColors = useMemo(() => {
+    return availableTags.map(t => t.color).filter(Boolean) as string[];
+  }, [availableTags]);
+
+  const getSpaceTagIds = (space: TeachingSpace): string[] => {
+    if (space.contextTags && space.contextTags.length > 0) {
+      return space.contextTags.map(t => t.id);
+    }
+    if (space.tags && space.tags.length > 0) {
+      return space.tags.map(t => t.id);
+    }
+    if (space.contextConfig?.tagIds && space.contextConfig.tagIds.length > 0) {
+      return space.contextConfig.tagIds;
+    }
+    return [];
+  };
+
+  // Solo espacios que tengan etiquetas asociadas
+  const spacesWithTags = useMemo(() => {
+    return spaces.filter(space => getSpaceTagIds(space).length > 0);
+  }, [spaces]);
+
+  const handleToggleSpace = (space: TeachingSpace) => {
+    const tagIds = getSpaceTagIds(space);
+    if (tagIds.length === 0) return;
+    const allSelected = tagIds.every(id => selectedTagIds.has(id));
+
+    const otherSelectedSpaces = spacesWithTags.filter(s =>
+      s.id !== space.id &&
+      getSpaceTagIds(s).length > 0 &&
+      getSpaceTagIds(s).every(id => selectedTagIds.has(id))
+    );
+    const tagsKeptByOtherSpaces = new Set(
+      otherSelectedSpaces.flatMap(s => getSpaceTagIds(s))
+    );
+
+    setSelectedTagIds(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        tagIds.forEach(id => {
+          if (!tagsKeptByOtherSpaces.has(id)) {
+            next.delete(id);
+          }
+        });
+      } else {
+        tagIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
   const handleToggleTag = (tagId: string) => {
     setSelectedTagIds(prev => {
       const next = new Set(prev);
@@ -143,12 +201,14 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
         category: cat,
         value: val,
         description: newTagDescription.trim() || undefined,
+        color: newTagColor || undefined,
       });
       setAvailableTags(prev => [...prev, tag]);
       setSelectedTagIds(prev => new Set(prev).add(tag.id));
       setNewTagCategory('');
       setNewTagValue('');
       setNewTagDescription('');
+      setNewTagColor(null);
     } catch (err: any) {
       alert(err.message || 'Error al crear etiqueta');
     } finally {
@@ -245,7 +305,7 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
       )}
 
       {/* Card de Creación Integrada con Panel de Etiquetas */}
-      <div className="card" style={{ padding: 0, marginBottom: '1.25rem', overflow: 'hidden' }}>
+      <div className="card" style={{ padding: 0, marginBottom: '1rem', overflow: 'visible' }}>
         <div style={{ padding: '0.875rem 1.25rem' }}>
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {error && (
@@ -404,6 +464,47 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
                 </button>
               </div>
             </div>
+
+            {/* Espacios docentes */}
+            {spacesWithTags.length > 0 && (
+              <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <Layers size={15} color="#2563eb" /> Espacios docentes
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {spacesWithTags.map(space => {
+                    const tagIds = getSpaceTagIds(space);
+                    const isAll = tagIds.length > 0 && tagIds.every(id => selectedTagIds.has(id));
+                    const isPartial = !isAll && tagIds.some(id => selectedTagIds.has(id));
+                    return (
+                      <button
+                        key={space.id}
+                        type="button"
+                        onClick={() => handleToggleSpace(space)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.375rem',
+                          border: isAll ? '1.5px solid #2563eb' : isPartial ? '1.5px solid #93c5fd' : '1px solid #cbd5e1',
+                          background: isAll ? '#eff6ff' : isPartial ? '#f0f9ff' : '#f8fafc',
+                          color: isAll ? '#1d4ed8' : '#1e293b',
+                          fontWeight: 600,
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                        title={tagIds.length === 0 ? 'Este espacio no tiene etiquetas asociadas' : isAll ? 'Quitar etiquetas de este espacio' : 'Añadir etiquetas de este espacio'}
+                      >
+                        {isAll ? <Check size={14} color="#2563eb" /> : <Plus size={14} color="#64748b" />}
+                        <span>{space.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Contenido: 2 Columnas */}
             <div
@@ -583,29 +684,23 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
               style={{
                 background: '#f8fafc',
                 borderTop: '1px solid #e2e8f0',
-                padding: '0.875rem 1.25rem',
+                padding: '0.75rem 1.25rem',
               }}
             >
-              <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.5rem' }}>
-                Crear nueva etiqueta
-              </div>
               <form
                 onSubmit={handleCreateAndSelectTag}
                 style={{
                   display: 'flex',
-                  gap: '0.75rem',
-                  alignItems: 'flex-end',
+                  gap: '0.5rem',
+                  alignItems: 'center',
                   flexWrap: 'wrap',
                 }}
               >
                 <div style={{ minWidth: 140, flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Categoría *
-                  </label>
                   <input
                     type="text"
                     list="invitation-tag-categories"
-                    placeholder="ej. group, año..."
+                    placeholder="Categoría: grupo, año..."
                     value={newTagCategory}
                     onChange={e => setNewTagCategory(e.target.value)}
                     className="input-field"
@@ -619,13 +714,10 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
                   </datalist>
                 </div>
 
-                <div style={{ minWidth: 160, flex: 1.5 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Valor *
-                  </label>
+                <div style={{ minWidth: 160, flex: 1 }}>
                   <input
                     type="text"
-                    placeholder="ej. DAM2, 2026-2027..."
+                    placeholder="Valor: DAM, 2026..."
                     value={newTagValue}
                     onChange={e => setNewTagValue(e.target.value)}
                     className="input-field"
@@ -634,13 +726,10 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
                   />
                 </div>
 
-                <div style={{ minWidth: 160, flex: 1.5 }}>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', marginBottom: '0.2rem' }}>
-                    Descripción (opcional)
-                  </label>
+                <div style={{ minWidth: 180, flex: 1.5 }}>
                   <input
                     type="text"
-                    placeholder="ej. Grupo de refuerzo"
+                    placeholder="Descripción (opcional): Grupo de refuerzo"
                     value={newTagDescription}
                     onChange={e => setNewTagDescription(e.target.value)}
                     className="input-field"
@@ -648,21 +737,29 @@ export const TeacherInvitationsView: React.FC<TeacherInvitationsProps> = ({ embe
                   />
                 </div>
 
+                <TagColorPicker
+                  selectedColor={newTagColor}
+                  onChange={setNewTagColor}
+                  category={newTagCategory}
+                  value={newTagValue}
+                  usedColors={usedTagColors}
+                />
+
                 <button
                   type="submit"
                   disabled={creatingTag || !newTagCategory.trim() || !newTagValue.trim()}
                   className="btn-primary"
                   style={{
-                    fontSize: '0.8125rem',
-                    padding: '0.45rem 1rem',
+                    padding: '0.4rem 0.6rem',
+                    fontSize: '0.875rem',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.35rem',
+                    justifyContent: 'center',
                     whiteSpace: 'nowrap',
                   }}
+                  title="Crear y seleccionar etiqueta"
                 >
-                  <Plus size={14} />
-                  {creatingTag ? 'Creando...' : 'Crear y seleccionar'}
+                  <Plus size={16} />
                 </button>
               </form>
             </div>

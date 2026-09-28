@@ -168,6 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                   </Link>
                   <Link to="/teacher/students" className={`nav-link ${isPathActive('/teacher/students') ? 'active' : ''}`}>Alumnos</Link>
                   <Link to="/teacher/activities" className={`nav-link ${isPathActive('/teacher/activities') ? 'active' : ''}`}>Actividades</Link>
+                  <Link to="/teacher/live" className={`nav-link ${isPathActive('/teacher/live') ? 'active' : ''}`}>Live</Link>
                   <Link to="/teacher/insights" className={`nav-link ${isPathActive('/teacher/insights') ? 'active' : ''}`}>Insights</Link>
                   <Link to="/teacher/submissions" className={`nav-link ${isPathActive('/teacher/submissions') ? 'active' : ''}`}>Envíos</Link>
                   <Link to="/teacher/admin" className={`nav-link ${isPathActive('/teacher/admin') ? 'active' : ''}`}>Admin</Link>

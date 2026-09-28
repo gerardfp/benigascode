@@ -21,7 +21,7 @@ export const TeacherCollectionsView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Sorting state
-  type CollectionSortKey = 'title' | 'slug' | 'visibility' | 'version';
+  type CollectionSortKey = 'title' | 'slug' | 'exercises' | 'visibility' | 'version';
   const [sortKey, setSortKey] = useState<CollectionSortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -145,6 +145,10 @@ export const TeacherCollectionsView: React.FC = () => {
         cmp = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
       } else if (sortKey === 'slug') {
         cmp = a.slug.localeCompare(b.slug, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'exercises') {
+        const countA = a.exercises?.length ?? a.items?.length ?? 0;
+        const countB = b.exercises?.length ?? b.items?.length ?? 0;
+        cmp = countA - countB;
       } else if (sortKey === 'visibility') {
         cmp = a.visibility.localeCompare(b.visibility);
       } else if (sortKey === 'version') {
@@ -477,6 +481,14 @@ export const TeacherCollectionsView: React.FC = () => {
                     style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
                   />
                   <SortableHeader
+                    label="Ejercicios"
+                    sortKey="exercises"
+                    currentSortKey={sortKey}
+                    currentSortDir={sortDir}
+                    onSort={handleSort}
+                    style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                  />
+                  <SortableHeader
                     label="Visibilidad"
                     sortKey="visibility"
                     currentSortKey={sortKey}
@@ -515,6 +527,11 @@ export const TeacherCollectionsView: React.FC = () => {
                     </td>
                     <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', color: '#64748b', fontSize: '0.8125rem' }}>
                       {col.slug}
+                    </td>
+                    <td style={{ padding: '0.875rem 1.25rem' }}>
+                      <span className="badge badge-neutral" style={{ fontWeight: 600 }}>
+                        {col.exercises?.length ?? col.items?.length ?? 0}
+                      </span>
                     </td>
                     <td style={{ padding: '0.875rem 1.25rem' }}>
                       <span className={`badge ${col.visibility === 'PUBLIC' ? 'badge-success' : 'badge-neutral'}`}>

@@ -253,15 +253,8 @@ public class EvaluationService {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrega no encontrada"));
 
-        if (submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null) {
-            UUID spaceId = submission.getActivityVersion().getActivity().getTeachingSpace().getId();
-            if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(spaceId, teacher.getId())) {
-                throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
-            }
-        } else {
-            if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
-                throw new AccessDeniedException("No tienes permisos de profesor para reevaluar esta entrega");
-            }
+        if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
+            throw new AccessDeniedException("No tienes permisos de profesor para reevaluar esta entrega");
         }
 
         // Crear nuevo trabajo de evaluación con alta prioridad

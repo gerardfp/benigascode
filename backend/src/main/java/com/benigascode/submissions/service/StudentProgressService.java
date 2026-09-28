@@ -188,7 +188,7 @@ public class StudentProgressService {
 
     @Transactional(readOnly = true)
     public List<StudentProgressDTO> getSpaceProgress(UUID spaceId, User teacher) {
-        if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(spaceId, teacher.getId())) {
+        if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
             throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
         }
 
@@ -488,7 +488,7 @@ public class StudentProgressService {
 
         // 2. Modo Espacio / Contexto / General
         List<TeachingSpace> spaces;
-        if (teacher.getRole() == Role.ADMIN) {
+        if (teacher.getRole() == Role.ADMIN || teacher.getRole() == Role.TEACHER) {
             spaces = teachingSpaceRepository.findAll();
         } else {
             spaces = teachingSpaceRepository.findByTeacherId(teacher.getId());

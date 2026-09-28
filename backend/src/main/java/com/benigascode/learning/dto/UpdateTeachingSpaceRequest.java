@@ -14,8 +14,14 @@ public record UpdateTeachingSpaceRequest(
 
     String description,
 
-    @JsonAlias({"requiredTagIds", "contextTagIds"})
-    List<UUID> contextTagIds
+    List<UUID> contextTagIds,
+
+    List<UUID> requiredTagIds
 ) {
+    public List<UUID> getEffectiveTagIds() {
+        if (contextTagIds != null) return contextTagIds;
+        if (requiredTagIds != null) return requiredTagIds;
+        return List.of();
+    }
 }
 

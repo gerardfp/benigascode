@@ -7,6 +7,7 @@ import com.benigascode.identity.domain.User;
 import com.benigascode.identity.dto.BulkCreateStudentItem;
 import com.benigascode.identity.dto.BulkCreateStudentResponse;
 import com.benigascode.identity.dto.TeacherStudentDTO;
+import com.benigascode.identity.dto.UserDTO;
 import com.benigascode.identity.repository.UserRepository;
 import com.benigascode.learning.domain.StudentTag;
 import com.benigascode.learning.domain.Tag;
@@ -245,6 +246,42 @@ public class TeacherStudentService {
             throw new ValidationException("Solo se pueden eliminar cuentas con rol de alumno");
         }
         userRepository.delete(student);
+    }
+
+    @Transactional
+    public void deleteStudentsBulk(List<UUID> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        for (UUID id : studentIds) {
+            userRepository.findById(id).ifPresent(user -> {
+                if (user.getRole() == Role.STUDENT) {
+                    userRepository.delete(user);
+                }
+            });
+        }
+    }
+
+    @Transactional
+    public UserDTO updateStudent(UUID studentId, String fullName, String username, String newPassword) {
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Alumno no encontrado: " + studentId));
+        if (student.getRole() != Role.STUDENT) {
+            throw new ValidationException("Solo se pueden editar cuentas de alumno");
+        }
+        if (fullName != null && !fullName.trim().isBlank()) {
+            student.setFullName(fullName.trim());
+        }
+        if (username != null && !username.trim().isBlank() && !username.trim().equals(student.getUsername())) {
+            String newUsername = username.trim();
+            if (userRepository.existsByUsername(newUsername)) {
+                throw new ValidationException("El nombre de usuario '" + newUsername + "' ya está en uso");
+            }
+            student.setUsername(newUsername);
+        }
+        if (newPassword != null && !newPassword.trim().isBlank()) {
+            student.setPasswordHash(passwordEncoder.encode(newPassword.trim()));
+        }
+        student = userRepository.save(student);
+        return UserDTO.fromEntity(student);
     }
 
     @Transactional

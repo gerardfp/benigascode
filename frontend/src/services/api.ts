@@ -187,25 +187,27 @@ export const api = {
   getSpace: (id: string): Promise<TeachingSpace> =>
     request<TeachingSpace>(`/teacher/spaces/${id}`),
 
-  createSpace: (space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
-    request<TeachingSpace>('/teacher/spaces', {
+  createSpace: (space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> => {
+    const { requiredTagIds, ...rest } = space;
+    return request<TeachingSpace>('/teacher/spaces', {
       method: 'POST',
       body: JSON.stringify({
-        ...space,
-        contextTagIds: space.contextTagIds || space.requiredTagIds,
-        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+        ...rest,
+        contextTagIds: space.contextTagIds || requiredTagIds || [],
       }),
-    }),
+    });
+  },
 
-  updateSpace: (id: string, space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> =>
-    request<TeachingSpace>(`/teacher/spaces/${id}`, {
+  updateSpace: (id: string, space: { name: string; description?: string; contextTagIds?: string[]; requiredTagIds?: string[]; collectionIds?: string[]; teacherIds?: string[] }): Promise<TeachingSpace> => {
+    const { requiredTagIds, ...rest } = space;
+    return request<TeachingSpace>(`/teacher/spaces/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
-        ...space,
-        contextTagIds: space.contextTagIds || space.requiredTagIds,
-        requiredTagIds: space.requiredTagIds || space.contextTagIds,
+        ...rest,
+        contextTagIds: space.contextTagIds || requiredTagIds || [],
       }),
-    }),
+    });
+  },
 
   deleteSpace: (id: string): Promise<void> =>
     request<void>(`/teacher/spaces/${id}`, { method: 'DELETE' }),
@@ -277,6 +279,18 @@ export const api = {
       body: JSON.stringify({ studentIds, tagId }),
     }),
 
+  batchAssignSpace: (studentIds: string[], spaceId: string, validUntil?: string): Promise<void> =>
+    request<void>('/teacher/tags/students/batch-assign-space', {
+      method: 'POST',
+      body: JSON.stringify({ studentIds, spaceId, validUntil }),
+    }),
+
+  batchRevokeSpace: (studentIds: string[], spaceId: string): Promise<void> =>
+    request<void>('/teacher/tags/students/batch-revoke-space', {
+      method: 'POST',
+      body: JSON.stringify({ studentIds, spaceId }),
+    }),
+
   previewContext: (tagIds: string[]): Promise<ContextPreviewDTO> =>
     request<ContextPreviewDTO>('/teacher/tags/context/preview', {
       method: 'POST',
@@ -285,7 +299,7 @@ export const api = {
 
   // Compatibilidad con Cursos
   listCourses: (): Promise<Course[]> =>
-    request<Course[]>('/teacher/courses'),
+    Promise.resolve([]),
 
   listGroups: (courseId: string): Promise<Group[]> =>
     request<Group[]>(`/teacher/courses/${courseId}/groups`),
@@ -486,6 +500,7 @@ export const api = {
     status?: string;
     search?: string;
     tag?: string;
+    since?: string;
   }): Promise<TeacherSubmissionItem[]> => {
     const sp = new URLSearchParams();
     const sId = params?.spaceId || params?.teachingSpaceId || params?.courseId;
@@ -496,6 +511,7 @@ export const api = {
     if (params?.status) sp.set('status', params.status);
     if (params?.search) sp.set('search', params.search);
     if (params?.tag) sp.set('tag', params.tag);
+    if (params?.since) sp.set('since', params.since);
     const qs = sp.toString();
     return request<TeacherSubmissionItem[]>(`/teacher/submissions${qs ? `?${qs}` : ''}`);
   },
@@ -582,6 +598,18 @@ export const api = {
   deleteStudentAccount: (studentId: string): Promise<void> =>
     request<void>(`/teacher/students/${studentId}`, {
       method: 'DELETE',
+    }),
+
+  bulkDeleteStudents: (studentIds: string[]): Promise<void> =>
+    request<void>('/teacher/students/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify(studentIds),
+    }),
+
+  updateStudent: (studentId: string, data: { fullName?: string; username?: string; password?: string }): Promise<any> =>
+    request<any>(`/teacher/students/${studentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     }),
 
   // Gestión de Alumnos y Etiquetas (Profesor)

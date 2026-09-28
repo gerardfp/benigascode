@@ -108,19 +108,8 @@ public class ActivityService {
 
     @Transactional(readOnly = true)
     public List<ActivityDTO> getActivitiesForUser(User user) {
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) {
             return activityRepository.findAll().stream()
-                    .map(a -> ActivityDTO.from(a, activityVersionRepository.findLatestByActivityId(a.getId()).orElse(null)))
-                    .toList();
-        }
-
-        if (user.getRole() == Role.TEACHER) {
-            List<TeachingSpace> teacherSpaces = teachingSpaceRepository.findByTeacherId(user.getId());
-            if (teacherSpaces.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<UUID> spaceIds = teacherSpaces.stream().map(TeachingSpace::getId).toList();
-            return activityRepository.findByTeachingSpaceIdIn(spaceIds).stream()
                     .map(a -> ActivityDTO.from(a, activityVersionRepository.findLatestByActivityId(a.getId()).orElse(null)))
                     .toList();
         }
@@ -177,10 +166,7 @@ public class ActivityService {
     }
 
     public void assertTeacherOrAdmin(User user, UUID spaceId) {
-        if (user.getRole() == Role.ADMIN) return;
-        boolean isTeacher = teachingSpaceRepository.isTeacherOfSpace(spaceId, user.getId());
-        if (!isTeacher) {
-            throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
-        }
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) return;
+        throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
     }
 }

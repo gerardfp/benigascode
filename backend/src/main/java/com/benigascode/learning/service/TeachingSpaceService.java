@@ -50,12 +50,8 @@ public class TeachingSpaceService {
 
     @Transactional(readOnly = true)
     public List<TeachingSpaceDTO> getSpacesForUser(User user) {
-        if (user.getRole() == Role.ADMIN) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) {
             return teachingSpaceRepository.findAllByOrderByNameAsc().stream()
-                .map(s -> toDTO(s, true))
-                .toList();
-        } else if (user.getRole() == Role.TEACHER) {
-            return teachingSpaceRepository.findByTeacherId(user.getId()).stream()
                 .map(s -> toDTO(s, true))
                 .toList();
         } else {
@@ -90,7 +86,7 @@ public class TeachingSpaceService {
             throw new AccessDeniedException("Solo los profesores o administradores pueden crear espacios docentes");
         }
 
-        List<UUID> tagIds = request.contextTagIds() != null ? request.contextTagIds() : Collections.emptyList();
+        List<UUID> tagIds = request.getEffectiveTagIds();
         TeachingSpace space = new TeachingSpace(request.name().trim(), request.description(), tagIds);
 
         // Asociar al creador si es profesor
@@ -127,9 +123,7 @@ public class TeachingSpaceService {
 
         space.setName(request.name().trim());
         space.setDescription(request.description());
-        if (request.contextTagIds() != null) {
-            space.setRequiredTagIds(request.contextTagIds());
-        }
+        space.setRequiredTagIds(request.getEffectiveTagIds());
 
         space = teachingSpaceRepository.save(space);
         return toDTO(space);
@@ -229,11 +223,8 @@ public class TeachingSpaceService {
     }
 
     public void assertTeacherOrAdmin(User user, UUID spaceId) {
-        if (user.getRole() == Role.ADMIN) return;
-        boolean isTeacher = teachingSpaceRepository.isTeacherOfSpace(spaceId, user.getId());
-        if (!isTeacher) {
-            throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
-        }
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TEACHER) return;
+        throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
     }
 
     private TeachingSpaceDTO toDTO(TeachingSpace space) {

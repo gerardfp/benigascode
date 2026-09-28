@@ -16,6 +16,8 @@ export interface Collection {
   description: string;
   visibility: 'PUBLIC' | 'PRIVATE';
   versionNumber: number;
+  exercises?: CollectionItemDTO[];
+  items?: CollectionItemDTO[];
 }
 
 export interface Exercise {

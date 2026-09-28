@@ -7,6 +7,7 @@ import com.benigascode.identity.dto.BulkCreateStudentResponse;
 import com.benigascode.identity.dto.CreateStudentRequest;
 import com.benigascode.identity.dto.StudentTagRequest;
 import com.benigascode.identity.dto.TeacherStudentDTO;
+import com.benigascode.identity.dto.UpdateStudentRequest;
 import com.benigascode.identity.dto.UserDTO;
 import com.benigascode.identity.service.TeacherStudentService;
 import com.benigascode.identity.service.UserService;
@@ -67,6 +68,24 @@ public class TeacherStudentController {
     public ResponseEntity<Void> deleteStudent(@PathVariable UUID studentId) {
         studentService.deleteStudent(studentId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<Void> deleteStudentsBulk(@RequestBody List<UUID> studentIds) {
+        studentService.deleteStudentsBulk(studentIds);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{studentId}")
+    public ResponseEntity<UserDTO> updateStudent(
+            @PathVariable UUID studentId,
+            @RequestBody UpdateStudentRequest request) {
+        return ResponseEntity.ok(studentService.updateStudent(
+                studentId,
+                request.fullName(),
+                request.username(),
+                request.password()
+        ));
     }
 
     @PostMapping("/{studentId}/courses/{courseId}")

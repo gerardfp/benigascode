@@ -57,6 +57,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -177,6 +178,17 @@ public class SubmissionService {
             submission.setTeachingSpaceId(activityVersion.getActivity().getTeachingSpace().getId());
         } else if (request.getEffectiveTeachingSpaceId() != null) {
             submission.setTeachingSpaceId(request.getEffectiveTeachingSpaceId());
+        } else if (request.collectionId() != null) {
+            List<TeachingSpace> spacesWithCol = teachingSpaceRepository.findByCollectionId(request.collectionId());
+            for (TeachingSpace sp : spacesWithCol) {
+                if (contextService.studentMatchesSpace(student.getId(), sp)) {
+                    submission.setTeachingSpaceId(sp.getId());
+                    break;
+                }
+            }
+            if (submission.getTeachingSpaceId() == null && !spacesWithCol.isEmpty()) {
+                submission.setTeachingSpaceId(spacesWithCol.get(0).getId());
+            }
         }
 
         if (request.collectionId() != null) {
@@ -222,11 +234,8 @@ public class SubmissionService {
             if (!submission.getStudent().getId().equals(user.getId())) {
                 throw new ResourceNotFoundException("Entrega no encontrada");
             }
-        } else if (user.getRole() == Role.TEACHER && submission.getActivityVersion() != null && submission.getActivityVersion().getActivity() != null) {
-            UUID spaceId = submission.getActivityVersion().getActivity().getTeachingSpace().getId();
-            if (!teachingSpaceRepository.isTeacherOfSpace(spaceId, user.getId())) {
-                throw new AccessDeniedException("No tienes permisos para consultar esta entrega");
-            }
+        } else if (user.getRole() != Role.ADMIN && user.getRole() != Role.TEACHER) {
+            throw new AccessDeniedException("No tienes permisos para consultar esta entrega");
         }
 
         return toEnrichedDTO(submission);
@@ -279,7 +288,7 @@ public class SubmissionService {
 
     @Transactional(readOnly = true)
     public List<SubmissionDTO> getSubmissionsForCourse(UUID courseId, User teacher) {
-        if (teacher.getRole() != Role.ADMIN && !teachingSpaceRepository.isTeacherOfSpace(courseId, teacher.getId())) {
+        if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
             throw new AccessDeniedException("No tienes permisos de profesor en este espacio docente");
         }
         return submissionRepository.findByTeachingSpaceId(courseId).stream()
@@ -384,6 +393,11 @@ public class SubmissionService {
 
     @Transactional(readOnly = true)
     public List<TeacherSubmissionItemDTO> getTeacherSubmissions(UUID courseId, UUID groupId, UUID studentId, UUID exerciseId, String status, String search, User teacher) {
+        return getTeacherSubmissions(courseId, groupId, studentId, exerciseId, status, search, null, teacher);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherSubmissionItemDTO> getTeacherSubmissions(UUID courseId, UUID groupId, UUID studentId, UUID exerciseId, String status, String search, Instant since, User teacher) {
         if (teacher.getRole() != Role.ADMIN && teacher.getRole() != Role.TEACHER) {
             throw new AccessDeniedException("Operación restringida a profesores");
         }
@@ -400,6 +414,9 @@ public class SubmissionService {
         String searchLower = search != null ? search.trim().toLowerCase() : null;
 
         for (Submission s : allSubs) {
+            if (since != null && s.getCreatedAt() != null && s.getCreatedAt().isBefore(since)) {
+                break;
+            }
             if (studentId != null && !s.getStudent().getId().equals(studentId)) {
                 continue;
             }

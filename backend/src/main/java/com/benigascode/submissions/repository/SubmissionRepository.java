@@ -3,6 +3,7 @@ package com.benigascode.submissions.repository;
 import com.benigascode.submissions.domain.Submission;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -22,8 +23,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     @Query("SELECT s FROM Submission s WHERE s.student.id = :studentId AND s.exerciseVersion.exercise.id = :exerciseId AND (:activityId IS NULL OR (s.activityVersion IS NOT NULL AND s.activityVersion.activity.id = :activityId)) ORDER BY s.createdAt DESC")
     List<Submission> findByStudentAndExerciseAndOptionalActivity(UUID studentId, UUID exerciseId, UUID activityId);
 
-    @Query("SELECT s FROM Submission s WHERE s.teachingSpaceId = :teachingSpaceId OR (s.activityVersion IS NOT NULL AND s.activityVersion.activity.teachingSpace.id = :teachingSpaceId) ORDER BY s.createdAt DESC")
-    List<Submission> findByTeachingSpaceId(UUID teachingSpaceId);
+    @Query("SELECT s FROM Submission s " +
+           "LEFT JOIN s.activityVersion av " +
+           "LEFT JOIN av.activity act " +
+           "WHERE s.teachingSpaceId = :teachingSpaceId " +
+           "OR act.teachingSpace.id = :teachingSpaceId " +
+           "OR (s.collectionId IS NOT NULL AND s.collectionId IN (SELECT c.id FROM TeachingSpace ts JOIN ts.collections c WHERE ts.id = :teachingSpaceId)) " +
+           "ORDER BY s.createdAt DESC")
+    List<Submission> findByTeachingSpaceId(@Param("teachingSpaceId") UUID teachingSpaceId);
 
     default List<Submission> findByCourseId(UUID courseId) {
         return findByTeachingSpaceId(courseId);

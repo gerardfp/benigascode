@@ -106,6 +106,20 @@ public class TeacherTagController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/students/batch-assign-space")
+    public ResponseEntity<Void> batchAssignSpace(@Valid @RequestBody BatchAssignSpaceRequest request) {
+        User teacher = userService.getCurrentUser();
+        tagService.batchAssignSpace(request.studentIds(), request.spaceId(), teacher, request.validFrom(), request.validUntil());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/students/batch-revoke-space")
+    public ResponseEntity<Void> batchRevokeSpace(@Valid @RequestBody BatchRevokeSpaceRequest request) {
+        User teacher = userService.getCurrentUser();
+        tagService.batchRevokeSpace(request.studentIds(), request.spaceId(), teacher);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/context/preview")
     public ResponseEntity<ContextPreviewDTO> previewContext(@RequestBody ContextDTO context) {
         List<UUID> tagIds = context.getSafeTagIds();
