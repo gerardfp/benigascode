@@ -1,5 +1,6 @@
 package com.benigascode.learning.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -13,18 +14,12 @@ public record CreateTeachingSpaceRequest(
 
     String description,
 
+    @JsonAlias({"requiredTagIds", "contextTagIds"})
     List<UUID> contextTagIds,
-
-    List<UUID> requiredTagIds,
 
     List<UUID> teacherIds,
 
     List<UUID> collectionIds
 ) {
-    public CreateTeachingSpaceRequest {
-        if (contextTagIds == null && requiredTagIds != null) {
-            contextTagIds = requiredTagIds;
-        }
-    }
 }
 

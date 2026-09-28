@@ -325,7 +325,6 @@ export const TeacherSpacesView: React.FC = () => {
         await api.updateSpace(editingSpaceId, {
           name: spaceName.trim(),
           description: spaceDesc.trim() || undefined,
-          contextTagIds: nextTagIds,
           requiredTagIds: nextTagIds,
         });
         loadData();
