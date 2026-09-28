@@ -101,7 +101,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
       }}
     >
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0.05rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <Link
             to={user && (user.role === 'TEACHER' || user.role === 'ADMIN') ? '/teacher' : '/'}
@@ -117,7 +117,21 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
               flexShrink: 0,
             }}
           >
-            <span style={{ color: '#2563eb', whiteSpace: 'nowrap', display: 'inline-block' }}>&lt;/&gt;</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ flexShrink: 0 }}
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
             <span style={{ whiteSpace: 'nowrap' }}>Benigascode</span>
           </Link>
 

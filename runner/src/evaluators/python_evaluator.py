@@ -116,12 +116,17 @@ class PythonEvaluator:
         has_timeout = False
         has_runtime_error = False
 
+        total_tests = len(tests)
+        assigned_weights = [float(t.get("weight", 0.0) or 0.0) for t in tests]
+        has_weights = sum(assigned_weights) > 0
+        default_weight = (100.0 / total_tests) if (total_tests > 0 and not has_weights) else 0.0
+
         for test in tests:
             test_id = test.get("id") or test.get("testId") or "test"
             test_name = test.get("name") or test.get("testName") or test_id
             test_input = test.get("input", "")
             expected_output = test.get("expected") if "expected" in test else test.get("expectedOutput", "")
-            weight = float(test.get("weight", 0.0))
+            weight = float(test.get("weight", 0.0) or 0.0) if has_weights else default_weight
             is_public = test.get("is_public") if "is_public" in test else test.get("isPublic", False)
 
             exec_res = self.sandbox.execute_in_sandbox(
@@ -168,6 +173,7 @@ class PythonEvaluator:
 
         if all_passed:
             overall_status = "CORRECT"
+            total_score = 100.0
         elif has_timeout and total_score == 0:
             overall_status = "TIMEOUT"
         elif has_runtime_error and total_score == 0:

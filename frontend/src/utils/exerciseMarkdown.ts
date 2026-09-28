@@ -283,7 +283,15 @@ export function serializeExerciseToMarkdown(data: {
   parts.push(`# ${title}\n`);
 
   // 3. Enunciado
-  const statement = (data.statement || '').trim();
+  let statement = (data.statement || '').trim();
+  if (statement.startsWith('# ')) {
+    const firstLineEnd = statement.indexOf('\n');
+    const firstLine = firstLineEnd !== -1 ? statement.slice(2, firstLineEnd).trim() : statement.slice(2).trim();
+    if (firstLine.toLowerCase() === title.toLowerCase()) {
+      statement = firstLineEnd !== -1 ? statement.slice(firstLineEnd + 1).trim() : '';
+    }
+  }
+
   if (statement) {
     parts.push(`${statement}\n`);
   } else {

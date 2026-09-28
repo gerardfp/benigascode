@@ -1,12 +1,34 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save } from 'lucide-react';
 import { renderMarkdown } from '../utils/markdown';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
 import { TagBadge } from '../components/TagBadge';
 import { detectLanguage } from '../utils/languageDetector';
+
+const SaveWithCheck: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle' }}
+  >
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" />
+    <polyline points="7 3 7 8 15 8" />
+    <circle cx="17" cy="17" r="5.5" fill="#ffffff" stroke="#16a34a" strokeWidth="1.5" />
+    <polyline points="14.2 17 16.5 19.3 20 14.8" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  </svg>
+);
 
 export const ExerciseView: React.FC = () => {
   const { activityId, collectionId, exerciseId } = useParams<{
@@ -21,7 +43,7 @@ export const ExerciseView: React.FC = () => {
   const [selectedLang, setSelectedLang] = useState<string>('java');
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const autoSaveTimerRef = useRef<any>(null);
 
   // Estados de control de código guardado, probado y entregado
   const [lastSavedCode, setLastSavedCode] = useState<string | null>(null);
@@ -273,6 +295,15 @@ export const ExerciseView: React.FC = () => {
     }
   }, []);
 
+  // Alternar colapso/expansión del panel de tests
+  const toggleTestPanel = useCallback(() => {
+    if (isTestPanelCollapsed) {
+      expandTestPanelToHalf();
+    } else {
+      setIsTestPanelCollapsed(true);
+    }
+  }, [isTestPanelCollapsed, expandTestPanelToHalf]);
+
   // Copiar todo el código al portapapeles
   const handleCopyCode = async () => {
     try {
@@ -364,7 +395,6 @@ export const ExerciseView: React.FC = () => {
           // Última acción fue guardar borrador
           const wsCode = ws.sourceCode;
           setCode(wsCode);
-          setLastSaved(ws.updatedAt);
           setLastSavedCode(wsCode);
           setLastTestedCode(null);
           setLastSubmittedCode(latestSub ? latestSub.sourceCode : null);
@@ -429,11 +459,15 @@ export const ExerciseView: React.FC = () => {
 
   // Cambio de lenguaje mediante las pestañas de plantilla
   const handleSelectLanguage = (lang: string) => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
     const normalized = lang.toLowerCase();
     setSelectedLang(normalized);
     const newCode = exercise?.starterTemplates?.[normalized] || exercise?.starterTemplates?.[lang] || '';
     setCode(newCode);
     setLastSavedCode(newCode);
+    setSaveStatus('saved');
     setLastTestedCode(null);
     setLastSubmittedCode(null);
     setPreviewResult(null);
@@ -452,17 +486,18 @@ export const ExerciseView: React.FC = () => {
     const targetTemplate = exercise?.starterTemplates?.[selectedLang] || exercise?.starterCode;
     if (targetTemplate !== undefined && targetTemplate !== null) {
       if (window.confirm('¿Deseas restablecer el código a la plantilla inicial? Se descartarán las modificaciones actuales.')) {
+        if (autoSaveTimerRef.current) {
+          clearTimeout(autoSaveTimerRef.current);
+        }
         setCode(targetTemplate);
         setLastSavedCode(targetTemplate);
+        setSaveStatus('saved');
         setLastTestedCode(null);
         setLastSubmittedCode(null);
         setPreviewResult(null);
         setSubmission(null);
         setEvaluation(null);
         api.saveWorkspace(exerciseId!, targetTemplate, selectedLang)
-          .then((ws) => {
-            setLastSaved(ws.updatedAt);
-          })
           .catch(console.error);
       }
     }
@@ -511,31 +546,78 @@ export const ExerciseView: React.FC = () => {
   // Control de habilitación de botones
   const isBusy = submitLoading || previewLoading || saveStatus === 'saving';
   const hasCode = Boolean(code && code.trim().length > 0);
-  const isModifiedSinceSave = hasCode && code !== lastSavedCode;
+  const isDraftSaved = !exercise || lastSavedCode === null || code === lastSavedCode;
   const isModifiedSinceTest = hasCode && code !== lastTestedCode && code !== lastSubmittedCode;
   const isModifiedSinceSubmit = hasCode && code !== lastSubmittedCode;
 
-  const canSave = isModifiedSinceSave && !isBusy;
+  const canSave = !isDraftSaved && !isBusy;
   const canPreview = isModifiedSinceTest && !isBusy;
   const canSubmit = isModifiedSinceSubmit && !isBusy;
 
   // Guardar borrador en el workspace
   const handleSaveWorkspace = useCallback(async () => {
-    if (!exerciseId || !code || !canSave) return;
+    if (!exerciseId || !code || isDraftSaved || isBusy) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
     setSaveStatus('saving');
     try {
-      const ws = await api.saveWorkspace(exerciseId, code, currentLang);
+      await api.saveWorkspace(exerciseId, code, currentLang);
       setSaveStatus('saved');
-      setLastSaved(ws.updatedAt);
       setLastSavedCode(code);
-      setPreviewResult(null);
-      setSubmission(null);
-      setEvaluation(null);
-      setTimeout(() => setSaveStatus('idle'), 2500);
     } catch {
       setSaveStatus('error');
     }
-  }, [exerciseId, code, currentLang, canSave]);
+  }, [exerciseId, code, currentLang, isDraftSaved, isBusy]);
+
+  // Auto-save workspace draft effect with 1500ms debounce
+  useEffect(() => {
+    if (!exerciseId || !exercise || lastSavedCode === null || isBusy) {
+      return;
+    }
+
+    if (code === lastSavedCode) {
+      return;
+    }
+
+    if (saveStatus !== 'idle') {
+      setSaveStatus('idle');
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setSaveStatus('saving');
+        await api.saveWorkspace(exerciseId, code, currentLang);
+        setSaveStatus('saved');
+        setLastSavedCode(code);
+      } catch (err) {
+        console.error('Error auto-saving workspace draft:', err);
+        setSaveStatus('error');
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [code, exerciseId, exercise, lastSavedCode, currentLang, isBusy]);
+
+  // Atajo de teclado Ctrl+S / Cmd+S para guardar borrador
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveWorkspace();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSaveWorkspace]);
 
   // Renderizado del enunciado Markdown
   const renderedStatementHtml = useMemo(() => {
@@ -677,11 +759,15 @@ export const ExerciseView: React.FC = () => {
     setEvaluation(null);
     setErrorMsg(null);
 
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
     // Auto-guardar borrador al probar
     api.saveWorkspace(exerciseId, code, currentLang)
-      .then((ws) => {
-        setLastSaved(ws.updatedAt);
+      .then(() => {
         setLastSavedCode(code);
+        setSaveStatus('saved');
       })
       .catch(console.error);
 
@@ -744,11 +830,15 @@ export const ExerciseView: React.FC = () => {
     setPreviewLoading(false);
     setErrorMsg(null);
 
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
     // Auto-guardar borrador al entregar
     api.saveWorkspace(exerciseId, code, currentLang)
-      .then((ws) => {
-        setLastSaved(ws.updatedAt);
+      .then(() => {
         setLastSavedCode(code);
+        setSaveStatus('saved');
       })
       .catch(console.error);
 
@@ -853,7 +943,7 @@ export const ExerciseView: React.FC = () => {
               flexDirection: 'column',
               height: isSmallScreen ? 'auto' : '100%',
               boxSizing: 'border-box',
-              padding: '1.25rem',
+              padding: '0.75rem 1rem',
               overflow: 'hidden',
             }}
           >
@@ -864,23 +954,23 @@ export const ExerciseView: React.FC = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '0.75rem',
+                gap: '0.5rem',
                 borderBottom: '1px solid #e2e8f0',
-                paddingBottom: '0.875rem',
-                marginBottom: '1rem',
+                paddingBottom: '0.45rem',
+                marginBottom: '0.6rem',
                 flexShrink: 0,
               }}
             >
               {/* Sección Izquierda: Navegación (Volver, Anterior, Siguiente) */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {collectionId ? (
                   <Link
                     to={`/collections/${collectionId}`}
                     className="btn-secondary"
                     style={{
                       textDecoration: 'none',
-                      fontSize: '0.8125rem',
-                      padding: '0.35rem 0.5rem',
+                      fontSize: '0.75rem',
+                      padding: '0.3rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -897,8 +987,8 @@ export const ExerciseView: React.FC = () => {
                     className="btn-secondary"
                     style={{
                       textDecoration: 'none',
-                      fontSize: '0.8125rem',
-                      padding: '0.35rem 0.5rem',
+                      fontSize: '0.75rem',
+                      padding: '0.3rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -915,8 +1005,8 @@ export const ExerciseView: React.FC = () => {
                     className="btn-secondary"
                     style={{
                       textDecoration: 'none',
-                      fontSize: '0.8125rem',
-                      padding: '0.35rem 0.5rem',
+                      fontSize: '0.75rem',
+                      padding: '0.3rem 0.5rem',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -947,7 +1037,7 @@ export const ExerciseView: React.FC = () => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '0.35rem 0.5rem',
+                          padding: '0.3rem 0.5rem',
                           color: '#334155',
                           textDecoration: 'none',
                           borderRight: '1px solid #cbd5e1',
@@ -962,7 +1052,7 @@ export const ExerciseView: React.FC = () => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '0.35rem 0.5rem',
+                          padding: '0.3rem 0.5rem',
                           color: '#94a3b8',
                           borderRight: '1px solid #cbd5e1',
                           cursor: 'not-allowed',
@@ -981,7 +1071,7 @@ export const ExerciseView: React.FC = () => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '0.35rem 0.5rem',
+                          padding: '0.3rem 0.5rem',
                           color: '#334155',
                           textDecoration: 'none',
                         }}
@@ -995,7 +1085,7 @@ export const ExerciseView: React.FC = () => {
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '0.35rem 0.5rem',
+                          padding: '0.3rem 0.5rem',
                           color: '#94a3b8',
                           cursor: 'not-allowed',
                           opacity: 0.6,
@@ -1014,9 +1104,9 @@ export const ExerciseView: React.FC = () => {
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  padding: '0.2rem',
+                  padding: '0.15rem',
                   backgroundColor: '#f1f5f9',
-                  borderRadius: '0.5rem',
+                  borderRadius: '0.375rem',
                   border: '1px solid #e2e8f0',
                 }}
               >
@@ -1026,20 +1116,20 @@ export const ExerciseView: React.FC = () => {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.375rem',
+                    gap: '0.35rem',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '0.25rem',
                     border: 'none',
                     backgroundColor: leftTab === 'statement' ? '#ffffff' : 'transparent',
                     color: leftTab === 'statement' ? '#1e293b' : '#64748b',
                     fontWeight: leftTab === 'statement' ? 700 : 500,
-                    fontSize: '0.8125rem',
+                    fontSize: '0.75rem',
                     cursor: 'pointer',
-                    boxShadow: leftTab === 'statement' ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
+                    boxShadow: leftTab === 'statement' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <FileText size={15} style={{ color: leftTab === 'statement' ? '#2563eb' : '#64748b' }} />
+                  <FileText size={14} style={{ color: leftTab === 'statement' ? '#2563eb' : '#64748b' }} />
                   <span>Enunciado</span>
                 </button>
 
@@ -1049,20 +1139,20 @@ export const ExerciseView: React.FC = () => {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.35rem 0.75rem',
-                    borderRadius: '0.375rem',
+                    gap: '0.35rem',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '0.25rem',
                     border: 'none',
                     backgroundColor: leftTab === 'submissions' ? '#ffffff' : 'transparent',
                     color: leftTab === 'submissions' ? '#1e293b' : '#64748b',
                     fontWeight: leftTab === 'submissions' ? 700 : 500,
-                    fontSize: '0.8125rem',
+                    fontSize: '0.75rem',
                     cursor: 'pointer',
-                    boxShadow: leftTab === 'submissions' ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none',
+                    boxShadow: leftTab === 'submissions' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <History size={15} style={{ color: leftTab === 'submissions' ? '#2563eb' : '#64748b' }} />
+                  <History size={14} style={{ color: leftTab === 'submissions' ? '#2563eb' : '#64748b' }} />
                   <span>Entregas</span>
                   {submissionsHistory.length > 0 && (
                     <span
@@ -1070,8 +1160,8 @@ export const ExerciseView: React.FC = () => {
                         marginLeft: '0.15rem',
                         backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#e2e8f0',
                         color: leftTab === 'submissions' ? '#1e40af' : '#475569',
-                        fontSize: '0.7rem',
-                        padding: '0.05rem 0.4rem',
+                        fontSize: '0.65rem',
+                        padding: '0.02rem 0.35rem',
                         borderRadius: '9999px',
                         fontWeight: 700,
                       }}
@@ -1501,8 +1591,6 @@ export const ExerciseView: React.FC = () => {
                   </span>
                 )}
 
-                {saveStatus === 'saving' && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>💾 Guardando...</span>}
-                {saveStatus === 'saved' && <span style={{ fontSize: '0.75rem', color: '#15803d' }}>✓ Guardado</span>}
               </div>
 
               {/* Bloque 2 (Centro): Copiar, Pegar */}
@@ -1512,16 +1600,14 @@ export const ExerciseView: React.FC = () => {
                   onClick={handleCopyCode}
                   className="btn-secondary"
                   style={{
-                    fontSize: '0.75rem',
-                    padding: '0.25rem 0.55rem',
+                    padding: '0.3rem 0.5rem',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.3rem',
+                    justifyContent: 'center',
                   }}
-                  title="Copiar todo el código al portapapeles"
+                  title={copiedFeedback ? 'Copiado al portapapeles' : 'Copiar todo el código al portapapeles'}
                 >
-                  {copiedFeedback ? <Check size={13} style={{ color: '#16a34a' }} /> : <Copy size={13} />}
-                  <span>{copiedFeedback ? 'Copiado' : 'Copiar'}</span>
+                  {copiedFeedback ? <Check size={16} style={{ color: '#16a34a' }} /> : <Copy size={16} />}
                 </button>
 
                 <button
@@ -1529,16 +1615,14 @@ export const ExerciseView: React.FC = () => {
                   onClick={handlePasteCode}
                   className="btn-secondary"
                   style={{
-                    fontSize: '0.75rem',
-                    padding: '0.25rem 0.55rem',
+                    padding: '0.3rem 0.5rem',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.3rem',
+                    justifyContent: 'center',
                   }}
                   title="Pegar del portapapeles borrando todo el contenido actual"
                 >
-                  <Clipboard size={13} />
-                  <span>Pegar</span>
+                  <Clipboard size={16} />
                 </button>
               </div>
 
@@ -1550,17 +1634,26 @@ export const ExerciseView: React.FC = () => {
                   disabled={!canSave}
                   className="btn-secondary"
                   style={{
-                    fontSize: '0.75rem',
-                    padding: '0.25rem 0.55rem',
-                    opacity: canSave ? 1 : 0.5,
-                    cursor: canSave ? 'pointer' : 'not-allowed',
+                    padding: '0.3rem 0.5rem',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.3rem',
+                    justifyContent: 'center',
+                    opacity: !canSave ? 0.45 : 1,
+                    cursor: !canSave ? 'not-allowed' : 'pointer',
                   }}
-                  title={canSave ? 'Guardar borrador de trabajo' : lastSaved ? `Guardado a las ${new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'El código no ha sido modificado'}
+                  title={
+                    saveStatus === 'saving'
+                      ? 'Guardando borrador...'
+                      : isDraftSaved
+                        ? 'Borrador guardado'
+                        : 'Guardar borrador (Ctrl+S)'
+                  }
                 >
-                  💾 Guardar
+                  {isDraftSaved ? (
+                    <SaveWithCheck size={16} />
+                  ) : (
+                    <Save size={16} />
+                  )}
                 </button>
 
                 {((exercise.starterCode && exercise.starterCode.trim().length > 0) || (exercise.starterTemplates && Object.keys(exercise.starterTemplates).length > 0)) && (
@@ -1686,21 +1779,21 @@ export const ExerciseView: React.FC = () => {
           >
             {/* Barra superior de Testcase / Test Result */}
             <div
-              onClick={isTestPanelCollapsed ? expandTestPanelToHalf : undefined}
+              onClick={toggleTestPanel}
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 borderBottom: isTestPanelCollapsed ? 'none' : '1px solid #e2e8f0',
-                paddingBottom: isTestPanelCollapsed ? 0 : '0.625rem',
-                marginBottom: isTestPanelCollapsed ? 0 : '0.75rem',
+                paddingBottom: isTestPanelCollapsed ? 0 : '0.45rem',
+                marginBottom: isTestPanelCollapsed ? 0 : '0.6rem',
                 flexWrap: 'wrap',
                 gap: '0.5rem',
                 flexShrink: 0,
-                cursor: isTestPanelCollapsed ? 'pointer' : 'default',
+                cursor: 'pointer',
                 userSelect: 'none',
               }}
-              title={isTestPanelCollapsed ? 'Clic en la cabecera para expandir al 50%' : undefined}
+              title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
@@ -1740,11 +1833,7 @@ export const ExerciseView: React.FC = () => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (isTestPanelCollapsed) {
-                      expandTestPanelToHalf();
-                    } else {
-                      setIsTestPanelCollapsed(true);
-                    }
+                    toggleTestPanel();
                   }}
                   className="btn-secondary"
                   style={{

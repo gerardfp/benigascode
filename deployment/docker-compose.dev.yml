@@ -38,8 +38,7 @@ services:
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:3000/auth/github/callback}
       INITIAL_TEACHER_GITHUB_USERNAMES: ${INITIAL_TEACHER_GITHUB_USERNAMES:-gerardfp}
     volumes:
-      - ../content-example:/var/lib/benigascode/content
-      - ../catalog:/var/lib/benigascode/catalog
+      - benigascode_content_data:/var/lib/benigascode/content
     ports:
       - "8080:8080"
     networks:

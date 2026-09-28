@@ -73,7 +73,7 @@ export function renderMarkdown(markdownContent: string, exerciseId?: string | nu
   }
 
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['img', 'span', 'pre', 'code'],
-    ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading', 'style']
+    ADD_TAGS: ['img', 'span', 'pre', 'code', 'svg', 'g', 'path', 'defs'],
+    ADD_ATTR: ['src', 'alt', 'title', 'class', 'loading', 'style', 'xmlns', 'viewBox', 'width', 'height', 'd', 'fill', 'stroke', 'stroke-width', 'transform', 'role', 'focusable']
   });
 }
