@@ -60,12 +60,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     await doLogin(username, password);
   };
 
-  const handleDemoLogin = async (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-    await doLogin(u, p);
-  };
-
   return (
     <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div className="card" style={{ maxWidth: 420, width: '100%' }}>
@@ -180,24 +174,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <Link to="/register" style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>
             Regístrate aquí &rarr;
           </Link>
-        </div>
-
-        <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
-          <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Usuarios de prueba disponibles:</div>
-          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-            {[1, 2, 3, 4, 5].map((num) => (
-              <button
-                key={num}
-                type="button"
-                disabled={loading}
-                onClick={() => handleDemoLogin(`alumno${num}@benigascode.local`, 'StudentPass123!')}
-                className="btn-secondary"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', opacity: loading ? 0.7 : 1 }}
-              >
-                Alumno {num}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>
