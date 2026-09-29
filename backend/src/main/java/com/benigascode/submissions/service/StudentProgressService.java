@@ -383,13 +383,19 @@ public class StudentProgressService {
             dailyMap.put(today.minusDays(i).format(df), new int[2]);
         }
 
+        List<Evaluation> allEvals = evaluationRepository.findByStudentId(student.getId());
+        Map<UUID, Evaluation> latestEvalBySubmission = new HashMap<>();
+        for (Evaluation eval : allEvals) {
+            latestEvalBySubmission.put(eval.getSubmission().getId(), eval);
+        }
+
         for (Submission s : allSubs) {
             String dateKey = df.format(s.getCreatedAt().atZone(ZoneId.of("UTC")));
             int[] counts = dailyMap.get(dateKey);
             if (counts != null) {
                 counts[0]++;
-                Optional<Evaluation> evalOpt = evaluationRepository.findLatestBySubmissionId(s.getId());
-                if (evalOpt.isPresent() && "CORRECT".equalsIgnoreCase(evalOpt.get().getStatus())) {
+                Evaluation eval = latestEvalBySubmission.get(s.getId());
+                if (eval != null && "CORRECT".equalsIgnoreCase(eval.getStatus())) {
                     counts[1]++;
                 }
             }
@@ -398,12 +404,115 @@ public class StudentProgressService {
         List<StudentInsightsDTO.DailyActivityItem> timeline = new ArrayList<>();
         dailyMap.forEach((date, c) -> timeline.add(new StudentInsightsDTO.DailyActivityItem(date, c[0], c[1])));
 
+        // Fechas de hitos por ejercicio para el stacked area chart
+        Map<UUID, String> firstAttemptDate = new HashMap<>();
+        Map<UUID, String> firstPartialDate = new HashMap<>();
+        Map<UUID, String> firstSolvedDate = new HashMap<>();
+        Set<UUID> allAttemptedExIds = new HashSet<>();
+
+        for (int i = allSubs.size() - 1; i >= 0; i--) {
+            Submission s = allSubs.get(i);
+            if (s.getExerciseVersion() == null || s.getExerciseVersion().getExercise() == null) continue;
+            UUID exId = s.getExerciseVersion().getExercise().getId();
+            allAttemptedExIds.add(exId);
+            String dateKey = df.format(s.getCreatedAt().atZone(ZoneId.of("UTC")));
+
+            firstAttemptDate.putIfAbsent(exId, dateKey);
+
+            Evaluation eval = latestEvalBySubmission.get(s.getId());
+            if (eval != null) {
+                boolean isSolved = "CORRECT".equalsIgnoreCase(eval.getStatus()) ||
+                        (eval.getScore() != null && eval.getScore().compareTo(BigDecimal.valueOf(100)) >= 0);
+                boolean isPartial = eval.getScore() != null && eval.getScore().compareTo(BigDecimal.ZERO) > 0;
+
+                if ((isPartial || isSolved) && !firstPartialDate.containsKey(exId)) {
+                    firstPartialDate.put(exId, dateKey);
+                }
+                if (isSolved && !firstSolvedDate.containsKey(exId)) {
+                    firstSolvedDate.put(exId, dateKey);
+                }
+            }
+        }
+
+        List<StudentProgress> studentProgressList = studentProgressRepository.findByStudentIdOrderByUpdatedAtDesc(student.getId());
+        for (StudentProgress sp : studentProgressList) {
+            if (sp.getExercise() == null) continue;
+            UUID exId = sp.getExercise().getId();
+            allAttemptedExIds.add(exId);
+            if (sp.getFirstSubmissionAt() != null) {
+                String d = df.format(sp.getFirstSubmissionAt().atZone(ZoneId.of("UTC")));
+                firstAttemptDate.merge(exId, d, (o, n) -> o.compareTo(n) <= 0 ? o : n);
+            }
+            if (sp.getTestsPassed() > 0 || (sp.getBestScore() != null && sp.getBestScore().compareTo(BigDecimal.ZERO) > 0)) {
+                if (!firstPartialDate.containsKey(exId)) {
+                    String d = sp.getFirstSubmissionAt() != null ? df.format(sp.getFirstSubmissionAt().atZone(ZoneId.of("UTC"))) : today.format(df);
+                    firstPartialDate.put(exId, d);
+                }
+            }
+            if (sp.isSolved() || "MASTERED".equalsIgnoreCase(sp.getStatus()) || "PASSED".equalsIgnoreCase(sp.getStatus()) ||
+                    (sp.getBestScore() != null && sp.getBestScore().compareTo(BigDecimal.valueOf(100)) >= 0)) {
+                Instant solvedAt = sp.getFirstSolvedAt() != null ? sp.getFirstSolvedAt() : sp.getCompletedAt();
+                String d = solvedAt != null ? df.format(solvedAt.atZone(ZoneId.of("UTC"))) :
+                        (sp.getFirstSubmissionAt() != null ? df.format(sp.getFirstSubmissionAt().atZone(ZoneId.of("UTC"))) : today.format(df));
+                firstSolvedDate.merge(exId, d, (o, n) -> o.compareTo(n) <= 0 ? o : n);
+                firstPartialDate.merge(exId, d, (o, n) -> o.compareTo(n) <= 0 ? o : n);
+                firstAttemptDate.merge(exId, d, (o, n) -> o.compareTo(n) <= 0 ? o : n);
+            }
+        }
+
+        // Rango de fechas para el stacked area chart: al menos 90 días o todo el historial
+        LocalDate earliestExerciseDate = today.minusDays(89);
+        if (student.getCreatedAt() != null) {
+            LocalDate regDate = student.getCreatedAt().atZone(ZoneId.of("UTC")).toLocalDate();
+            if (regDate.isBefore(earliestExerciseDate)) {
+                earliestExerciseDate = regDate;
+            }
+        }
+        for (String dStr : firstAttemptDate.values()) {
+            try {
+                LocalDate d = LocalDate.parse(dStr, df);
+                if (d.isBefore(earliestExerciseDate)) {
+                    earliestExerciseDate = d;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        List<StudentInsightsDTO.ExerciseTimelineItem> exerciseTimeline = new ArrayList<>();
+        LocalDate curr = earliestExerciseDate;
+        while (!curr.isAfter(today)) {
+            String dayKey = curr.format(df);
+            int resCount = 0;
+            int partialCount = 0;
+            int failedCount = 0;
+
+            for (UUID exId : allAttemptedExIds) {
+                String attemptD = firstAttemptDate.get(exId);
+                if (attemptD != null && dayKey.compareTo(attemptD) >= 0) {
+                    String solvedD = firstSolvedDate.get(exId);
+                    String partialD = firstPartialDate.get(exId);
+
+                    if (solvedD != null && dayKey.compareTo(solvedD) >= 0) {
+                        resCount++;
+                    } else if (partialD != null && dayKey.compareTo(partialD) >= 0) {
+                        partialCount++;
+                    } else {
+                        failedCount++;
+                    }
+                }
+            }
+
+            exerciseTimeline.add(new StudentInsightsDTO.ExerciseTimelineItem(dayKey, resCount, partialCount, failedCount));
+            curr = curr.plusDays(1);
+        }
+
         int totalExercises = uniqueExercises.size();
         int completedCount = (int) uniqueExercises.values().stream().filter(e -> e.passPercentage() >= 100.0 || "MASTERED".equalsIgnoreCase(e.status())).count();
         int attemptedCount = (int) uniqueExercises.values().stream().filter(e -> e.passPercentage() < 100.0 && (e.totalSubmissions() > 0 || e.bestScore() > 0.0)).count();
         int notStartedCount = Math.max(0, totalExercises - completedCount - attemptedCount);
         double globalCompletionPct = totalExercises > 0 ? Math.round(((double) completedCount * 100.0 / totalExercises) * 10.0) / 10.0 : 0.0;
         double globalAvgScore = totalExercises > 0 ? Math.round((uniqueExercises.values().stream().mapToDouble(StudentInsightsDTO.StudentExerciseDetailItem::bestScore).sum() / totalExercises) * 10.0) / 10.0 : 0.0;
+
+        String memberSince = student.getCreatedAt() != null ? df.format(student.getCreatedAt().atZone(ZoneId.of("UTC"))) : null;
 
         return new StudentInsightsDTO(
                 totalExercises,
@@ -416,7 +525,9 @@ public class StudentProgressService {
                 colSummaries,
                 tagSummaries,
                 timeline,
-                new ArrayList<>(uniqueExercises.values())
+                exerciseTimeline,
+                new ArrayList<>(uniqueExercises.values()),
+                memberSince
         );
     }
 

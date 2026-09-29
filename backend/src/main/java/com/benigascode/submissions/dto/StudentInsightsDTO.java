@@ -15,7 +15,9 @@ public record StudentInsightsDTO(
     List<CollectionProgressSummary> collections,
     List<TagProgressSummary> tags,
     List<DailyActivityItem> activityTimeline,
-    List<StudentExerciseDetailItem> exercises
+    List<ExerciseTimelineItem> exerciseTimeline,
+    List<StudentExerciseDetailItem> exercises,
+    String memberSince
 ) {
     public record CollectionProgressSummary(
         UUID collectionId,
@@ -40,6 +42,13 @@ public record StudentInsightsDTO(
         String date,
         int submissionsCount,
         int passedCount
+    ) {}
+
+    public record ExerciseTimelineItem(
+        String date,
+        int resolved,
+        int attemptedWithPassed,
+        int attemptedWithoutPassed
     ) {}
 
     public record StudentExerciseDetailItem(

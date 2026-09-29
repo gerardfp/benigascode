@@ -3,6 +3,7 @@ package com.benigascode.evaluation.repository;
 import com.benigascode.evaluation.domain.Evaluation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -15,5 +16,8 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, UUID> {
 
     @Query("SELECT e FROM Evaluation e WHERE e.submission.id = :submissionId ORDER BY e.createdAt DESC LIMIT 1")
     Optional<Evaluation> findLatestBySubmissionId(UUID submissionId);
+
+    @Query("SELECT e FROM Evaluation e WHERE e.submission.student.id = :studentId ORDER BY e.createdAt ASC")
+    List<Evaluation> findByStudentId(@Param("studentId") UUID studentId);
 }
 

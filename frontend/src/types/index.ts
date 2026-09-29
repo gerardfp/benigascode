@@ -460,6 +460,13 @@ export interface StudentExerciseDetailItem {
   lastSubmissionAt?: string;
 }
 
+export interface ExerciseTimelineItem {
+  date: string;
+  resolved: number;
+  attemptedWithPassed: number;
+  attemptedWithoutPassed: number;
+}
+
 export interface StudentInsightsDTO {
   totalExercises: number;
   completedExercises: number;
@@ -471,7 +478,9 @@ export interface StudentInsightsDTO {
   collections: CollectionProgressSummary[];
   tags: TagProgressSummary[];
   activityTimeline: DailyActivityItem[];
+  exerciseTimeline?: ExerciseTimelineItem[];
   exercises: StudentExerciseDetailItem[];
+  memberSince?: string;
 }
 
 export interface DifficultExerciseItem {
