@@ -41,5 +41,11 @@ public interface StudentTagRepository extends JpaRepository<StudentTag, UUID> {
     boolean existsActiveByStudentIdAndTagId(@Param("studentId") UUID studentId, @Param("tagId") UUID tagId);
 
     List<StudentTag> findByTagId(UUID tagId);
+
+    @Query("SELECT st.tag.id, COUNT(DISTINCT st.student.id) FROM StudentTag st GROUP BY st.tag.id")
+    List<Object[]> countDistinctStudentsByTagId();
+
+    @Query("SELECT DISTINCT st.tag.id FROM StudentTag st")
+    List<UUID> findDistinctTagIds();
 }
 

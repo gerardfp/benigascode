@@ -18,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -100,6 +101,47 @@ public class TeacherContentController {
     public ResponseEntity<Void> batchRevokeTag(@Valid @RequestBody BatchExerciseTagRequest request) {
         User teacher = userService.getCurrentUser();
         contentService.batchRevokeTag(request.exerciseIds(), request.tag(), teacher);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/exercises/tags")
+    public ResponseEntity<List<ExerciseTagDTO>> listExerciseTags() {
+        return ResponseEntity.ok(contentService.listExerciseTags());
+    }
+
+    @PostMapping("/exercises/tags")
+    public ResponseEntity<ExerciseTagDTO> createExerciseTag(@Valid @RequestBody CreateExerciseTagRequest request) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(contentService.createExerciseTag(request));
+    }
+
+    @PutMapping("/exercises/tags/{name}")
+    public ResponseEntity<ExerciseTagDTO> updateExerciseTag(
+            @PathVariable String name,
+            @Valid @RequestBody UpdateExerciseTagRequest request) {
+        User teacher = userService.getCurrentUser();
+        return ResponseEntity.ok(contentService.updateExerciseTag(name, request, teacher));
+    }
+
+    @PostMapping("/exercises/tags/merge")
+    public ResponseEntity<Void> mergeExerciseTags(@Valid @RequestBody MergeExerciseTagsRequest request) {
+        User teacher = userService.getCurrentUser();
+        contentService.mergeExerciseTags(request.sourceTag(), request.targetTag(), teacher);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/exercises/tags/unused")
+    public ResponseEntity<Map<String, Integer>> cleanUnusedExerciseTags() {
+        int count = contentService.cleanUnusedExerciseTags();
+        return ResponseEntity.ok(Map.of("deletedCount", count));
+    }
+
+    @DeleteMapping("/exercises/tags/{name}")
+    public ResponseEntity<Void> deleteExerciseTag(
+            @PathVariable String name,
+            @RequestParam(required = false, defaultValue = "false") boolean removeFromExercises) {
+        User teacher = userService.getCurrentUser();
+        contentService.deleteExerciseTag(name, removeFromExercises, teacher);
         return ResponseEntity.noContent().build();
     }
 

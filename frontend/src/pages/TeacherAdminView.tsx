@@ -1,14 +1,15 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { TeacherManagementView } from './TeacherManagementView';
+import { TeacherTagsManagementView } from './TeacherTagsManagementView';
 import { GitSyncView } from './GitSyncView';
-import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { ShieldCheck, RefreshCw, Tag as TagIcon } from 'lucide-react';
 
 export const TeacherAdminView: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') as 'teachers' | 'sync') || 'teachers';
+  const activeTab = (searchParams.get('tab') as 'teachers' | 'tags' | 'sync') || 'teachers';
 
-  const setTab = (tab: 'teachers' | 'sync') => {
+  const setTab = (tab: 'teachers' | 'tags' | 'sync') => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', tab);
     setSearchParams(next);
@@ -16,7 +17,7 @@ export const TeacherAdminView: React.FC = () => {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0.75rem 1rem' }}>
-      {/* Pestañas Principales: Profesores | Importar/exportar */}
+      {/* Pestañas Principales: Profesores | Etiquetas | Importar/exportar */}
       <div
         style={{
           display: 'flex',
@@ -49,6 +50,28 @@ export const TeacherAdminView: React.FC = () => {
 
         <button
           type="button"
+          onClick={() => setTab('tags')}
+          style={{
+            padding: '0.45rem 0.85rem',
+            border: 'none',
+            background: 'transparent',
+            fontWeight: activeTab === 'tags' ? 700 : 500,
+            color: activeTab === 'tags' ? '#2563eb' : '#64748b',
+            borderBottom: activeTab === 'tags' ? '2.5px solid #2563eb' : '2.5px solid transparent',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            transition: 'color 0.15s',
+          }}
+        >
+          <TagIcon size={16} />
+          Etiquetas
+        </button>
+
+        <button
+          type="button"
           onClick={() => setTab('sync')}
           style={{
             padding: '0.45rem 0.85rem',
@@ -72,6 +95,10 @@ export const TeacherAdminView: React.FC = () => {
 
       {activeTab === 'teachers' && (
         <TeacherManagementView embedded={true} />
+      )}
+
+      {activeTab === 'tags' && (
+        <TeacherTagsManagementView />
       )}
 
       {activeTab === 'sync' && (

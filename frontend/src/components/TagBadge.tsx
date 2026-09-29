@@ -1,6 +1,6 @@
 import React from 'react';
 import { Clock, X } from 'lucide-react';
-import { getTagBadgeStyles, getDeterministicTagColor } from '../utils/tagColors';
+import { getTagBadgeStyles, getDeterministicTagColor, getCustomExerciseTagColor } from '../utils/tagColors';
 
 export interface TagBadgeProps {
   category?: string;
@@ -23,7 +23,7 @@ export const TagBadge: React.FC<TagBadgeProps> = ({
   style,
   className
 }) => {
-  const effectiveColor = color || getDeterministicTagColor(category, value);
+  const effectiveColor = color || (!category ? getCustomExerciseTagColor(value) : undefined) || getDeterministicTagColor(category, value);
   const styles = getTagBadgeStyles(effectiveColor);
 
   const defaultTitle = validUntil

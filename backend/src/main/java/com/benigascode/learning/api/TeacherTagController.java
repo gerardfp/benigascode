@@ -31,8 +31,10 @@ public class TeacherTagController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TagDTO>> listTags(@RequestParam(required = false) String category) {
-        return ResponseEntity.ok(tagService.listTags(category));
+    public ResponseEntity<List<TagDTO>> listTags(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false, defaultValue = "false") boolean includeUsage) {
+        return ResponseEntity.ok(tagService.listTags(category, includeUsage));
     }
 
     @GetMapping("/categories")
@@ -54,9 +56,23 @@ public class TeacherTagController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/merge")
+    public ResponseEntity<Void> mergeTags(@Valid @RequestBody MergeTagsRequest request) {
+        tagService.mergeTags(request.sourceTagId(), request.targetTagId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/unused")
+    public ResponseEntity<java.util.Map<String, Integer>> cleanUnusedTags() {
+        int count = tagService.cleanUnusedTags();
+        return ResponseEntity.ok(java.util.Map.of("deletedCount", count));
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTag(@PathVariable UUID id) {
-        tagService.deleteTag(id);
+    public ResponseEntity<Void> deleteTag(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "false") boolean force) {
+        tagService.deleteTag(id, force);
         return ResponseEntity.noContent().build();
     }
 

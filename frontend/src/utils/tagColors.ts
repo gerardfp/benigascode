@@ -29,6 +29,31 @@ export function stringHashCode(str: string): number {
 }
 
 /**
+ * In-memory registry of custom exercise tag colors configured in Admin
+ */
+const customExerciseTagColors: Record<string, string> = {};
+
+export function registerExerciseTagColors(tags: { name: string; color: string }[]) {
+  if (!tags) return;
+  for (const t of tags) {
+    if (t.name && t.color) {
+      customExerciseTagColors[t.name.trim().toLowerCase()] = t.color.trim();
+    }
+  }
+}
+
+export function setCustomExerciseTagColor(name: string, color: string) {
+  if (name && color) {
+    customExerciseTagColors[name.trim().toLowerCase()] = color.trim();
+  }
+}
+
+export function getCustomExerciseTagColor(name?: string): string | undefined {
+  if (!name) return undefined;
+  return customExerciseTagColors[name.trim().toLowerCase()];
+}
+
+/**
  * Returns the deterministic color from the 128 palette for a given tag category and value
  */
 export function getDeterministicTagColor(category?: string, value?: string): string {

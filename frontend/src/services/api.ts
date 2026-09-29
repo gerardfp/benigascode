@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse, ExerciseTag } from '../types';
 
 
 
@@ -237,8 +237,13 @@ export const api = {
     request<Submission[]>(`/teacher/spaces/${spaceId}/submissions`),
 
   // Profesor - Etiquetas y Contextos
-  listTags: (category?: string): Promise<Tag[]> =>
-    request<Tag[]>(`/teacher/tags${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+  listTags: (category?: string, includeUsage = false): Promise<Tag[]> => {
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    if (includeUsage) params.set('includeUsage', 'true');
+    const qs = params.toString();
+    return request<Tag[]>(`/teacher/tags${qs ? `?${qs}` : ''}`);
+  },
 
   createTag: (tag: { category: string; value: string; description?: string; color?: string | null }): Promise<Tag> =>
     request<Tag>('/teacher/tags', {
@@ -246,14 +251,23 @@ export const api = {
       body: JSON.stringify(tag),
     }),
 
-  updateTag: (id: string, data: { description?: string; color?: string | null }): Promise<Tag> =>
+  updateTag: (id: string, data: { category?: string; value?: string; description?: string; color?: string | null }): Promise<Tag> =>
     request<Tag>(`/teacher/tags/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  deleteTag: (id: string): Promise<void> =>
-    request<void>(`/teacher/tags/${id}`, { method: 'DELETE' }),
+  mergeTags: (sourceTagId: string, targetTagId: string): Promise<void> =>
+    request<void>('/teacher/tags/merge', {
+      method: 'POST',
+      body: JSON.stringify({ sourceTagId, targetTagId }),
+    }),
+
+  cleanUnusedTags: (): Promise<{ deletedCount: number }> =>
+    request<{ deletedCount: number }>('/teacher/tags/unused', { method: 'DELETE' }),
+
+  deleteTag: (id: string, force = false): Promise<void> =>
+    request<void>(`/teacher/tags/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
 
   getStudentTags: (studentId: string, activeOnly = true): Promise<StudentTag[]> =>
     request<StudentTag[]>(`/teacher/tags/students/${studentId}?activeOnly=${activeOnly}`),
@@ -429,6 +443,35 @@ export const api = {
     request<void>('/teacher/exercises/batch-revoke-tag', {
       method: 'POST',
       body: JSON.stringify({ exerciseIds, tag }),
+    }),
+
+  listExerciseTags: (): Promise<ExerciseTag[]> =>
+    request<ExerciseTag[]>('/teacher/exercises/tags'),
+
+  createExerciseTag: (data: { name: string; color?: string }): Promise<ExerciseTag> =>
+    request<ExerciseTag>('/teacher/exercises/tags', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateExerciseTag: (name: string, data: { newName?: string; color?: string }): Promise<ExerciseTag> =>
+    request<ExerciseTag>(`/teacher/exercises/tags/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  mergeExerciseTags: (sourceTag: string, targetTag: string): Promise<void> =>
+    request<void>('/teacher/exercises/tags/merge', {
+      method: 'POST',
+      body: JSON.stringify({ sourceTag, targetTag }),
+    }),
+
+  cleanUnusedExerciseTags: (): Promise<{ deletedCount: number }> =>
+    request<{ deletedCount: number }>('/teacher/exercises/tags/unused', { method: 'DELETE' }),
+
+  deleteExerciseTag: (name: string, removeFromExercises = false): Promise<void> =>
+    request<void>(`/teacher/exercises/tags/${encodeURIComponent(name)}${removeFromExercises ? '?removeFromExercises=true' : ''}`, {
+      method: 'DELETE',
     }),
 
   teacherUploadAsset: async (exerciseId: string, file: File): Promise<AssetDTO> => {

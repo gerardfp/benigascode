@@ -17,14 +17,13 @@ import com.benigascode.learning.repository.StudentTagRepository;
 import com.benigascode.learning.repository.TagRepository;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.util.TagColorUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,6 +33,9 @@ public class TagService {
     private final StudentTagRepository studentTagRepository;
     private final UserRepository userRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public TagService(TagRepository tagRepository,
                       StudentTagRepository studentTagRepository,
@@ -47,11 +49,38 @@ public class TagService {
 
     @Transactional(readOnly = true)
     public List<TagDTO> listTags(String category) {
+        return listTags(category, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TagDTO> listTags(String category, boolean includeUsage) {
         List<Tag> tags = (category != null && !category.isBlank())
             ? tagRepository.findByCategoryOrderByValueAsc(category.trim())
             : tagRepository.findAllByOrderByCategoryAscValueAsc();
 
-        return tags.stream().map(TagDTO::fromEntity).toList();
+        if (!includeUsage) {
+            return tags.stream().map(TagDTO::fromEntity).toList();
+        }
+
+        Map<UUID, Long> studentCounts = new HashMap<>();
+        for (Object[] row : studentTagRepository.countDistinctStudentsByTagId()) {
+            if (row != null && row.length >= 2 && row[0] != null && row[1] != null) {
+                studentCounts.put((UUID) row[0], ((Number) row[1]).longValue());
+            }
+        }
+
+        Map<UUID, Long> spaceCounts = new HashMap<>();
+        for (TeachingSpace space : teachingSpaceRepository.findAll()) {
+            for (UUID tagId : space.getRequiredTagIds()) {
+                spaceCounts.put(tagId, spaceCounts.getOrDefault(tagId, 0L) + 1);
+            }
+        }
+
+        return tags.stream().map(t -> TagDTO.fromEntityWithUsage(
+            t,
+            studentCounts.getOrDefault(t.getId(), 0L),
+            spaceCounts.getOrDefault(t.getId(), 0L)
+        )).toList();
     }
 
     @Transactional(readOnly = true)
@@ -79,11 +108,24 @@ public class TagService {
         Tag tag = tagRepository.findById(tagId)
             .orElseThrow(() -> new ResourceNotFoundException("Etiqueta no encontrada: " + tagId));
 
+        String targetCategory = (request.category() != null && !request.category().isBlank())
+            ? request.category().trim() : tag.getCategory();
+        String targetValue = (request.value() != null && !request.value().isBlank())
+            ? request.value().trim() : tag.getValue();
+
+        if ((!targetCategory.equals(tag.getCategory()) || !targetValue.equals(tag.getValue()))
+            && tagRepository.existsByCategoryAndValue(targetCategory, targetValue)) {
+            throw new ValidationException("Ya existe una etiqueta con la categoría '" + targetCategory + "' y valor '" + targetValue + "'");
+        }
+
+        tag.setCategory(targetCategory);
+        tag.setValue(targetValue);
+
         if (request.description() != null) {
             tag.setDescription(request.description().trim().isEmpty() ? null : request.description().trim());
         }
 
-        if (request.color() != null) {
+        if (request.color() != null && !request.color().isBlank()) {
             String color = TagColorUtil.sanitizeColor(request.color(), tag.getCategory(), tag.getValue());
             tag.setColor(color);
         }
@@ -94,15 +136,131 @@ public class TagService {
 
     @Transactional
     public void deleteTag(UUID tagId) {
+        deleteTag(tagId, false);
+    }
+
+    @Transactional
+    public void deleteTag(UUID tagId, boolean force) {
         Tag tag = tagRepository.findById(tagId)
             .orElseThrow(() -> new ResourceNotFoundException("Etiqueta no encontrada: " + tagId));
 
         List<StudentTag> usages = studentTagRepository.findByTagId(tagId);
-        if (!usages.isEmpty()) {
-            throw new ValidationException("No se puede eliminar la etiqueta porque está asignada a alumnos");
+        boolean usedInSpaces = teachingSpaceRepository.findAll().stream()
+            .anyMatch(s -> s.getRequiredTagIds().contains(tagId));
+
+        if (!force && (!usages.isEmpty() || usedInSpaces)) {
+            throw new ValidationException("No se puede eliminar la etiqueta porque está asignada a alumnos o espacios");
+        }
+
+        if (force) {
+            for (StudentTag st : usages) {
+                studentTagRepository.delete(st);
+            }
+            for (TeachingSpace space : teachingSpaceRepository.findAll()) {
+                List<UUID> req = space.getRequiredTagIds();
+                if (req.contains(tagId)) {
+                    List<UUID> newReq = req.stream().filter(id -> !id.equals(tagId)).toList();
+                    space.setRequiredTagIds(newReq);
+                    teachingSpaceRepository.save(space);
+                }
+            }
+            if (entityManager != null) {
+                entityManager.createNativeQuery("DELETE FROM invitation_code_tags WHERE tag_id = :tagId")
+                    .setParameter("tagId", tagId).executeUpdate();
+            }
         }
 
         tagRepository.delete(tag);
+    }
+
+    @Transactional
+    public void mergeTags(UUID sourceTagId, UUID targetTagId) {
+        if (sourceTagId.equals(targetTagId)) {
+            throw new ValidationException("No se puede combinar una etiqueta consigo misma");
+        }
+        Tag sourceTag = tagRepository.findById(sourceTagId)
+            .orElseThrow(() -> new ResourceNotFoundException("Etiqueta origen no encontrada: " + sourceTagId));
+        Tag targetTag = tagRepository.findById(targetTagId)
+            .orElseThrow(() -> new ResourceNotFoundException("Etiqueta destino no encontrada: " + targetTagId));
+
+        // 1. Reasignar asignaciones de alumnos
+        List<StudentTag> sourceStudentTags = studentTagRepository.findByTagId(sourceTagId);
+        for (StudentTag st : sourceStudentTags) {
+            UUID studentId = st.getStudent().getId();
+            Optional<StudentTag> existingTarget = studentTagRepository.findActiveByStudentIdAndTagId(studentId, targetTagId);
+            if (existingTarget.isPresent()) {
+                studentTagRepository.delete(st);
+            } else {
+                st.setTag(targetTag);
+                studentTagRepository.save(st);
+            }
+        }
+
+        // 2. Actualizar espacios docentes
+        List<TeachingSpace> spaces = teachingSpaceRepository.findAll();
+        for (TeachingSpace space : spaces) {
+            List<UUID> req = space.getRequiredTagIds();
+            if (req.contains(sourceTagId)) {
+                List<UUID> newReq = new ArrayList<>();
+                for (UUID id : req) {
+                    if (id.equals(sourceTagId)) {
+                        if (!newReq.contains(targetTagId)) {
+                            newReq.add(targetTagId);
+                        }
+                    } else {
+                        if (!newReq.contains(id)) {
+                            newReq.add(id);
+                        }
+                    }
+                }
+                space.setRequiredTagIds(newReq);
+                teachingSpaceRepository.save(space);
+            }
+        }
+
+        // 3. Actualizar invitation_code_tags
+        if (entityManager != null) {
+            entityManager.createNativeQuery(
+                "DELETE FROM invitation_code_tags WHERE tag_id = :sourceId AND invitation_code_id IN " +
+                "(SELECT invitation_code_id FROM invitation_code_tags WHERE tag_id = :targetId)"
+            ).setParameter("sourceId", sourceTagId).setParameter("targetId", targetTagId).executeUpdate();
+
+            entityManager.createNativeQuery(
+                "UPDATE invitation_code_tags SET tag_id = :targetId WHERE tag_id = :sourceId"
+            ).setParameter("sourceId", sourceTagId).setParameter("targetId", targetTagId).executeUpdate();
+        }
+
+        // 4. Eliminar etiqueta origen
+        tagRepository.delete(sourceTag);
+    }
+
+    @Transactional
+    public int cleanUnusedTags() {
+        List<Tag> allTags = tagRepository.findAll();
+        Set<UUID> usedIds = new HashSet<>(studentTagRepository.findDistinctTagIds());
+
+        for (TeachingSpace space : teachingSpaceRepository.findAll()) {
+            usedIds.addAll(space.getRequiredTagIds());
+        }
+
+        if (entityManager != null) {
+            @SuppressWarnings("unchecked")
+            List<UUID> invitationTagIds = entityManager.createNativeQuery(
+                "SELECT DISTINCT tag_id FROM invitation_code_tags"
+            ).getResultList();
+            if (invitationTagIds != null) {
+                usedIds.addAll(invitationTagIds);
+            }
+        }
+
+        int deletedCount = 0;
+        for (Tag tag : allTags) {
+            if (!usedIds.contains(tag.getId())) {
+                tagRepository.delete(tag);
+                deletedCount++;
+            }
+        }
+        return deletedCount;
     }
 
     @Transactional(readOnly = true)

@@ -970,7 +970,7 @@ export const TeacherStudentsView: React.FC = () => {
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Layers size={13} color="#2563eb" /> Espacios docentes
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
                 {spacesWithTags.map(space => {
                   const countWithSpace = selectedStudents.filter(st => st.spaces?.some(sp => (sp.id || sp.spaceId) === space.id)).length;
                   const total = selectedStudents.length;
@@ -1061,62 +1061,11 @@ export const TeacherStudentsView: React.FC = () => {
             </div>
           )}
 
-          {/* 2 Columnas de Etiquetas */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem', padding: '0.75rem' }}>
-            {/* Lado Izquierdo */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', padding: '0.6rem' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
-                Etiquetas en seleccionados ({tagsInSelectedStudents.length})
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: 200, overflowY: 'auto' }}>
-                {tagsInSelectedStudents.length === 0 ? (
-                  <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>Sin etiquetas activas</div>
-                ) : (
-                  tagsInSelectedStudents.map(tagInfo => {
-                    const count = tagInfo.studentIdsWithTag.length;
-                    const total = selectedStudents.length;
-                    const isAll = count === total;
-                    const unassigned = selectedStudents.filter(s => !tagInfo.studentIdsWithTag.includes(s.id)).map(s => s.id);
-
-                    return (
-                      <div key={tagInfo.tagId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.25rem', padding: '0.25rem 0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <TagBadge category={tagInfo.category} value={tagInfo.value} color={tagInfo.color} />
-                          <span style={{ fontSize: '0.625rem', fontWeight: 600, color: isAll ? '#166534' : '#92400e' }}>
-                            {count}/{total}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '0.25rem' }}>
-                          <button
-                            type="button"
-                            disabled={batchSubmitting || isAll}
-                            onClick={() => handleBatchAssignTag(tagInfo.tagId, unassigned)}
-                            style={{ width: 22, height: 22, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', borderRadius: '0.2rem', cursor: isAll ? 'not-allowed' : 'pointer', padding: 0 }}
-                            title="Asignar al resto"
-                          >
-                            {isAll ? <Check size={12} /> : <Plus size={12} />}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={batchSubmitting}
-                            onClick={() => handleBatchRevokeTag(tagInfo.tagId, tagInfo.studentIdsWithTag)}
-                            style={{ width: 22, height: 22, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', borderRadius: '0.2rem', cursor: 'pointer', padding: 0 }}
-                            title="Quitar etiqueta"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Lado Derecho */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', padding: '0.6rem' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.4rem' }}>
-                Etiquetas no asignadas ({unassignedAvailableTags.length})
+          {/* Etiquetas no asignadas */}
+          <div style={{ padding: '0.5rem 0.85rem', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <TagIcon size={13} color="#2563eb" /> Etiquetas no asignadas ({unassignedAvailableTags.length})
               </div>
               <input
                 type="text"
@@ -1124,29 +1073,58 @@ export const TeacherStudentsView: React.FC = () => {
                 value={unassignedSearch}
                 onChange={e => setUnassignedSearch(e.target.value)}
                 className="input-field"
-                style={{ width: '100%', fontSize: '0.75rem', padding: '0.2rem 0.4rem', marginBottom: '0.35rem' }}
+                style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', width: 140 }}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: 165, overflowY: 'auto' }}>
-                {unassignedAvailableTags.map(tag => (
-                  <div key={tag.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.25rem', padding: '0.25rem 0.5rem' }}>
-                    <TagBadge category={tag.category} value={tag.value} color={tag.color} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {unassignedAvailableTags.length === 0 ? (
+                <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                  {unassignedSearch ? 'No se encontraron etiquetas' : (availableTags.length === 0 ? 'No hay etiquetas creadas' : 'Todas las etiquetas están asignadas')}
+                </span>
+              ) : (
+                unassignedAvailableTags.map(tag => (
+                  <div
+                    key={tag.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      background: '#ffffff',
+                      border: '1.5px solid #d6daed',
+                      borderRadius: '9999px',
+                      gap: '0.45rem',
+                      paddingInlineEnd: '0.25rem',
+                    }}
+                  >
+                    <TagBadge category={tag.category} value={tag.value} color={tag.color} style={{ border: 'none' }} />
                     <button
                       type="button"
                       disabled={batchSubmitting}
                       onClick={() => handleBatchAssignTag(tag.id)}
-                      style={{ width: 22, height: 22, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', borderRadius: '0.2rem', cursor: 'pointer', padding: 0 }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        border: '1px solid #bfdbfe',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
                       title="Asignar a todos los seleccionados"
                     >
-                      <Plus size={12} />
+                      <Plus size={11} />
                     </button>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Formulario de creación rápida en bloque */}
-          <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '0.5rem 0.85rem' }}>
+          <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 0.85rem' }}>
             <form onSubmit={handleBulkCreateAndAssign} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 type="text"
@@ -1205,6 +1183,103 @@ export const TeacherStudentsView: React.FC = () => {
                 <Plus size={15} />
               </button>
             </form>
+          </div>
+
+          {/* Etiquetas en seleccionados */}
+          <div style={{ padding: '0.5rem 0.85rem', background: '#ffffff' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <TagIcon size={13} color="#2563eb" /> Etiquetas en seleccionados ({tagsInSelectedStudents.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {tagsInSelectedStudents.length === 0 ? (
+                <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                  Sin etiquetas activas
+                </span>
+              ) : (
+                tagsInSelectedStudents.map(tagInfo => {
+                  const count = tagInfo.studentIdsWithTag.length;
+                  const total = selectedStudents.length;
+                  const isAll = count === total;
+                  const unassigned = selectedStudents.filter(s => !tagInfo.studentIdsWithTag.includes(s.id)).map(s => s.id);
+
+                  return (
+                    <div
+                      key={tagInfo.tagId}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        background: '#ffffff',
+                        border: '1.5px solid #d6daed',
+                        borderRadius: '9999px',
+                        gap: '0.45rem',
+                        paddingInlineEnd: '0.25rem',
+                      }}
+                    >
+                      <TagBadge category={tagInfo.category} value={tagInfo.value} color={tagInfo.color} style={{ border: 'none' }} />
+                      <span
+                        style={{
+                          fontSize: '0.625rem',
+                          fontWeight: 600,
+                          padding: '0.05rem 0.3rem',
+                          borderRadius: '9999px',
+                          background: isAll ? '#dcfce7' : '#fef3c7',
+                          color: isAll ? '#166534' : '#92400e',
+                          border: `1px solid ${isAll ? '#bbf7d0' : '#fde68a'}`,
+                        }}
+                      >
+                        {count}/{total}
+                      </span>
+
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                        <button
+                          type="button"
+                          disabled={batchSubmitting || isAll}
+                          onClick={() => handleBatchAssignTag(tagInfo.tagId, unassigned)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            border: isAll ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                            background: isAll ? '#f1f5f9' : '#eff6ff',
+                            color: isAll ? '#94a3b8' : '#1d4ed8',
+                            cursor: isAll ? 'not-allowed' : 'pointer',
+                            padding: 0,
+                          }}
+                          title="Asignar al resto"
+                        >
+                          {isAll ? <Check size={11} /> : <Plus size={11} />}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={batchSubmitting}
+                          onClick={() => handleBatchRevokeTag(tagInfo.tagId, tagInfo.studentIdsWithTag)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            border: '1px solid #fecaca',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          title="Quitar etiqueta"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}

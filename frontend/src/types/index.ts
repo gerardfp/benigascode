@@ -53,6 +53,15 @@ export interface Tag {
   description?: string | null;
   color?: string;
   createdAt?: string;
+  studentCount?: number;
+  spaceCount?: number;
+}
+
+export interface ExerciseTag {
+  name: string;
+  color: string;
+  exerciseCount: number;
+  exerciseIds?: string[];
 }
 
 export interface StudentTag {

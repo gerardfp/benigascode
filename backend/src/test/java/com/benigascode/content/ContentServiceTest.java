@@ -70,6 +70,8 @@ class ContentServiceTest {
     private ExerciseAssetRepository exerciseAssetRepository;
     @Mock
     private ExerciseDraftRepository exerciseDraftRepository;
+    @Mock
+    private ExerciseTagRepository exerciseTagRepository;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -426,6 +428,39 @@ class ContentServiceTest {
 
         verify(exerciseDraftRepository).deleteByExerciseId(exId);
         verify(exerciseVersionRepository).save(any(ExerciseVersion.class));
+    }
+
+    @Test
+    void testCreateExerciseTagSuccess() {
+        when(exerciseTagRepository.existsByNameIgnoreCase("arrays")).thenReturn(false);
+        when(exerciseTagRepository.save(any(com.benigascode.content.domain.ExerciseTag.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        var req = new com.benigascode.content.dto.CreateExerciseTagRequest("arrays", "#19c888");
+        var res = contentService.createExerciseTag(req);
+
+        assertEquals("arrays", res.name());
+        assertEquals("#19c888", res.color());
+    }
+
+    @Test
+    void testMergeExerciseTags() {
+        Exercise ex = new Exercise("slug1");
+        ExerciseVersion ev = new ExerciseVersion();
+        ev.setExercise(ex);
+        ev.setVersionNumber(1);
+        ev.setTags("[\"array\", \"java\"]");
+
+        when(exerciseTagRepository.findByNameIgnoreCase("arrays")).thenReturn(Optional.of(new com.benigascode.content.domain.ExerciseTag("arrays", "#19c888")));
+        when(exerciseRepository.findAll()).thenReturn(List.of(ex));
+        when(exerciseVersionRepository.findLatestByExerciseId(ex.getId())).thenReturn(Optional.of(ev));
+        when(exerciseTagRepository.findByNameIgnoreCase("array")).thenReturn(Optional.of(new com.benigascode.content.domain.ExerciseTag("array", "#c81919")));
+
+        contentService.mergeExerciseTags("array", "arrays", teacher);
+
+        assertTrue(ev.getTags().contains("arrays"));
+        assertFalse(ev.getTags().contains("\"array\""));
+        verify(exerciseTagRepository).delete(any(com.benigascode.content.domain.ExerciseTag.class));
     }
 }
 

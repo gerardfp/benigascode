@@ -12,6 +12,7 @@ import com.benigascode.identity.domain.User;
 import com.benigascode.learning.domain.TeachingSpace;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
+import com.benigascode.learning.util.TagColorUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,7 @@ public class ContentService {
     private final ExerciseVersionRepository exerciseVersionRepository;
     private final ExerciseAssetRepository exerciseAssetRepository;
     private final ExerciseDraftRepository exerciseDraftRepository;
+    private final ExerciseTagRepository exerciseTagRepository;
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
@@ -66,6 +68,7 @@ public class ContentService {
                           ExerciseVersionRepository exerciseVersionRepository,
                           ExerciseAssetRepository exerciseAssetRepository,
                           ExerciseDraftRepository exerciseDraftRepository,
+                          ExerciseTagRepository exerciseTagRepository,
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
@@ -80,6 +83,7 @@ public class ContentService {
         this.exerciseVersionRepository = exerciseVersionRepository;
         this.exerciseAssetRepository = exerciseAssetRepository;
         this.exerciseDraftRepository = exerciseDraftRepository;
+        this.exerciseTagRepository = exerciseTagRepository;
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
@@ -1338,5 +1342,252 @@ public class ContentService {
             sb.append(chars.charAt(random.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    // ==================== GESTIÓN DE ETIQUETAS DE EJERCICIOS ====================
+
+    @Transactional
+    public List<ExerciseTagDTO> listExerciseTags() {
+        List<Exercise> allExercises = exerciseRepository.findAll();
+        Map<String, List<UUID>> tagToExerciseIds = new HashMap<>();
+
+        for (Exercise ex : allExercises) {
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                    try {
+                        List<String> tags = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
+                        for (String t : tags) {
+                            if (t != null && !t.trim().isBlank()) {
+                                String clean = t.trim();
+                                tagToExerciseIds.computeIfAbsent(clean, k -> new ArrayList<>()).add(ex.getId());
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        List<ExerciseTag> tagEntities = exerciseTagRepository.findAll();
+        Map<String, ExerciseTag> entityMap = new HashMap<>();
+        for (ExerciseTag et : tagEntities) {
+            entityMap.put(et.getName().toLowerCase(), et);
+        }
+
+        for (String tagName : tagToExerciseIds.keySet()) {
+            if (!entityMap.containsKey(tagName.toLowerCase())) {
+                String color = TagColorUtil.getDeterministicColor("exercise", tagName);
+                ExerciseTag newTag = exerciseTagRepository.save(new ExerciseTag(tagName, color));
+                entityMap.put(tagName.toLowerCase(), newTag);
+            }
+        }
+
+        List<ExerciseTagDTO> result = new ArrayList<>();
+        for (ExerciseTag et : entityMap.values()) {
+            List<UUID> exIds = tagToExerciseIds.entrySet().stream()
+                .filter(e -> e.getKey().equalsIgnoreCase(et.getName()))
+                .findFirst()
+                .map(Map.Entry::getValue)
+                .orElse(Collections.emptyList());
+
+            result.add(new ExerciseTagDTO(et.getName(), et.getColor(), exIds.size(), exIds));
+        }
+
+        result.sort(Comparator.comparing(ExerciseTagDTO::name, String.CASE_INSENSITIVE_ORDER));
+        return result;
+    }
+
+    @Transactional
+    public ExerciseTagDTO createExerciseTag(CreateExerciseTagRequest request) {
+        String name = request.name().trim();
+        if (exerciseTagRepository.existsByNameIgnoreCase(name)) {
+            throw new ValidationException("Ya existe una etiqueta de ejercicio con el nombre '" + name + "'");
+        }
+        String color = TagColorUtil.sanitizeColor(request.color(), "exercise", name);
+        ExerciseTag entity = exerciseTagRepository.save(new ExerciseTag(name, color));
+        return new ExerciseTagDTO(entity.getName(), entity.getColor(), 0, List.of());
+    }
+
+    @Transactional
+    public ExerciseTagDTO updateExerciseTag(String currentName, UpdateExerciseTagRequest request, User teacher) {
+        String cleanCurrent = currentName.trim();
+        ExerciseTag entity = exerciseTagRepository.findByNameIgnoreCase(cleanCurrent)
+            .orElseGet(() -> {
+                String col = TagColorUtil.getDeterministicColor("exercise", cleanCurrent);
+                return exerciseTagRepository.save(new ExerciseTag(cleanCurrent, col));
+            });
+
+        String finalName = entity.getName();
+
+        if (request.newName() != null && !request.newName().trim().isBlank()) {
+            String cleanNew = request.newName().trim();
+            if (!cleanNew.equalsIgnoreCase(cleanCurrent)) {
+                if (exerciseTagRepository.existsByNameIgnoreCase(cleanNew)) {
+                    throw new ValidationException("Ya existe una etiqueta de ejercicio con el nombre '" + cleanNew + "'");
+                }
+
+                List<Exercise> allExercises = exerciseRepository.findAll();
+                for (Exercise ex : allExercises) {
+                    Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+                    if (latestOpt.isPresent()) {
+                        ExerciseVersion ev = latestOpt.get();
+                        if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                            try {
+                                List<String> tags = new ArrayList<>(objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {}));
+                                boolean changed = false;
+                                for (int i = 0; i < tags.size(); i++) {
+                                    if (tags.get(i).equalsIgnoreCase(cleanCurrent)) {
+                                        tags.set(i, cleanNew);
+                                        changed = true;
+                                    }
+                                }
+                                if (changed) {
+                                    List<String> distinctTags = new ArrayList<>(new LinkedHashSet<>(tags));
+                                    ev.setTags(objectMapper.writeValueAsString(distinctTags));
+                                    exerciseVersionRepository.save(ev);
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+
+                exerciseTagRepository.delete(entity);
+                entity = new ExerciseTag(cleanNew, entity.getColor());
+                finalName = cleanNew;
+            }
+        }
+
+        if (request.color() != null && !request.color().trim().isBlank()) {
+            String sanitized = TagColorUtil.sanitizeColor(request.color(), "exercise", finalName);
+            entity.setColor(sanitized);
+        }
+
+        entity = exerciseTagRepository.save(entity);
+        long count = countExercisesWithTag(finalName);
+        return new ExerciseTagDTO(entity.getName(), entity.getColor(), count);
+    }
+
+    @Transactional
+    public void mergeExerciseTags(String sourceTag, String targetTag, User teacher) {
+        String cleanSource = sourceTag.trim();
+        String cleanTarget = targetTag.trim();
+
+        if (cleanSource.equalsIgnoreCase(cleanTarget)) {
+            throw new ValidationException("No se puede combinar una etiqueta consigo misma");
+        }
+
+        ExerciseTag targetEntity = exerciseTagRepository.findByNameIgnoreCase(cleanTarget)
+            .orElseGet(() -> {
+                String col = TagColorUtil.getDeterministicColor("exercise", cleanTarget);
+                return exerciseTagRepository.save(new ExerciseTag(cleanTarget, col));
+            });
+
+        List<Exercise> allExercises = exerciseRepository.findAll();
+        for (Exercise ex : allExercises) {
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                    try {
+                        List<String> tags = new ArrayList<>(objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {}));
+                        boolean hadSource = tags.removeIf(t -> t.equalsIgnoreCase(cleanSource));
+                        if (hadSource) {
+                            boolean hasTarget = tags.stream().anyMatch(t -> t.equalsIgnoreCase(cleanTarget));
+                            if (!hasTarget) {
+                                tags.add(targetEntity.getName());
+                            }
+                            ev.setTags(objectMapper.writeValueAsString(tags));
+                            exerciseVersionRepository.save(ev);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        exerciseTagRepository.findByNameIgnoreCase(cleanSource).ifPresent(exerciseTagRepository::delete);
+    }
+
+    @Transactional
+    public void deleteExerciseTag(String tagName, boolean removeFromExercises, User teacher) {
+        String cleanName = tagName.trim();
+        long count = countExercisesWithTag(cleanName);
+
+        if (!removeFromExercises && count > 0) {
+            throw new ValidationException("No se puede eliminar la etiqueta porque está asignada a " + count + " ejercicios");
+        }
+
+        if (removeFromExercises && count > 0) {
+            List<Exercise> allExercises = exerciseRepository.findAll();
+            for (Exercise ex : allExercises) {
+                Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+                if (latestOpt.isPresent()) {
+                    ExerciseVersion ev = latestOpt.get();
+                    if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                        try {
+                            List<String> tags = new ArrayList<>(objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {}));
+                            boolean removed = tags.removeIf(t -> t.equalsIgnoreCase(cleanName));
+                            if (removed) {
+                                ev.setTags(objectMapper.writeValueAsString(tags));
+                                exerciseVersionRepository.save(ev);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+
+        exerciseTagRepository.findByNameIgnoreCase(cleanName).ifPresent(exerciseTagRepository::delete);
+    }
+
+    @Transactional
+    public int cleanUnusedExerciseTags() {
+        Set<String> usedTags = new HashSet<>();
+        for (Exercise ex : exerciseRepository.findAll()) {
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                    try {
+                        List<String> tags = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
+                        for (String t : tags) {
+                            if (t != null && !t.trim().isBlank()) {
+                                usedTags.add(t.trim().toLowerCase());
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        List<ExerciseTag> allTags = exerciseTagRepository.findAll();
+        int deleted = 0;
+        for (ExerciseTag et : allTags) {
+            if (!usedTags.contains(et.getName().toLowerCase())) {
+                exerciseTagRepository.delete(et);
+                deleted++;
+            }
+        }
+        return deleted;
+    }
+
+    private long countExercisesWithTag(String tagName) {
+        String clean = tagName.trim().toLowerCase();
+        long count = 0;
+        for (Exercise ex : exerciseRepository.findAll()) {
+            Optional<ExerciseVersion> latestOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
+            if (latestOpt.isPresent()) {
+                ExerciseVersion ev = latestOpt.get();
+                if (ev.getTags() != null && !ev.getTags().isBlank()) {
+                    try {
+                        List<String> tags = objectMapper.readValue(ev.getTags(), new TypeReference<List<String>>() {});
+                        if (tags.stream().anyMatch(t -> t.trim().equalsIgnoreCase(clean))) {
+                            count++;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        return count;
     }
 }

@@ -1,9 +1,12 @@
-- en la llista de colecciones i ejercicios, que el slug siga un enllaç
+- en la llista de colecciones i ejercicios, que el slug siga un enllaç, que el professor el puga copiar y enviar als alumnes. El problema es que si ixe exercici no 
+està en cap colecció, al alumne se li marcarà com a fet, pero no el podrà trobar (bueno, en el historial....)
 
-- en la llista de espacios i alumnos, te que haver un enllaç a "insigths"
+
 
 - En crear coleccion, espacio, en lloc de anar a una altra pagina, se tindria que mostrar el panel dalt de la llista (mostrarlo inicialment?), ixe panel te que estar separat de la llista
 
+
+- en la llista de espacios i alumnos, te que haver un enllaç a "insigths"
 
 - els insights tinc que poder vore'ls per etiqueta
 
@@ -13,6 +16,3 @@
 - Tinc que buscar una forma de que quan afegisc una etiqueta a un espacio, ixa etiqueta se afegisca també a tots els alumnes que ja estaven abans en ixe espacio.
 
 - per ultim fa falta una manera de gestionar etiquetes, "limpiar" les que ja no se usen, renombrar, combinar, canviar color, etc... (En ADMIN?)
-
-
-- una forma de borrar elements multiselect
