@@ -16,3 +16,12 @@ està en cap colecció, al alumne se li marcarà com a fet, pero no el podrà tr
 - Tinc que buscar una forma de que quan afegisc una etiqueta a un espacio, ixa etiqueta se afegisca també a tots els alumnes que ja estaven abans en ixe espacio.
 
 - per ultim fa falta una manera de gestionar etiquetes, "limpiar" les que ja no se usen, renombrar, combinar, canviar color, etc... (En ADMIN?)
+
+- en la llista de ejercicios, quan selecciones, te que poder permitir-te afegir els seleccionats a una colecció
+
+- en la llista de ejercicios, quan lidones a un ejercicio, te que obrir un panel de previsualización, per a editarlo li has de donar al llapis
+
+- soporte ```mermaid  y mathjax
+
+- en lugar de ```explanation debería ser #### Explanation (es lo último que puede aparecer en un Test y va hasta el comienzo del siguiente Test)
+
