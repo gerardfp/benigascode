@@ -151,44 +151,13 @@ public class ContentExportService {
     }
 
     private void writeExerciseToZip(ZipOutputStream zos, Exercise ex, ExerciseVersion ev, String prefix) throws Exception {
-        // 1. statement.md
-        zos.putNextEntry(new ZipEntry(prefix + "statement.md"));
-        String stmt = ev.getStatement() != null ? ev.getStatement() : "# " + ev.getTitle() + "\n";
-        zos.write(stmt.getBytes(StandardCharsets.UTF_8));
+        // 1. exercise.md canónico
+        String markdown = ExerciseMarkdownSerializer.serialize(ex, ev, objectMapper);
+        zos.putNextEntry(new ZipEntry(prefix + "exercise.md"));
+        zos.write(markdown.getBytes(StandardCharsets.UTF_8));
         zos.closeEntry();
 
-        // 2. exercise.yaml
-        Map<String, Object> yamlMap = buildExerciseYamlMap(ex, ev);
-        String yamlStr = yamlMapper.writeValueAsString(yamlMap);
-        zos.putNextEntry(new ZipEntry(prefix + "exercise.yaml"));
-        zos.write(yamlStr.getBytes(StandardCharsets.UTF_8));
-        zos.closeEntry();
-
-        // 3. templates/
-        if (ev.getTemplatesConfig() != null && !ev.getTemplatesConfig().isBlank()) {
-            try {
-                Map<String, String> tpls = objectMapper.readValue(ev.getTemplatesConfig(), new TypeReference<>() {});
-                for (Map.Entry<String, String> entry : tpls.entrySet()) {
-                    String rt = entry.getKey();
-                    if (!rt.contains(".")) {
-                        zos.putNextEntry(new ZipEntry(prefix + "templates/" + rt + ".java"));
-                        zos.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
-                        zos.closeEntry();
-                    }
-                }
-            } catch (Exception ignored) {}
-        }
-
-        // 4. Tests (public-tests/ y private-tests/)
-        if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
-            try {
-                JsonNode root = objectMapper.readTree(ev.getTestsConfig());
-                writeTestsScope(zos, prefix + "public-tests/", root.path("public"));
-                writeTestsScope(zos, prefix + "private-tests/", root.path("private"));
-            } catch (Exception ignored) {}
-        }
-
-        // 5. Assets de imagen desde la BD
+        // 2. Assets de imagen desde la BD
         List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
         for (ExerciseAsset asset : assets) {
             zos.putNextEntry(new ZipEntry(prefix + asset.getFilename()));
@@ -263,42 +232,12 @@ public class ContentExportService {
             targetDir.mkdirs();
         }
 
-        // 1. statement.md
-        File stmtFile = new File(targetDir, "statement.md");
-        String stmt = ev.getStatement() != null ? ev.getStatement() : "# " + ev.getTitle() + "\n";
-        Files.writeString(stmtFile.toPath(), stmt, StandardCharsets.UTF_8);
+        // 1. exercise.md canónico
+        File mdFile = new File(targetDir, "exercise.md");
+        String markdown = ExerciseMarkdownSerializer.serialize(ex, ev, objectMapper);
+        Files.writeString(mdFile.toPath(), markdown, StandardCharsets.UTF_8);
 
-        // 2. exercise.yaml
-        File yamlFile = new File(targetDir, "exercise.yaml");
-        Map<String, Object> yamlMap = buildExerciseYamlMap(ex, ev);
-        yamlMapper.writeValue(yamlFile, yamlMap);
-
-        // 3. templates/
-        if (ev.getTemplatesConfig() != null && !ev.getTemplatesConfig().isBlank()) {
-            try {
-                Map<String, String> tpls = objectMapper.readValue(ev.getTemplatesConfig(), new TypeReference<>() {});
-                File tplDir = new File(targetDir, "templates");
-                tplDir.mkdirs();
-                for (Map.Entry<String, String> entry : tpls.entrySet()) {
-                    String rt = entry.getKey();
-                    if (!rt.contains(".")) {
-                        File tf = new File(tplDir, rt + ".java");
-                        Files.writeString(tf.toPath(), entry.getValue(), StandardCharsets.UTF_8);
-                    }
-                }
-            } catch (Exception ignored) {}
-        }
-
-        // 4. Tests (public-tests/ y private-tests/)
-        if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
-            try {
-                JsonNode root = objectMapper.readTree(ev.getTestsConfig());
-                writeTestsScopeToDirectory(new File(targetDir, "public-tests"), root.path("public"));
-                writeTestsScopeToDirectory(new File(targetDir, "private-tests"), root.path("private"));
-            } catch (Exception ignored) {}
-        }
-
-        // 5. Assets de imagen
+        // 2. Assets de imagen
         List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
         for (ExerciseAsset asset : assets) {
             File af = new File(targetDir, asset.getFilename());
@@ -363,60 +302,5 @@ public class ContentExportService {
                 }
             } catch (Exception ignored) {}
         }
-    }
-
-    private void writeTestsScopeToDirectory(File scopeDir, JsonNode testsNode) throws Exception {
-        if (!testsNode.isArray()) return;
-        scopeDir.mkdirs();
-        int idx = 0;
-        for (JsonNode t : testsNode) {
-            String dirName = String.format("%02d", idx++);
-            File testFolder = new File(scopeDir, dirName);
-            testFolder.mkdirs();
-
-            Files.writeString(new File(testFolder, "input.txt").toPath(), t.path("input").asText(""), StandardCharsets.UTF_8);
-            Files.writeString(new File(testFolder, "output.txt").toPath(), t.path("expected").asText(""), StandardCharsets.UTF_8);
-
-            double w = t.path("weight").asDouble(10.0);
-            String wStr = (w == (long) w) ? String.format("%d", (long) w) : String.valueOf(w);
-            File weightFile = new File(testFolder, "weight-" + wStr);
-            if (!weightFile.exists()) {
-                weightFile.createNewFile();
-            }
-
-            if (t.has("explanation") && !t.get("explanation").isNull() && !t.get("explanation").asText().isBlank()) {
-                Files.writeString(new File(testFolder, "explanation.md").toPath(), t.get("explanation").asText(), StandardCharsets.UTF_8);
-            }
-        }
-    }
-
-    private Map<String, Object> buildExerciseYamlMap(Exercise ex, ExerciseVersion ev) {
-        Map<String, Object> yamlMap = new LinkedHashMap<>();
-        yamlMap.put("id", ex.getSlug());
-        yamlMap.put("title", ev.getTitle());
-        yamlMap.put("language", ev.getLanguage() != null ? ev.getLanguage() : "java");
-        yamlMap.put("runtime", ev.getRuntimeId() != null ? ev.getRuntimeId() : "java-21");
-
-        if (ev.getCompileConfig() != null && !ev.getCompileConfig().isBlank()) {
-            try {
-                yamlMap.put("compile", objectMapper.readTree(ev.getCompileConfig()));
-            } catch (Exception ignored) {}
-        }
-        if (ev.getRunConfig() != null && !ev.getRunConfig().isBlank()) {
-            try {
-                yamlMap.put("execution", objectMapper.readTree(ev.getRunConfig()));
-            } catch (Exception ignored) {}
-        }
-        if (ev.getScoringConfig() != null && !ev.getScoringConfig().isBlank()) {
-            try {
-                yamlMap.put("scoring", objectMapper.readTree(ev.getScoringConfig()));
-            } catch (Exception ignored) {}
-        }
-        if (ev.getComparatorConfig() != null && !ev.getComparatorConfig().isBlank()) {
-            try {
-                yamlMap.put("comparator", objectMapper.readTree(ev.getComparatorConfig()));
-            } catch (Exception ignored) {}
-        }
-        return yamlMap;
     }
 }

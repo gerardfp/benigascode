@@ -545,52 +545,78 @@ public class CatalogImportExportService {
         }
     }
 
-    // ==================== MÉTODOS AUXILIARES DE IMPORTACIÓN ====================
-
     private void importSingleExercise(File exerciseDir, String targetSlug, String gitCommit, ContentSyncService.CollectionDefaults colDefaults) throws Exception {
-        File yamlFile = new File(exerciseDir, "exercise.yaml");
-        JsonNode yamlNode = yamlFile.exists() ? yamlMapper.readTree(yamlFile) : null;
-
-        File statementFile = new File(exerciseDir, "statement.md");
-        String statement = statementFile.exists() ? Files.readString(statementFile.toPath()) : "Sin enunciado";
-
-        String title = contentSyncService.extractTitle(statementFile, targetSlug);
-        if (yamlNode != null && yamlNode.has("title") && !yamlNode.path("title").asText().isBlank()) {
-            title = yamlNode.path("title").asText();
+        File mdFile = new File(exerciseDir, "exercise.md");
+        if (!mdFile.exists()) {
+            return;
         }
 
-        String language = (yamlNode != null && yamlNode.has("language"))
-                ? yamlNode.path("language").asText(colDefaults.language)
-                : colDefaults.language;
+        String rawContent = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+        ExerciseMarkdownParser.ParseResult parseResult = ExerciseMarkdownParser.parse(rawContent, targetSlug);
+        ExerciseMarkdownParser.ParsedExercise pe = parseResult.exercise();
 
-        String runtimeId = (yamlNode != null && yamlNode.has("runtime"))
-                ? yamlNode.path("runtime").asText(colDefaults.runtimeId)
-                : colDefaults.runtimeId;
+        String finalSlug = (targetSlug != null && !targetSlug.isBlank()) ? targetSlug : pe.slug();
+        String title = pe.title();
+        String statement = pe.statement();
 
-        Map<String, Object> testSuite = contentSyncService.loadTestSuite(exerciseDir, yamlNode);
+        String language = colDefaults.language;
+        String runtimeId = colDefaults.runtimeId;
+        if (pe.templates() != null && !pe.templates().isEmpty()) {
+            if (pe.templates().containsKey("java")) {
+                language = "java";
+                runtimeId = "java-26";
+            } else if (pe.templates().containsKey("python")) {
+                language = "python";
+                runtimeId = "python-314";
+            } else {
+                String firstLang = pe.templates().keySet().iterator().next();
+                language = firstLang;
+                runtimeId = firstLang.startsWith("py") ? "python-314" : "java-26";
+            }
+        }
+
+        Map<String, Object> testSuite = new HashMap<>();
+        List<Map<String, Object>> pubTests = new ArrayList<>();
+        List<Map<String, Object>> privTests = new ArrayList<>();
+        if (pe.testCases() != null) {
+            int pubIdx = 1;
+            int privIdx = 1;
+            for (com.benigascode.content.dto.TestCaseDTO tc : pe.testCases()) {
+                Map<String, Object> t = new HashMap<>();
+                t.put("id", tc.id() != null && !tc.id().isBlank() ? tc.id() : (tc.isPublic() ? "pub-" + pubIdx : "priv-" + privIdx));
+                t.put("name", tc.name() != null && !tc.name().isBlank() ? tc.name() : (tc.isPublic() ? "Test Público #" + pubIdx : "Test Privado #" + privIdx));
+                t.put("input", tc.input() != null ? tc.input() : "");
+                t.put("expected", tc.effectiveExpected());
+                t.put("weight", tc.weight() > 0 ? tc.weight() : 1.0);
+                t.put("is_public", tc.isPublic());
+                if (tc.explanation() != null && !tc.explanation().isBlank()) {
+                    t.put("explanation", tc.explanation());
+                }
+
+                if (tc.isPublic()) {
+                    pubTests.add(t);
+                    pubIdx++;
+                } else {
+                    privTests.add(t);
+                    privIdx++;
+                }
+            }
+        }
+        testSuite.put("public", pubTests);
+        testSuite.put("private", privTests);
         String testsJson = jsonMapper.writeValueAsString(testSuite);
 
-        String compileJson = (yamlNode != null && yamlNode.has("compile"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("compile"))
-                : colDefaults.compileJson;
+        String compileJson = colDefaults.compileJson;
+        String runJson = colDefaults.runJson;
+        String scoringJson = colDefaults.scoringJson;
+        String comparatorJson = colDefaults.comparatorJson;
 
-        String runJson = (yamlNode != null && yamlNode.has("execution"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("execution"))
-                : colDefaults.runJson;
+        String templatesJson = jsonMapper.writeValueAsString(pe.templates() != null ? pe.templates() : Map.of());
+        String tagsJson = jsonMapper.writeValueAsString(pe.tags() != null ? pe.tags() : List.of());
+        String contentHash = contentSyncService.computeHash(statement + testsJson + compileJson + runJson + templatesJson + tagsJson);
 
-        String scoringJson = (yamlNode != null && yamlNode.has("scoring"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("scoring"))
-                : colDefaults.scoringJson;
-
-        String comparatorJson = (yamlNode != null && yamlNode.has("comparator"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("comparator"))
-                : colDefaults.comparatorJson;
-
-        String templatesJson = jsonMapper.writeValueAsString(contentSyncService.loadTemplates(exerciseDir, yamlNode));
-        String contentHash = contentSyncService.computeHash(statement + testsJson + compileJson + runJson + templatesJson);
-
-        Exercise exercise = exerciseRepository.findBySlug(targetSlug)
-                .orElseGet(() -> exerciseRepository.save(new Exercise(targetSlug)));
+        Exercise exercise = exerciseRepository.findBySlug(finalSlug)
+                .orElseGet(() -> exerciseRepository.save(new Exercise(finalSlug)));
 
         contentSyncService.syncAssets(exercise, exerciseDir);
 
@@ -610,6 +636,7 @@ public class CatalogImportExportService {
         version.setComparatorConfig(comparatorJson);
         version.setTestsConfig(testsJson);
         version.setTemplatesConfig(templatesJson);
+        version.setTags(tagsJson);
         version.setContentHash(contentHash);
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
@@ -671,12 +698,12 @@ public class CatalogImportExportService {
         List<File> list = new ArrayList<>();
         File exercisesDir = new File(catalogDir, "exercises");
         if (exercisesDir.exists() && exercisesDir.isDirectory()) {
-            File[] subs = exercisesDir.listFiles(File::isDirectory);
+            File[] subs = exercisesDir.listFiles(f -> f.isDirectory() && new File(f, "exercise.md").exists());
             if (subs != null) {
                 Arrays.sort(subs, Comparator.comparing(File::getName));
                 list.addAll(Arrays.asList(subs));
             }
-        } else if (new File(catalogDir, "exercise.yaml").exists() || new File(catalogDir, "statement.md").exists()) {
+        } else if (new File(catalogDir, "exercise.md").exists()) {
             list.add(catalogDir);
         }
         return list;
@@ -686,22 +713,25 @@ public class CatalogImportExportService {
         List<File> list = new ArrayList<>();
         File collectionsDir = new File(catalogDir, "collections");
         if (collectionsDir.exists() && collectionsDir.isDirectory()) {
-            File[] subs = collectionsDir.listFiles(File::isDirectory);
+            File[] subs = collectionsDir.listFiles(f -> f.isDirectory() && new File(f, "collection.yaml").exists());
             if (subs != null) {
                 Arrays.sort(subs, Comparator.comparing(File::getName));
                 list.addAll(Arrays.asList(subs));
             }
+        } else if (new File(catalogDir, "collection.yaml").exists()) {
+            list.add(catalogDir);
         }
         return list;
     }
 
     private String resolveExerciseSlug(File exDir) {
-        File yamlFile = new File(exDir, "exercise.yaml");
-        if (yamlFile.exists()) {
+        File mdFile = new File(exDir, "exercise.md");
+        if (mdFile.exists()) {
             try {
-                JsonNode yamlNode = yamlMapper.readTree(yamlFile);
-                if (yamlNode.has("id") && !yamlNode.path("id").asText().isBlank()) {
-                    return yamlNode.path("id").asText().trim();
+                String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+                ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(content, exDir.getName());
+                if (res.exercise().slug() != null && !res.exercise().slug().isBlank()) {
+                    return res.exercise().slug();
                 }
             } catch (Exception ignored) {}
         }
@@ -709,17 +739,17 @@ public class CatalogImportExportService {
     }
 
     private String resolveExerciseTitle(File exDir, String defaultTitle) {
-        File yamlFile = new File(exDir, "exercise.yaml");
-        if (yamlFile.exists()) {
+        File mdFile = new File(exDir, "exercise.md");
+        if (mdFile.exists()) {
             try {
-                JsonNode yamlNode = yamlMapper.readTree(yamlFile);
-                if (yamlNode.has("title") && !yamlNode.path("title").asText().isBlank()) {
-                    return yamlNode.path("title").asText().trim();
+                String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+                ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(content, defaultTitle);
+                if (res.exercise().title() != null && !res.exercise().title().isBlank()) {
+                    return res.exercise().title();
                 }
             } catch (Exception ignored) {}
         }
-        File stmt = new File(exDir, "statement.md");
-        return contentSyncService.extractTitle(stmt, defaultTitle);
+        return defaultTitle;
     }
 
     private String resolveCollectionSlug(File colDir) {

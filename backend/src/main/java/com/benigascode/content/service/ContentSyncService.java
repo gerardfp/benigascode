@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.util.*;
@@ -140,16 +141,19 @@ public class ContentSyncService {
             // 2. Sincronizar Ejercicios
             File exercisesDir = new File(rootDir, "exercises");
             if (exercisesDir.exists() && exercisesDir.isDirectory()) {
-                for (File exDir : Objects.requireNonNull(exercisesDir.listFiles(File::isDirectory))) {
-                    try {
-                        CollectionDefaults colDefaults = exerciseSlugToDefaults.getOrDefault(exDir.getName(), defaultCollectionDefaults);
-                        String versionInfo = syncExercise(exDir, sync.getGitCommit(), colDefaults);
-                        if (versionInfo != null) {
-                            createdVersions.add(versionInfo);
+                File[] exDirs = exercisesDir.listFiles(f -> f.isDirectory() && new File(f, "exercise.md").exists());
+                if (exDirs != null) {
+                    for (File exDir : exDirs) {
+                        try {
+                            CollectionDefaults colDefaults = exerciseSlugToDefaults.getOrDefault(exDir.getName(), defaultCollectionDefaults);
+                            String versionInfo = syncExercise(exDir, sync.getGitCommit(), colDefaults);
+                            if (versionInfo != null) {
+                                createdVersions.add(versionInfo);
+                            }
+                        } catch (Exception ex) {
+                            log.error("Error al sincronizar ejercicio: " + exDir.getName(), ex);
+                            errors.add("Ejercicio " + exDir.getName() + ": " + ex.getMessage());
                         }
-                    } catch (Exception ex) {
-                        log.error("Error al sincronizar ejercicio: " + exDir.getName(), ex);
-                        errors.add("Ejercicio " + exDir.getName() + ": " + ex.getMessage());
                     }
                 }
             }
@@ -185,53 +189,78 @@ public class ContentSyncService {
     }
 
     private String syncExercise(File exerciseDir, String gitCommit, CollectionDefaults colDefaults) throws Exception {
-        File yamlFile = new File(exerciseDir, "exercise.yaml");
-        JsonNode yamlNode = yamlFile.exists() ? yamlMapper.readTree(yamlFile) : null;
-
-        String slug = (yamlNode != null && yamlNode.has("id"))
-                ? yamlNode.path("id").asText(exerciseDir.getName())
-                : exerciseDir.getName();
-
-        File statementFile = new File(exerciseDir, "statement.md");
-        String statement = statementFile.exists() ? Files.readString(statementFile.toPath()) : "Sin enunciado";
-
-        String title = extractTitle(statementFile, slug);
-        if (yamlNode != null && yamlNode.has("title") && !yamlNode.path("title").asText().isBlank()) {
-            title = yamlNode.path("title").asText();
+        File mdFile = new File(exerciseDir, "exercise.md");
+        if (!mdFile.exists()) {
+            return null;
         }
 
-        String language = (yamlNode != null && yamlNode.has("language"))
-                ? yamlNode.path("language").asText(colDefaults.language)
-                : colDefaults.language;
+        String rawContent = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+        ExerciseMarkdownParser.ParseResult parseResult = ExerciseMarkdownParser.parse(rawContent, exerciseDir.getName());
+        ExerciseMarkdownParser.ParsedExercise pe = parseResult.exercise();
 
-        String runtimeId = (yamlNode != null && yamlNode.has("runtime"))
-                ? yamlNode.path("runtime").asText(colDefaults.runtimeId)
-                : colDefaults.runtimeId;
+        String slug = (pe.slug() != null && !pe.slug().isBlank()) ? pe.slug() : exerciseDir.getName();
+        String title = pe.title();
+        String statement = pe.statement();
 
-        // Cargar tests estructurados
-        Map<String, Object> testSuite = loadTestSuite(exerciseDir, yamlNode);
+        // Determinar lenguaje y runtime según plantillas definidas o defaults
+        String language = colDefaults.language;
+        String runtimeId = colDefaults.runtimeId;
+        if (pe.templates() != null && !pe.templates().isEmpty()) {
+            if (pe.templates().containsKey("java")) {
+                language = "java";
+                runtimeId = "java-26";
+            } else if (pe.templates().containsKey("python")) {
+                language = "python";
+                runtimeId = "python-314";
+            } else {
+                String firstLang = pe.templates().keySet().iterator().next();
+                language = firstLang;
+                runtimeId = firstLang.startsWith("py") ? "python-314" : "java-26";
+            }
+        }
+
+        // Construir test suite JSON
+        Map<String, Object> testSuite = new HashMap<>();
+        List<Map<String, Object>> pubTests = new ArrayList<>();
+        List<Map<String, Object>> privTests = new ArrayList<>();
+        if (pe.testCases() != null) {
+            int pubIdx = 1;
+            int privIdx = 1;
+            for (com.benigascode.content.dto.TestCaseDTO tc : pe.testCases()) {
+                Map<String, Object> t = new HashMap<>();
+                t.put("id", tc.id() != null && !tc.id().isBlank() ? tc.id() : (tc.isPublic() ? "pub-" + pubIdx : "priv-" + privIdx));
+                t.put("name", tc.name() != null && !tc.name().isBlank() ? tc.name() : (tc.isPublic() ? "Test Público #" + pubIdx : "Test Privado #" + privIdx));
+                t.put("input", tc.input() != null ? tc.input() : "");
+                t.put("expected", tc.effectiveExpected());
+                t.put("weight", tc.weight() > 0 ? tc.weight() : 1.0);
+                t.put("is_public", tc.isPublic());
+                if (tc.explanation() != null && !tc.explanation().isBlank()) {
+                    t.put("explanation", tc.explanation());
+                }
+
+                if (tc.isPublic()) {
+                    pubTests.add(t);
+                    pubIdx++;
+                } else {
+                    privTests.add(t);
+                    privIdx++;
+                }
+            }
+        }
+        testSuite.put("public", pubTests);
+        testSuite.put("private", privTests);
         String testsJson = jsonMapper.writeValueAsString(testSuite);
 
-        String compileJson = (yamlNode != null && yamlNode.has("compile"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("compile"))
-                : colDefaults.compileJson;
+        String compileJson = colDefaults.compileJson;
+        String runJson = colDefaults.runJson;
+        String scoringJson = colDefaults.scoringJson;
+        String comparatorJson = colDefaults.comparatorJson;
 
-        String runJson = (yamlNode != null && yamlNode.has("execution"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("execution"))
-                : colDefaults.runJson;
-
-        String scoringJson = (yamlNode != null && yamlNode.has("scoring"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("scoring"))
-                : colDefaults.scoringJson;
-
-        String comparatorJson = (yamlNode != null && yamlNode.has("comparator"))
-                ? jsonMapper.writeValueAsString(yamlNode.path("comparator"))
-                : colDefaults.comparatorJson;
-
-        String templatesJson = jsonMapper.writeValueAsString(loadTemplates(exerciseDir, yamlNode));
+        String templatesJson = jsonMapper.writeValueAsString(pe.templates() != null ? pe.templates() : Map.of());
+        String tagsJson = jsonMapper.writeValueAsString(pe.tags() != null ? pe.tags() : List.of());
 
         // Calcular Hash del contenido
-        String contentHash = computeHash(statement + testsJson + compileJson + runJson + templatesJson);
+        String contentHash = computeHash(statement + testsJson + compileJson + runJson + templatesJson + tagsJson);
 
         Exercise exercise = exerciseRepository.findBySlug(slug)
                 .orElseGet(() -> exerciseRepository.save(new Exercise(slug)));
@@ -259,6 +288,7 @@ public class ContentSyncService {
         version.setComparatorConfig(comparatorJson);
         version.setTestsConfig(testsJson);
         version.setTemplatesConfig(templatesJson);
+        version.setTags(tagsJson);
         version.setContentHash(contentHash);
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
@@ -304,146 +334,6 @@ public class ContentSyncService {
         if (lower.endsWith(".svg")) return "image/svg+xml";
         if (lower.endsWith(".webp")) return "image/webp";
         return "application/octet-stream";
-    }
-
-    public String extractTitle(File statementFile, String defaultTitle) {
-        if (!statementFile.exists()) {
-            return defaultTitle;
-        }
-        try {
-            List<String> lines = Files.readAllLines(statementFile.toPath());
-            for (String line : lines) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("# ") && !trimmed.startsWith("## ")) {
-                    String title = trimmed.substring(2).trim();
-                    if (!title.isEmpty()) {
-                        return title;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Error leyendo statement.md para extraer título de " + statementFile.getAbsolutePath(), e);
-        }
-        return defaultTitle;
-    }
-
-    public Map<String, Object> loadTestSuite(File exerciseDir, JsonNode yamlNode) throws Exception {
-        Map<String, Object> suite = new HashMap<>();
-        List<Map<String, Object>> publicTests = loadTestsFromDir(new File(exerciseDir, "public-tests"), true);
-        List<Map<String, Object>> privateTests = loadTestsFromDir(new File(exerciseDir, "private-tests"), false);
-
-        // Fallback hacia atrás para ejercicios con formato plano en exercise.yaml
-        if (publicTests.isEmpty() && privateTests.isEmpty() && yamlNode != null && yamlNode.has("tests")) {
-            JsonNode testsNode = yamlNode.path("tests");
-            for (JsonNode tNode : testsNode.path("public")) {
-                publicTests.add(loadSingleTestLegacy(exerciseDir, tNode, true));
-            }
-            for (JsonNode tNode : testsNode.path("private")) {
-                privateTests.add(loadSingleTestLegacy(exerciseDir, tNode, false));
-            }
-        }
-
-        suite.put("public", publicTests);
-        suite.put("private", privateTests);
-        return suite;
-    }
-
-    private List<Map<String, Object>> loadTestsFromDir(File dir, boolean isPublic) throws Exception {
-        List<Map<String, Object>> tests = new ArrayList<>();
-        if (!dir.exists() || !dir.isDirectory()) {
-            return tests;
-        }
-
-        File[] subdirs = dir.listFiles(File::isDirectory);
-        if (subdirs == null || subdirs.length == 0) {
-            return tests;
-        }
-
-        // Ordenar alfabéticamente (lexicográfico: 10 < 101 < 20)
-        Arrays.sort(subdirs, Comparator.comparing(File::getName));
-
-        for (int i = 0; i < subdirs.length; i++) {
-            File testDir = subdirs[i];
-            int testNum = i + 1;
-            String testId = (isPublic ? "pub-" : "priv-") + testDir.getName();
-            String testName = (isPublic ? "Test Publico #" : "Test Privado #") + testNum;
-
-            String inputContent = "";
-            File inputFile = new File(testDir, "input.txt");
-            if (inputFile.exists()) {
-                inputContent = Files.readString(inputFile.toPath());
-            }
-
-            String expectedContent = "";
-            File outputFile = new File(testDir, "output.txt");
-            if (outputFile.exists()) {
-                expectedContent = Files.readString(outputFile.toPath());
-            }
-
-            String explanation = null;
-            File explanationFile = new File(testDir, "explanation.md");
-            if (explanationFile.exists()) {
-                explanation = Files.readString(explanationFile.toPath());
-            }
-
-            double weight = 10.0;
-            File[] filesInTestDir = testDir.listFiles();
-            if (filesInTestDir != null) {
-                for (File f : filesInTestDir) {
-                    if (f.getName().startsWith("weight-")) {
-                        try {
-                            weight = Double.parseDouble(f.getName().substring("weight-".length()));
-                        } catch (NumberFormatException ignored) {
-                        }
-                        break;
-                    }
-                }
-            }
-
-            Map<String, Object> test = new HashMap<>();
-            test.put("id", testId);
-            test.put("name", testName);
-            test.put("weight", weight);
-            test.put("input", inputContent);
-            test.put("expected", expectedContent);
-            test.put("is_public", isPublic);
-            if (explanation != null) {
-                test.put("explanation", explanation);
-            }
-
-            tests.add(test);
-        }
-
-        return tests;
-    }
-
-    private Map<String, Object> loadSingleTestLegacy(File exerciseDir, JsonNode tNode, boolean isPublic) throws Exception {
-        String id = tNode.path("id").asText();
-        String name = tNode.path("name").asText(id);
-        double weight = tNode.path("weight").asDouble(10.0);
-        String inputFile = tNode.path("input").asText();
-        String expectedFile = tNode.path("expected").asText();
-
-        String inputContent = "";
-        String expectedContent = "";
-
-        File inF = new File(exerciseDir, inputFile);
-        if (inF.exists()) {
-            inputContent = Files.readString(inF.toPath());
-        }
-        File outF = new File(exerciseDir, expectedFile);
-        if (outF.exists()) {
-            expectedContent = Files.readString(outF.toPath());
-        }
-
-        Map<String, Object> test = new HashMap<>();
-        test.put("id", id);
-        test.put("name", name);
-        test.put("weight", weight);
-        test.put("input", inputContent);
-        test.put("expected", expectedContent);
-        test.put("is_public", isPublic);
-        return test;
     }
 
     public String syncCollection(File colDir) throws Exception {
