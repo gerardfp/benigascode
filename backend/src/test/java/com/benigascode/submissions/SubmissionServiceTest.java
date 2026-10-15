@@ -15,6 +15,7 @@ import com.benigascode.evaluation.repository.EvaluationRepository;
 import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.repository.UserRepository;
 import com.benigascode.learning.domain.TeachingSpace;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.repository.StudentTagRepository;
@@ -24,6 +25,7 @@ import com.benigascode.submissions.dto.CreateSubmissionRequest;
 import com.benigascode.submissions.dto.SubmissionDTO;
 import com.benigascode.submissions.repository.AttemptLedgerRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.submissions.service.StudentProgressService;
 import com.benigascode.submissions.service.SubmissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,6 +70,10 @@ class SubmissionServiceTest {
     private ContextService contextService;
     @Mock
     private StudentTagRepository studentTagRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private StudentProgressService studentProgressService;
     @Mock
     private ObjectMapper objectMapper;
 
@@ -167,5 +174,37 @@ class SubmissionServiceTest {
         assertThrows(ResourceNotFoundException.class, () ->
             submissionService.getSubmissionById(sub.getId(), studentB)
         );
+    }
+
+    @Test
+    void reassociateOrphanedSubmissions_WithOrphanedSubmissions_ReassociatesAndRecalculatesProgress() {
+        Exercise exercise = new Exercise("calcular-media");
+        exercise.setId(UUID.randomUUID());
+
+        when(submissionRepository.reassociateSubmissionsForSlug(exercise.getSlug(), exerciseVersion)).thenReturn(2);
+        when(submissionRepository.findStudentIdsByExerciseSlug(exercise.getSlug())).thenReturn(List.of(studentA.getId()));
+        when(userRepository.findById(studentA.getId())).thenReturn(Optional.of(studentA));
+
+        submissionService.reassociateOrphanedSubmissions(exercise, exerciseVersion);
+
+        verify(submissionRepository).reassociateSubmissionsForSlug(exercise.getSlug(), exerciseVersion);
+        verify(evaluationRepository).reassociateEvaluationsForSlug(exercise.getSlug(), exerciseVersion);
+        verify(attemptLedgerRepository).reassociateAttemptLedgersForSlug(exercise.getSlug(), exerciseVersion);
+        verify(studentProgressService).recalculateProgressForStudentAndExercise(studentA, exercise);
+    }
+
+    @Test
+    void reassociateOrphanedSubmissions_NoOrphanedSubmissions_DoesNotRecalculate() {
+        Exercise exercise = new Exercise("calcular-media");
+        exercise.setId(UUID.randomUUID());
+
+        when(submissionRepository.reassociateSubmissionsForSlug(exercise.getSlug(), exerciseVersion)).thenReturn(0);
+
+        submissionService.reassociateOrphanedSubmissions(exercise, exerciseVersion);
+
+        verify(submissionRepository).reassociateSubmissionsForSlug(exercise.getSlug(), exerciseVersion);
+        verify(evaluationRepository).reassociateEvaluationsForSlug(exercise.getSlug(), exerciseVersion);
+        verify(attemptLedgerRepository).reassociateAttemptLedgersForSlug(exercise.getSlug(), exerciseVersion);
+        verify(studentProgressService, never()).recalculateProgressForStudentAndExercise(any(), any());
     }
 }

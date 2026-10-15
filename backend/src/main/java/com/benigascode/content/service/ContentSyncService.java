@@ -17,6 +17,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
+import com.benigascode.submissions.service.SubmissionService;
 import java.util.*;
 
 @Service
@@ -30,6 +31,7 @@ public class ContentSyncService {
     private final CollectionRepository collectionRepository;
     private final CollectionVersionRepository collectionVersionRepository;
     private final ContentSyncRepository contentSyncRepository;
+    private final SubmissionService submissionService;
     private final ObjectMapper jsonMapper;
     private final ObjectMapper yamlMapper;
 
@@ -51,6 +53,7 @@ public class ContentSyncService {
                               CollectionRepository collectionRepository,
                               CollectionVersionRepository collectionVersionRepository,
                               ContentSyncRepository contentSyncRepository,
+                              SubmissionService submissionService,
                               ObjectMapper jsonMapper) {
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
@@ -58,6 +61,7 @@ public class ContentSyncService {
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
         this.contentSyncRepository = contentSyncRepository;
+        this.submissionService = submissionService;
         this.jsonMapper = jsonMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
     }
@@ -314,6 +318,7 @@ public class ContentSyncService {
 
         Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
         if (latest.isPresent() && latest.get().getContentHash().equals(contentHash)) {
+            submissionService.reassociateOrphanedSubmissions(exercise, latest.get());
             return null;
         }
 
@@ -339,7 +344,8 @@ public class ContentSyncService {
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
 
-        exerciseVersionRepository.save(version);
+        version = exerciseVersionRepository.save(version);
+        submissionService.reassociateOrphanedSubmissions(exercise, version);
         return "Exercise: " + finalSlug + " (v" + nextVersion + ")";
     }
 

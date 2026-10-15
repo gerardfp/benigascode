@@ -6,6 +6,7 @@ import com.benigascode.content.domain.Collection;
 import com.benigascode.content.dto.*;
 import com.benigascode.content.repository.*;
 import com.benigascode.identity.domain.User;
+import com.benigascode.submissions.service.SubmissionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -40,6 +41,7 @@ public class CatalogImportExportService {
     private final ContentSyncService contentSyncService;
     private final ContentExportService contentExportService;
     private final GitOperationsService gitOperationsService;
+    private final SubmissionService submissionService;
     private final ObjectMapper jsonMapper;
     private final ObjectMapper yamlMapper;
 
@@ -50,7 +52,8 @@ public class CatalogImportExportService {
                                       ContentSyncRepository contentSyncRepository,
                                       ContentSyncService contentSyncService,
                                       ContentExportService contentExportService,
-                                      GitOperationsService gitOperationsService) {
+                                      GitOperationsService gitOperationsService,
+                                      SubmissionService submissionService) {
         this.exerciseRepository = exerciseRepository;
         this.exerciseVersionRepository = exerciseVersionRepository;
         this.collectionRepository = collectionRepository;
@@ -59,6 +62,7 @@ public class CatalogImportExportService {
         this.contentSyncService = contentSyncService;
         this.contentExportService = contentExportService;
         this.gitOperationsService = gitOperationsService;
+        this.submissionService = submissionService;
         this.jsonMapper = contentSyncService.getJsonMapper();
         this.yamlMapper = contentSyncService.getYamlMapper();
     }
@@ -659,7 +663,8 @@ public class CatalogImportExportService {
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
 
-        exerciseVersionRepository.save(version);
+        version = exerciseVersionRepository.save(version);
+        submissionService.reassociateOrphanedSubmissions(exercise, version);
     }
 
     private void importSingleCollection(File colDir, String targetSlug, Map<String, String> slugRemapping) throws Exception {

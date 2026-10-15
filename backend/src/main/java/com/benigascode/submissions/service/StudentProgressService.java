@@ -171,6 +171,91 @@ public class StudentProgressService {
         studentProgressRepository.save(progress);
     }
 
+    @Transactional
+    public void recalculateProgressForStudentAndExercise(User student, Exercise exercise) {
+        if (student == null || exercise == null) return;
+
+        List<Submission> subs = new ArrayList<>(submissionRepository.findByStudentAndExercise(student.getId(), exercise.getId()));
+        if (subs.isEmpty()) return;
+
+        subs.sort(Comparator.comparing(Submission::getCreatedAt));
+
+        Optional<StudentProgress> existingOpt = studentProgressRepository.findByStudentIdAndExerciseId(student.getId(), exercise.getId());
+        StudentProgress progress = existingOpt.orElseGet(() -> new StudentProgress(student, exercise));
+
+        BigDecimal bestScore = BigDecimal.ZERO;
+        int maxTestsPassed = 0;
+        int maxTotalTests = 0;
+        Submission lastSub = null;
+        Evaluation lastEval = null;
+        Instant firstSubAt = null;
+        Instant firstSolvedAt = null;
+        UUID firstColId = null;
+
+        for (Submission s : subs) {
+            if (firstSubAt == null) {
+                firstSubAt = s.getCreatedAt();
+            }
+            if (firstColId == null && s.getCollectionId() != null) {
+                firstColId = s.getCollectionId();
+            }
+            lastSub = s;
+
+            Optional<Evaluation> evOpt = evaluationRepository.findLatestBySubmissionId(s.getId());
+            if (evOpt.isPresent()) {
+                Evaluation ev = evOpt.get();
+                lastEval = ev;
+                BigDecimal score = ev.getScore() != null ? ev.getScore() : BigDecimal.ZERO;
+                if (score.compareTo(bestScore) > 0) {
+                    bestScore = score;
+                }
+
+                List<TestResult> results = testResultRepository.findByEvaluationId(ev.getId());
+                int passed = (int) results.stream().filter(r -> "PASSED".equalsIgnoreCase(r.getStatus())).count();
+                int total = results.size();
+                if (total > 0 && (passed > maxTestsPassed || maxTotalTests == 0)) {
+                    maxTestsPassed = passed;
+                    maxTotalTests = total;
+                }
+
+                if (score.compareTo(BigDecimal.valueOf(50)) >= 0 && firstSolvedAt == null) {
+                    firstSolvedAt = s.getCreatedAt();
+                }
+            }
+        }
+
+        progress.setFirstSubmissionAt(firstSubAt);
+        progress.setFirstCollectionId(firstColId);
+        progress.setTotalSubmissions(subs.size());
+        progress.setConsumedAttempts(subs.size());
+        progress.setLastSubmission(lastSub);
+        if (lastSub != null && lastSub.getLanguage() != null) {
+            progress.setLastLanguage(lastSub.getLanguage());
+        }
+        if (lastEval != null) {
+            progress.setLastEvaluation(lastEval);
+            progress.setLastStatus(lastEval.getStatus());
+        }
+        progress.setBestScore(bestScore);
+        progress.setTestsPassed(maxTestsPassed);
+        progress.setTotalTests(maxTotalTests);
+
+        if (bestScore.compareTo(BigDecimal.valueOf(100)) >= 0) {
+            progress.setStatus("MASTERED");
+            if (progress.getCompletedAt() == null) progress.setCompletedAt(firstSolvedAt != null ? firstSolvedAt : Instant.now());
+            if (progress.getFirstSolvedAt() == null) progress.setFirstSolvedAt(firstSolvedAt != null ? firstSolvedAt : Instant.now());
+        } else if (bestScore.compareTo(BigDecimal.valueOf(50)) >= 0) {
+            progress.setStatus("PASSED");
+            if (progress.getCompletedAt() == null) progress.setCompletedAt(firstSolvedAt != null ? firstSolvedAt : Instant.now());
+            if (progress.getFirstSolvedAt() == null) progress.setFirstSolvedAt(firstSolvedAt != null ? firstSolvedAt : Instant.now());
+        } else {
+            progress.setStatus("ATTEMPTED");
+        }
+
+        progress.setUpdatedAt(Instant.now());
+        studentProgressRepository.save(progress);
+    }
+
     @Transactional(readOnly = true)
     public List<StudentProgressDTO> getMyProgress(User student) {
         return studentProgressRepository.findByStudentIdOrderByUpdatedAtDesc(student.getId()).stream()

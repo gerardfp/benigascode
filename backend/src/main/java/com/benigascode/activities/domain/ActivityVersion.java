@@ -22,8 +22,8 @@ public class ActivityVersion {
     @Column(name = "version_number", nullable = false)
     private int versionNumber;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exercise_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "exercise_version_id", nullable = true)
     private ExerciseVersion exerciseVersion;
 
     @Column(name = "max_attempts")

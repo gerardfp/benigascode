@@ -14,8 +14,10 @@ import com.benigascode.identity.domain.User;
 import com.benigascode.learning.domain.TeachingSpace;
 import com.benigascode.learning.repository.TeachingSpaceRepository;
 import com.benigascode.learning.service.ContextService;
+import com.benigascode.submissions.repository.StudentCollectionPreferenceRepository;
 import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.submissions.service.SubmissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.benigascode.content.domain.Exercise;
 import com.benigascode.content.domain.ExerciseDraft;
@@ -72,6 +74,10 @@ class ContentServiceTest {
     private ExerciseDraftRepository exerciseDraftRepository;
     @Mock
     private ExerciseTagRepository exerciseTagRepository;
+    @Mock
+    private StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
+    @Mock
+    private SubmissionService submissionService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -461,6 +467,37 @@ class ContentServiceTest {
         assertTrue(ev.getTags().contains("arrays"));
         assertFalse(ev.getTags().contains("\"array\""));
         verify(exerciseTagRepository).delete(any(com.benigascode.content.domain.ExerciseTag.class));
+    }
+
+    @Test
+    void deleteExercise_StampsExerciseSlugBeforeDeleting() {
+        Exercise ex = new Exercise("slug-to-delete");
+        ex.setId(UUID.randomUUID());
+
+        when(exerciseRepository.findById(ex.getId())).thenReturn(Optional.of(ex));
+
+        contentService.deleteExercise(ex.getId(), teacher);
+
+        verify(submissionRepository).updateExerciseSlugForExercise(ex.getId(), "slug-to-delete");
+        verify(exerciseRepository).delete(ex);
+    }
+
+    @Test
+    void deleteExercisesBulk_StampsExerciseSlugBeforeDeleting() {
+        Exercise ex1 = new Exercise("slug-bulk-1");
+        ex1.setId(UUID.randomUUID());
+        Exercise ex2 = new Exercise("slug-bulk-2");
+        ex2.setId(UUID.randomUUID());
+
+        when(exerciseRepository.findById(ex1.getId())).thenReturn(Optional.of(ex1));
+        when(exerciseRepository.findById(ex2.getId())).thenReturn(Optional.of(ex2));
+
+        contentService.deleteExercisesBulk(List.of(ex1.getId(), ex2.getId()), teacher);
+
+        verify(submissionRepository).updateExerciseSlugForExercise(ex1.getId(), "slug-bulk-1");
+        verify(submissionRepository).updateExerciseSlugForExercise(ex2.getId(), "slug-bulk-2");
+        verify(exerciseRepository).delete(ex1);
+        verify(exerciseRepository).delete(ex2);
     }
 }
 

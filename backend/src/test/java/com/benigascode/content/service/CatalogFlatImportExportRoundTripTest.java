@@ -6,6 +6,7 @@ import com.benigascode.content.domain.Exercise;
 import com.benigascode.content.domain.ExerciseAsset;
 import com.benigascode.content.domain.ExerciseVersion;
 import com.benigascode.content.repository.*;
+import com.benigascode.submissions.service.SubmissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -120,6 +121,8 @@ public class CatalogFlatImportExportRoundTripTest {
         ContentSyncRepository contentSyncRepository = mock(ContentSyncRepository.class);
         GitOperationsService gitOperationsService = mock(GitOperationsService.class);
 
+        SubmissionService submissionService = mock(SubmissionService.class);
+
         ContentSyncService syncService = new ContentSyncService(
                 exerciseRepository,
                 exerciseVersionRepository,
@@ -127,6 +130,7 @@ public class CatalogFlatImportExportRoundTripTest {
                 collectionRepository,
                 collectionVersionRepository,
                 contentSyncRepository,
+                submissionService,
                 objectMapper
         );
 
@@ -147,7 +151,8 @@ public class CatalogFlatImportExportRoundTripTest {
                 contentSyncRepository,
                 syncService,
                 exportService,
-                gitOperationsService
+                gitOperationsService,
+                submissionService
         );
 
         // Crear estructura en disco:
@@ -202,6 +207,8 @@ public class CatalogFlatImportExportRoundTripTest {
         ContentSyncRepository contentSyncRepository = mock(ContentSyncRepository.class);
         GitOperationsService gitOperationsService = mock(GitOperationsService.class);
 
+        SubmissionService submissionService = mock(SubmissionService.class);
+
         ContentSyncService syncService = new ContentSyncService(
                 exerciseRepository,
                 exerciseVersionRepository,
@@ -209,6 +216,7 @@ public class CatalogFlatImportExportRoundTripTest {
                 collectionRepository,
                 collectionVersionRepository,
                 contentSyncRepository,
+                submissionService,
                 objectMapper
         );
 
@@ -229,7 +237,8 @@ public class CatalogFlatImportExportRoundTripTest {
                 contentSyncRepository,
                 syncService,
                 exportService,
-                gitOperationsService
+                gitOperationsService,
+                submissionService
         );
 
         // Estructura heredada de subcarpetas (no debe ser importada):
@@ -320,6 +329,8 @@ public class CatalogFlatImportExportRoundTripTest {
                 objectMapper
         );
 
+        SubmissionService submissionService = mock(SubmissionService.class);
+
         ContentSyncService syncService = new ContentSyncService(
                 exerciseRepository,
                 exerciseVersionRepository,
@@ -327,6 +338,7 @@ public class CatalogFlatImportExportRoundTripTest {
                 collectionRepository,
                 collectionVersionRepository,
                 contentSyncRepository,
+                submissionService,
                 objectMapper
         );
 
@@ -338,7 +350,8 @@ public class CatalogFlatImportExportRoundTripTest {
                 contentSyncRepository,
                 syncService,
                 exportService,
-                gitOperationsService
+                gitOperationsService,
+                submissionService
         );
 
         Exercise ex = new Exercise("xocolata-if");

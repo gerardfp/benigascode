@@ -25,6 +25,7 @@ import com.benigascode.submissions.domain.Submission;
 import com.benigascode.submissions.repository.StudentCollectionPreferenceRepository;
 import com.benigascode.submissions.repository.StudentProgressRepository;
 import com.benigascode.submissions.repository.SubmissionRepository;
+import com.benigascode.submissions.service.SubmissionService;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -61,6 +62,7 @@ public class ContentService {
     private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
     private final ContextService contextService;
+    private final SubmissionService submissionService;
     private final ObjectMapper objectMapper;
 
     public ContentService(CollectionRepository collectionRepository,
@@ -77,6 +79,7 @@ public class ContentService {
                           StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
                           ContextService contextService,
+                          SubmissionService submissionService,
                           ObjectMapper objectMapper) {
         this.collectionRepository = collectionRepository;
         this.collectionVersionRepository = collectionVersionRepository;
@@ -92,6 +95,7 @@ public class ContentService {
         this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
         this.contextService = contextService;
+        this.submissionService = submissionService;
         this.objectMapper = objectMapper;
     }
 
@@ -814,7 +818,8 @@ public class ContentService {
 
         Exercise exercise = exerciseRepository.save(new Exercise(cleanSlug));
         ExerciseVersion version = buildExerciseVersion(exercise, 1, req);
-        exerciseVersionRepository.save(version);
+        version = exerciseVersionRepository.save(version);
+        submissionService.reassociateOrphanedSubmissions(exercise, version);
 
         return getTeacherExerciseDetail(exercise.getId());
     }
@@ -838,7 +843,8 @@ public class ContentService {
         int nextVersion = latest.map(v -> v.getVersionNumber() + 1).orElse(1);
 
         ExerciseVersion version = buildExerciseVersion(exercise, nextVersion, req);
-        exerciseVersionRepository.save(version);
+        version = exerciseVersionRepository.save(version);
+        submissionService.reassociateOrphanedSubmissions(exercise, version);
 
         // Cuando se publique el ejercicio el draft desaparece
         exerciseDraftRepository.deleteByExerciseId(exercise.getId());
@@ -876,6 +882,7 @@ public class ContentService {
         Exercise exercise = exerciseRepository.findById(exerciseId)
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+        submissionRepository.updateExerciseSlugForExercise(exercise.getId(), exercise.getSlug());
         exerciseRepository.delete(exercise);
     }
 
@@ -887,6 +894,7 @@ public class ContentService {
                     .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                     .orElse(null);
             if (exercise != null) {
+                submissionRepository.updateExerciseSlugForExercise(exercise.getId(), exercise.getSlug());
                 exerciseRepository.delete(exercise);
             }
         }

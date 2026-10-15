@@ -1,8 +1,11 @@
 package com.benigascode.submissions.repository;
 
+import com.benigascode.content.domain.ExerciseVersion;
 import com.benigascode.submissions.domain.AttemptLedger;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -23,4 +26,8 @@ public interface AttemptLedgerRepository extends JpaRepository<AttemptLedger, UU
     long findMaxAttemptNumberForExercise(UUID studentId, UUID exerciseVersionId);
 
     Optional<AttemptLedger> findBySubmissionId(UUID submissionId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE AttemptLedger a SET a.exerciseVersion = :exerciseVersion WHERE a.exerciseVersion IS NULL AND a.submission.id IN (SELECT s.id FROM Submission s WHERE s.exerciseSlug = :slug)")
+    int reassociateAttemptLedgersForSlug(@Param("slug") String slug, @Param("exerciseVersion") ExerciseVersion exerciseVersion);
 }

@@ -20,8 +20,8 @@ public class Evaluation {
     @JoinColumn(name = "submission_id", nullable = false)
     private Submission submission;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exercise_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "exercise_version_id", nullable = true)
     private ExerciseVersion exerciseVersion;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = true)

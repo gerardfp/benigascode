@@ -26,9 +26,12 @@ public class Submission {
     @JoinColumn(name = "activity_version_id", nullable = true)
     private ActivityVersion activityVersion;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "exercise_version_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "exercise_version_id", nullable = true)
     private ExerciseVersion exerciseVersion;
+
+    @Column(name = "exercise_slug", length = 100)
+    private String exerciseSlug;
 
     @Column(name = "teaching_space_id")
     private UUID teachingSpaceId;
@@ -70,6 +73,8 @@ public class Submission {
         this.student = student;
         this.activityVersion = activityVersion;
         this.exerciseVersion = exerciseVersion;
+        this.exerciseSlug = (exerciseVersion != null && exerciseVersion.getExercise() != null)
+                ? exerciseVersion.getExercise().getSlug() : null;
         this.sourceCode = sourceCode;
         this.sourceHash = computeSha256(sourceCode);
         this.language = language;
@@ -125,6 +130,17 @@ public class Submission {
 
     public void setExerciseVersion(ExerciseVersion exerciseVersion) {
         this.exerciseVersion = exerciseVersion;
+        if (exerciseVersion != null && exerciseVersion.getExercise() != null) {
+            this.exerciseSlug = exerciseVersion.getExercise().getSlug();
+        }
+    }
+
+    public String getExerciseSlug() {
+        return exerciseSlug;
+    }
+
+    public void setExerciseSlug(String exerciseSlug) {
+        this.exerciseSlug = exerciseSlug;
     }
 
     public UUID getTeachingSpaceId() {

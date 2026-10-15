@@ -22,6 +22,7 @@ import com.benigascode.evaluation.repository.EvaluationRepository;
 import com.benigascode.evaluation.repository.TestResultRepository;
 import com.benigascode.identity.domain.Role;
 import com.benigascode.identity.domain.User;
+import com.benigascode.identity.repository.UserRepository;
 import com.benigascode.learning.domain.StudentTag;
 import com.benigascode.learning.domain.TeachingSpace;
 import com.benigascode.learning.repository.StudentTagRepository;
@@ -85,6 +86,8 @@ public class SubmissionService {
     private final StudentTagRepository studentTagRepository;
     private final CollectionRepository collectionRepository;
     private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
+    private final UserRepository userRepository;
+    private final StudentProgressService studentProgressService;
     private final ObjectMapper objectMapper;
 
     public SubmissionService(SubmissionRepository submissionRepository,
@@ -101,6 +104,8 @@ public class SubmissionService {
                              StudentTagRepository studentTagRepository,
                              CollectionRepository collectionRepository,
                              StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
+                             UserRepository userRepository,
+                             StudentProgressService studentProgressService,
                              ObjectMapper objectMapper) {
         this.submissionRepository = submissionRepository;
         this.evaluationRepository = evaluationRepository;
@@ -116,6 +121,8 @@ public class SubmissionService {
         this.studentTagRepository = studentTagRepository;
         this.collectionRepository = collectionRepository;
         this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
+        this.userRepository = userRepository;
+        this.studentProgressService = studentProgressService;
         this.objectMapper = objectMapper;
     }
 
@@ -142,6 +149,9 @@ public class SubmissionService {
             }
 
             exerciseVersion = activityVersion.getExerciseVersion();
+            if (exerciseVersion != null && exerciseVersion.getExercise() != null) {
+                reassociateOrphanedSubmissionsIfAny(exerciseVersion.getExercise());
+            }
 
             long consumedAttempts = attemptLedgerRepository.countConsumedAttempts(student.getId(), activityVersion.getId());
             if (activityVersion.getMaxAttempts() != null && consumedAttempts >= activityVersion.getMaxAttempts()) {
@@ -154,6 +164,10 @@ public class SubmissionService {
             exerciseVersion = exerciseVersionRepository.findById(exerciseId)
                     .or(() -> exerciseRepository.findById(exerciseId).flatMap(e -> exerciseVersionRepository.findLatestByExerciseId(e.getId())))
                     .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+            if (exerciseVersion.getExercise() != null) {
+                reassociateOrphanedSubmissionsIfAny(exerciseVersion.getExercise());
+            }
 
             long maxAttempt = attemptLedgerRepository.findMaxAttemptNumberForExercise(student.getId(), exerciseVersion.getId());
             attemptNum = (int) maxAttempt + 1;
@@ -248,22 +262,59 @@ public class SubmissionService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
+    public void reassociateOrphanedSubmissions(Exercise exercise, ExerciseVersion exerciseVersion) {
+        if (exercise == null || exercise.getSlug() == null || exerciseVersion == null) {
+            return;
+        }
+        exerciseVersionRepository.flush();
+        String slug = exercise.getSlug();
+        int updatedSubs = submissionRepository.reassociateSubmissionsForSlug(slug, exerciseVersion);
+        evaluationRepository.reassociateEvaluationsForSlug(slug, exerciseVersion);
+        attemptLedgerRepository.reassociateAttemptLedgersForSlug(slug, exerciseVersion);
+
+        if (updatedSubs > 0) {
+            log.info("Reassociated {} orphaned submissions for exercise slug: {}", updatedSubs, slug);
+            List<UUID> studentIds = submissionRepository.findStudentIdsByExerciseSlug(slug);
+            for (UUID studentId : studentIds) {
+                userRepository.findById(studentId).ifPresent(student -> {
+                    studentProgressService.recalculateProgressForStudentAndExercise(student, exercise);
+                });
+            }
+        }
+    }
+
+    @Transactional
+    public void reassociateOrphanedSubmissionsIfAny(Exercise exercise) {
+        if (exercise == null || exercise.getSlug() == null) return;
+        List<Submission> orphaned = submissionRepository.findOrphanedByExerciseSlug(exercise.getSlug());
+        if (!orphaned.isEmpty()) {
+            exerciseVersionRepository.findLatestByExerciseId(exercise.getId()).ifPresent(version -> {
+                reassociateOrphanedSubmissions(exercise, version);
+            });
+        }
+    }
+
+    @Transactional
     public List<SubmissionDTO> getSubmissionHistory(UUID exerciseId, User student) {
         Exercise exercise = exerciseRepository.findById(exerciseId)
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        reassociateOrphanedSubmissionsIfAny(exercise);
 
         return submissionRepository.findByStudentAndExercise(student.getId(), exercise.getId()).stream()
                 .map(this::toEnrichedDTO)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public SubmissionDTO getLatestSubmission(UUID exerciseId, UUID activityId, User student) {
         Exercise exercise = exerciseRepository.findById(exerciseId)
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+
+        reassociateOrphanedSubmissionsIfAny(exercise);
 
         List<Submission> list = submissionRepository.findByStudentAndExerciseAndOptionalActivity(student.getId(), exercise.getId(), activityId);
         return list.isEmpty() ? null : toEnrichedDTO(list.get(0));
@@ -464,9 +515,10 @@ public class SubmissionService {
             }
 
             String studentName = s.getStudent().getFullName();
-            String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() : "Ejercicio";
+            String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() :
+                    (s.getExerciseSlug() != null ? s.getExerciseSlug() : "Ejercicio");
             String exSlug = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
-                    s.getExerciseVersion().getExercise().getSlug() : "";
+                    s.getExerciseVersion().getExercise().getSlug() : (s.getExerciseSlug() != null ? s.getExerciseSlug() : "");
 
             if (searchLower != null && !searchLower.isBlank()) {
                 boolean matchName = studentName != null && studentName.toLowerCase().contains(searchLower);
@@ -553,8 +605,9 @@ public class SubmissionService {
         UUID exId = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
                 s.getExerciseVersion().getExercise().getId() : null;
         String exSlug = s.getExerciseVersion() != null && s.getExerciseVersion().getExercise() != null ?
-                s.getExerciseVersion().getExercise().getSlug() : "";
-        String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() : "Ejercicio";
+                s.getExerciseVersion().getExercise().getSlug() : (s.getExerciseSlug() != null ? s.getExerciseSlug() : "");
+        String exTitle = s.getExerciseVersion() != null ? s.getExerciseVersion().getTitle() :
+                (s.getExerciseSlug() != null ? s.getExerciseSlug() : "Ejercicio");
 
         return new TeacherSubmissionDetailDTO(
                 s.getId(),

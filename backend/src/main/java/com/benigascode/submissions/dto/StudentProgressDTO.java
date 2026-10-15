@@ -41,7 +41,7 @@ public record StudentProgressDTO(
             sp.getStudent().getFullName(),
             sp.getExercise().getId(),
             sp.getExercise().getSlug(),
-            sp.getLastSubmission() != null ? sp.getLastSubmission().getExerciseVersion().getTitle() : null,
+            sp.getLastSubmission() != null && sp.getLastSubmission().getExerciseVersion() != null ? sp.getLastSubmission().getExerciseVersion().getTitle() : null,
             sp.getActivity() != null ? sp.getActivity().getId() : null,
             sp.getActivity() != null ? sp.getActivity().getName() : null,
             sp.getStatus(),
