@@ -3,9 +3,11 @@ import { TestCaseDTO } from '../types';
 export interface ParsedExercise {
   title: string;
   slug: string;
+  difficulty?: number;
   tags: string[];
   statement: string;
   templates: Record<string, string>;
+  solutions: Record<string, string>;
   testCases: TestCaseDTO[];
 }
 
@@ -39,6 +41,7 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
   let text = (rawMarkdown || '').replace(/\r\n/g, '\n');
 
   let slug = '';
+  let difficulty: number | undefined;
   let tags: string[] = [];
 
   // 1. Extraer Frontmatter YAML (opcional)
@@ -51,6 +54,15 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
     const slugMatch = yamlContent.match(/^slug:\s*['"]?([^'"\n]+)['"]?/m);
     if (slugMatch) {
       slug = slugMatch[1].trim();
+    }
+
+    // Parsear dificultad (decimal 0 a 10)
+    const diffMatch = yamlContent.match(/^(?:difficulty|dificultad):\s*([0-9]+(?:\.[0-9]+)?)/im);
+    if (diffMatch) {
+      const parsedDiff = parseFloat(diffMatch[1]);
+      if (!isNaN(parsedDiff)) {
+        difficulty = Math.max(0, Math.min(10, Math.round(parsedDiff * 10) / 10));
+      }
     }
 
     // Parsear tags: formato en línea [tag1, tag2] o formato lista YAML - tag1
@@ -86,12 +98,13 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
   }
 
   // 3. Identificar secciones principales delimitadas por H2 (##)
-  // Las secciones reservadas son Plantillas y Tests.
-  // Cualquier otro H2 (como ## Entrada o ## Salida) pertenece al enunciado (statement).
-  const isReservedHeading = (heading: string): 'templates' | 'tests' | null => {
+  const isReservedHeading = (heading: string): 'templates' | 'solutions' | 'tests' | null => {
     const clean = heading.trim().toLowerCase();
     if (/^(plantillas?|starter\s*code|código\s*inicial)$/i.test(clean)) {
       return 'templates';
+    }
+    if (/^(solutions?|soluci[oó]n(es)?|código\s*soluci[oó]n|reference\s*solutions?)$/i.test(clean)) {
+      return 'solutions';
     }
     if (/^(tests?|casos\s*(de\s*)?pruebas?|pruebas?|test\s*cases?)$/i.test(clean)) {
       return 'tests';
@@ -99,11 +112,11 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
     return null;
   };
 
-  // Buscar todas las cabeceras de nivel 2
   const h2Regex = /^##\s+([^\n]+)/gm;
   let match: RegExpExecArray | null;
 
   let templatesStartIndex = -1;
+  let solutionsStartIndex = -1;
   let testsStartIndex = -1;
 
   while ((match = h2Regex.exec(text)) !== null) {
@@ -111,46 +124,69 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
     const reservedType = isReservedHeading(headingText);
     if (reservedType === 'templates' && templatesStartIndex === -1) {
       templatesStartIndex = match.index;
+    } else if (reservedType === 'solutions' && solutionsStartIndex === -1) {
+      solutionsStartIndex = match.index;
     } else if (reservedType === 'tests' && testsStartIndex === -1) {
       testsStartIndex = match.index;
     }
   }
 
-  // Delimitar secciones
-  const titleEndIndex = titleMatch ? (text.indexOf(titleMatch[0]) + titleMatch[0].length) : 0;
+  const sectionStarts: number[] = [];
+  if (templatesStartIndex !== -1) sectionStarts.push(templatesStartIndex);
+  if (solutionsStartIndex !== -1) sectionStarts.push(solutionsStartIndex);
+  if (testsStartIndex !== -1) sectionStarts.push(testsStartIndex);
+  sectionStarts.sort((a, b) => a - b);
 
-  let statementEndIndex = text.length;
-  if (templatesStartIndex !== -1) {
-    statementEndIndex = templatesStartIndex;
-  } else if (testsStartIndex !== -1) {
-    statementEndIndex = testsStartIndex;
-  }
+  const nextSectionEnd = (starts: number[], currentStart: number, maxLen: number) => {
+    for (const s of starts) {
+      if (s > currentStart) return s;
+    }
+    return maxLen;
+  };
+
+  const titleEndIndex = titleMatch ? (text.indexOf(titleMatch[0]) + titleMatch[0].length) : 0;
+  const statementEndIndex = sectionStarts.length > 0 ? sectionStarts[0] : text.length;
 
   const rawStatement = text.substring(titleEndIndex, statementEndIndex).trim();
 
   // 4. Extraer Plantillas
   const templates: Record<string, string> = {};
   if (templatesStartIndex !== -1) {
-    const templatesEndIndex = testsStartIndex !== -1 ? testsStartIndex : text.length;
+    const templatesEndIndex = nextSectionEnd(sectionStarts, templatesStartIndex, text.length);
     const templatesBlock = text.substring(templatesStartIndex, templatesEndIndex);
 
-    // Buscar todos los bloques de código ```lang ... ```
     const codeBlockRegex = /```([a-zA-Z0-9_\-#+]+)?\n([\s\S]*?)```/g;
     let codeMatch: RegExpExecArray | null;
     while ((codeMatch = codeBlockRegex.exec(templatesBlock)) !== null) {
       const rawLang = (codeMatch[1] || 'java').toLowerCase().trim();
       const normLang = rawLang.startsWith('python') || rawLang === 'py' ? 'python' : (rawLang.startsWith('java') ? 'java' : rawLang);
-      const codeContent = codeMatch[2]; // Preserva indentación interior
+      const codeContent = codeMatch[2];
       templates[normLang] = codeContent;
     }
   }
 
-  // 5. Extraer Casos de Prueba (Tests)
+  // 5. Extraer Soluciones (## Solutions)
+  const solutions: Record<string, string> = {};
+  if (solutionsStartIndex !== -1) {
+    const solutionsEndIndex = nextSectionEnd(sectionStarts, solutionsStartIndex, text.length);
+    const solutionsBlock = text.substring(solutionsStartIndex, solutionsEndIndex);
+
+    const codeBlockRegex = /```([a-zA-Z0-9_\-#+]+)?\n([\s\S]*?)```/g;
+    let codeMatch: RegExpExecArray | null;
+    while ((codeMatch = codeBlockRegex.exec(solutionsBlock)) !== null) {
+      const rawLang = (codeMatch[1] || 'java').toLowerCase().trim();
+      const normLang = rawLang.startsWith('python') || rawLang === 'py' ? 'python' : (rawLang.startsWith('java') ? 'java' : rawLang);
+      const codeContent = codeMatch[2];
+      solutions[normLang] = codeContent;
+    }
+  }
+
+  // 6. Extraer Casos de Prueba (Tests)
   const testCases: TestCaseDTO[] = [];
   if (testsStartIndex !== -1) {
-    const testsBlock = text.substring(testsStartIndex);
+    const testsEndIndex = nextSectionEnd(sectionStarts, testsStartIndex, text.length);
+    const testsBlock = text.substring(testsStartIndex, testsEndIndex);
 
-    // Dividir por bloques que comienzan por ### Test
     const testHeaderRegex = /^###\s+Test(?:\s+([^\n\r]*))?/gim;
     const testIndices: { index: number; headerParams: string }[] = [];
 
@@ -167,8 +203,6 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
       const endPos = (idx < testIndices.length - 1) ? testIndices[idx + 1].index : testsBlock.length;
       const chunk = testsBlock.substring(startPos, endPos);
 
-      // Determinar visibilidad y peso a partir de headerParams
-      // Ejemplos: "", "2", "private", "private 2", "privado 2.5", "public 3"
       const params = item.headerParams.trim().toLowerCase();
       let isPublic = true;
       if (/\b(private|privado|oculto|hidden)\b/i.test(params)) {
@@ -177,7 +211,6 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
         isPublic = true;
       }
 
-      // Extraer peso: buscar "peso: X" o un número suelto
       let weight = 1;
       const weightMatch = params.match(/(?:peso[:=]\s*|\b)([0-9]+(?:\.[0-9]+)?)\b/);
       if (weightMatch) {
@@ -187,13 +220,12 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
         }
       }
 
-      // Extraer bloques de código (input, output, explanation)
+      // Extraer bloques de código (input, output)
       const blockRegex = /```([a-zA-Z0-9_\-#+]+)?\n([\s\S]*?)```/g;
       let bMatch: RegExpExecArray | null;
 
       let testInput: string | null = null;
       let testOutput: string | null = null;
-      let testExplanation: string | null = null;
 
       const fallbackBlocks: { tag: string; content: string }[] = [];
 
@@ -205,22 +237,32 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
           testInput = content;
         } else if (/^(output|out|salida|stdout|expected)$/i.test(tag)) {
           testOutput = content;
-        } else if (/^(explanation|explicacion|explicación)$/i.test(tag)) {
-          testExplanation = content.trim();
         } else {
           fallbackBlocks.push({ tag, content });
         }
       }
 
-      // Si no tenían etiquetas explícitas, asignar secuencialmente: 1º input, 2º output, 3º explicación
       if (testInput === null && fallbackBlocks.length > 0) {
         testInput = fallbackBlocks.shift()!.content;
       }
       if (testOutput === null && fallbackBlocks.length > 0) {
         testOutput = fallbackBlocks.shift()!.content;
       }
-      if (testExplanation === null && fallbackBlocks.length > 0) {
-        testExplanation = fallbackBlocks.shift()!.content.trim();
+
+      // Extraer explicación con #### Explanation
+      let testExplanation: string | null = null;
+      const explanationHeaderRegex = /^####\s+(?:explanation|explicación|explicacion)\b[^\n]*\n/im;
+      const explMatch = chunk.match(explanationHeaderRegex);
+      if (explMatch && explMatch.index !== undefined) {
+        const explStart = explMatch.index + explMatch[0].length;
+        let explEnd = chunk.length;
+        const postBlocks = /```(input|in|entrada|stdin|output|out|salida|stdout|expected)\b/gi;
+        postBlocks.lastIndex = explStart;
+        const nextBlock = postBlocks.exec(chunk);
+        if (nextBlock && nextBlock.index !== undefined) {
+          explEnd = nextBlock.index;
+        }
+        testExplanation = chunk.substring(explStart, explEnd).trim();
       }
 
       testCases.push({
@@ -244,9 +286,11 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
     exercise: {
       title,
       slug,
+      difficulty,
       tags,
       statement: rawStatement,
       templates,
+      solutions,
       testCases
     },
     errors,
@@ -260,20 +304,26 @@ export function parseExerciseMarkdown(rawMarkdown: string): ParseExerciseResult 
 export function serializeExerciseToMarkdown(data: {
   title: string;
   slug?: string;
+  difficulty?: number;
   tags?: string[];
   statement?: string;
   templates?: Record<string, string>;
+  solutions?: Record<string, string>;
   testCases?: TestCaseDTO[];
 }): string {
   const parts: string[] = [];
 
   const slug = (data.slug || '').trim();
   const tags = data.tags || [];
+  const difficulty = data.difficulty !== undefined && data.difficulty !== null ? Number(data.difficulty) : undefined;
 
-  // 1. Frontmatter solo si se definió slug explícito o hay tags
-  if (slug || tags.length > 0) {
+  // 1. Frontmatter solo si se definió slug, dificultad o tags
+  if (slug || tags.length > 0 || (difficulty !== undefined && !isNaN(difficulty))) {
     parts.push('---');
     if (slug) parts.push(`slug: ${slug}`);
+    if (difficulty !== undefined && !isNaN(difficulty)) {
+      parts.push(`difficulty: ${difficulty % 1 === 0 ? difficulty.toFixed(1) : difficulty}`);
+    }
     if (tags.length > 0) parts.push(`tags: [${tags.join(', ')}]`);
     parts.push('---');
   }
@@ -311,7 +361,20 @@ export function serializeExerciseToMarkdown(data: {
     });
   }
 
-  // 5. Tests
+  // 5. Soluciones (Canonical header: ## Solutions)
+  const solutions = data.solutions || {};
+  const solutionEntries = Object.entries(solutions).filter(([, code]) => code && code.trim());
+
+  if (solutionEntries.length > 0) {
+    parts.push('## Solutions\n');
+    solutionEntries.forEach(([lang, code]) => {
+      const cleanLang = lang.toLowerCase().trim();
+      const codeBlock = code.endsWith('\n') ? code : `${code}\n`;
+      parts.push(`\`\`\`${cleanLang}\n${codeBlock}\`\`\`\n`);
+    });
+  }
+
+  // 6. Tests
   const tests = data.testCases || [];
   if (tests.length > 0) {
     parts.push('## Tests\n');
@@ -319,11 +382,6 @@ export function serializeExerciseToMarkdown(data: {
       const isPublic = tc.isPublic;
       const weight = Number(tc.weight) || 1;
 
-      // Generar cabecera concisa:
-      // ### Test
-      // ### Test 2
-      // ### Test private
-      // ### Test private 2
       let header = '### Test';
       if (!isPublic) {
         header += ' private';
@@ -345,7 +403,7 @@ export function serializeExerciseToMarkdown(data: {
       parts.push(`\`\`\`output\n${formattedOutput}\`\`\``);
 
       if (tc.explanation && tc.explanation.trim()) {
-        parts.push(`\`\`\`explanation\n${tc.explanation.trim()}\n\`\`\``);
+        parts.push(`#### Explanation\n${tc.explanation.trim()}`);
       }
 
       parts.push(''); // Salto de línea separador
@@ -360,6 +418,7 @@ export function serializeExerciseToMarkdown(data: {
  */
 export const CANONICAL_EXERCISE_EXAMPLE = `---
 slug: suma-dos-numeros
+difficulty: 1.0
 tags: [basico, matematicas, i/o]
 ---
 # Suma de dos números
@@ -396,6 +455,33 @@ if __name__ == '__main__':
     main()
 \`\`\`
 
+## Solutions
+
+\`\`\`java
+import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int a = sc.nextInt();
+        int b = sc.nextInt();
+        System.out.println(a + b);
+    }
+}
+\`\`\`
+
+\`\`\`python
+import sys
+
+def main():
+    tokens = sys.stdin.read().split()
+    if len(tokens) >= 2:
+        print(int(tokens[0]) + int(tokens[1]))
+
+if __name__ == '__main__':
+    main()
+\`\`\`
+
 ## Tests
 
 ### Test
@@ -405,9 +491,8 @@ if __name__ == '__main__':
 \`\`\`output
 8
 \`\`\`
-\`\`\`explanation
+#### Explanation
 La suma de 3 y 5 es 8.
-\`\`\`
 
 ### Test
 \`\`\`input
@@ -424,9 +509,8 @@ La suma de 3 y 5 es 8.
 \`\`\`output
 -11
 \`\`\`
-\`\`\`explanation
+#### Explanation
 Prueba con un número negativo y otro positivo.
-\`\`\`
 
 ### Test private 2
 \`\`\`input
@@ -444,4 +528,3 @@ Prueba con un número negativo y otro positivo.
 3000000
 \`\`\`
 `;
-

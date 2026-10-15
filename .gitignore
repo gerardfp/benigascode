@@ -42,3 +42,6 @@ Thumbs.db
 /var/lib/benigascode/
 /var/backups/benigascode/
 
+# Local migration data
+chs/
+

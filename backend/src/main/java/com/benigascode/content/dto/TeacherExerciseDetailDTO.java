@@ -10,6 +10,7 @@ public record TeacherExerciseDetailDTO(
     String slug,
     String title,
     String statement,
+    Double difficulty,
     String language,
     String runtimeId,
     int versionNumber,
@@ -19,6 +20,7 @@ public record TeacherExerciseDetailDTO(
     Map<String, Object> scoringConfig,
     Map<String, Object> comparatorConfig,
     Map<String, String> templates,
+    Map<String, String> solutions,
     List<String> tags,
     List<TestCaseDTO> tests,
     List<TestCaseDTO> testCases,
@@ -28,12 +30,22 @@ public record TeacherExerciseDetailDTO(
     String draftMarkdown,
     Instant draftUpdatedAt
 ) {
+    public TeacherExerciseDetailDTO(UUID id, String slug, String title, String statement, Double difficulty, String language, String runtimeId,
+                                  int versionNumber, String starterCode, Map<String, Object> compileConfig,
+                                  Map<String, Object> runConfig, Map<String, Object> scoringConfig,
+                                  Map<String, Object> comparatorConfig, Map<String, String> templates,
+                                  List<String> tags, List<TestCaseDTO> tests, List<TestCaseDTO> testCases,
+                                  List<AssetDTO> assets, Instant updatedAt,
+                                  boolean hasDraft, String draftMarkdown, Instant draftUpdatedAt) {
+        this(id, slug, title, statement, difficulty, language, runtimeId, versionNumber, starterCode, compileConfig, runConfig,
+             scoringConfig, comparatorConfig, templates, Map.of(), tags, tests, testCases, assets, updatedAt, hasDraft, draftMarkdown, draftUpdatedAt);
+    }
     public TeacherExerciseDetailDTO(UUID id, String slug, String title, String statement, String language, String runtimeId,
                                   int versionNumber, String starterCode, Map<String, Object> compileConfig,
                                   Map<String, Object> runConfig, Map<String, Object> scoringConfig,
                                   Map<String, Object> comparatorConfig, Map<String, String> templates,
                                   List<String> tags, List<TestCaseDTO> tests, List<AssetDTO> assets, Instant updatedAt) {
-        this(id, slug, title, statement, language, runtimeId, versionNumber, starterCode, compileConfig, runConfig,
+        this(id, slug, title, statement, null, language, runtimeId, versionNumber, starterCode, compileConfig, runConfig,
              scoringConfig, comparatorConfig, templates, tags, tests, tests, assets, updatedAt, false, null, null);
     }
 
@@ -43,7 +55,7 @@ public record TeacherExerciseDetailDTO(
                                   Map<String, Object> comparatorConfig, Map<String, String> templates,
                                   List<String> tags, List<TestCaseDTO> tests, List<AssetDTO> assets, Instant updatedAt,
                                   boolean hasDraft, String draftMarkdown, Instant draftUpdatedAt) {
-        this(id, slug, title, statement, language, runtimeId, versionNumber, starterCode, compileConfig, runConfig,
+        this(id, slug, title, statement, null, language, runtimeId, versionNumber, starterCode, compileConfig, runConfig,
              scoringConfig, comparatorConfig, templates, tags, tests, tests, assets, updatedAt, hasDraft, draftMarkdown, draftUpdatedAt);
     }
 }

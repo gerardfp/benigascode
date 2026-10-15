@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse, ExerciseTag } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse, ExerciseTag, ValidateSolutionsRequest, ValidateSolutionsResponse, GenerateTestOutputsRequest, GenerateTestOutputsResponse } from '../types';
 
 
 
@@ -427,11 +427,29 @@ export const api = {
       body: JSON.stringify({ markdown }),
     }),
 
+  teacherValidateSolutions: (data: ValidateSolutionsRequest): Promise<ValidateSolutionsResponse> =>
+    request<ValidateSolutionsResponse>('/teacher/exercises/validate-solutions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  teacherGenerateTestOutputs: (data: GenerateTestOutputsRequest): Promise<GenerateTestOutputsResponse> =>
+    request<GenerateTestOutputsResponse>('/teacher/exercises/generate-test-outputs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   teacherDeleteExerciseDraft: (id: string): Promise<void> =>
     request<void>(`/teacher/exercises/${id}/draft`, { method: 'DELETE' }),
 
   teacherDeleteExercise: (id: string): Promise<void> =>
     request<void>(`/teacher/exercises/${id}`, { method: 'DELETE' }),
+
+  teacherBulkDeleteExercises: (exerciseIds: string[]): Promise<void> =>
+    request<void>('/teacher/exercises/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify(exerciseIds),
+    }),
 
   batchAssignExerciseTag: (exerciseIds: string[], tag: string): Promise<void> =>
     request<void>('/teacher/exercises/batch-assign-tag', {
@@ -489,8 +507,8 @@ export const api = {
   teacherExportExerciseZipUrl: (exerciseId: string): string =>
     `${API_BASE}/teacher/exercises/${exerciseId}/export.zip`,
 
-  teacherGetCollections: (): Promise<Collection[]> =>
-    request<Collection[]>('/teacher/collections'),
+  teacherGetCollections: (): Promise<TeacherCollectionDetail[]> =>
+    request<TeacherCollectionDetail[]>('/teacher/collections'),
 
   teacherGetCollection: (id: string): Promise<TeacherCollectionDetail> =>
     request<TeacherCollectionDetail>(`/teacher/collections/${id}`),

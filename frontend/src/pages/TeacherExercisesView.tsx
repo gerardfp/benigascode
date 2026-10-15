@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { Exercise, AssetDTO, TeacherCollectionDetail } from '../types';
-import { renderMarkdown } from '../utils/markdown';
+import { Exercise, AssetDTO, TeacherCollectionDetail, ValidateSolutionsResponse } from '../types';
+import { MarkdownView } from '../components/MarkdownView';
 import { SortableHeader } from '../components/SortableHeader';
 import { TagBadge } from '../components/TagBadge';
+import { DifficultyBar, getDifficultyLevel } from '../components/DifficultyBar';
 import { 
   Plus, Search, ArrowLeft, Save, Trash2, Download, Image as ImageIcon, 
   Eye, Columns, CheckCircle, AlertCircle,
   ChevronLeft, ChevronRight, X, Info,
-  Upload, FileText, Archive, Tag as TagIcon, Check, Edit3
+  Upload, FileText, Archive, Tag as TagIcon, Check, Edit3,
+  Play, Sparkles, Folder
 } from 'lucide-react';
 import { parseExerciseMarkdown, serializeExerciseToMarkdown, CANONICAL_EXERCISE_EXAMPLE } from '../utils/exerciseMarkdown';
 import { parseTagExpression } from '../utils/tagExpression';
@@ -56,7 +58,14 @@ export const TeacherExercisesView: React.FC = () => {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [unassignedSearch, setUnassignedSearch] = useState('');
   const [bulkNewTag, setBulkNewTag] = useState('');
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
   const tagPanelRef = useRef<HTMLDivElement>(null);
+
+  // Collections state for batch operations
+  const [allCollections, setAllCollections] = useState<TeacherCollectionDetail[]>([]);
+  const [batchCollectionSubmitting, setBatchCollectionSubmitting] = useState(false);
+  const [unassignedColSearch, setUnassignedColSearch] = useState('');
 
   // Tag expression search & selection
   const [tagExpression, setTagExpression] = useState('');
@@ -69,9 +78,10 @@ export const TeacherExercisesView: React.FC = () => {
   const isTagExprActive = !parsedTagExpr.isEmpty && parsedTagExpr.isValid && !!parsedTagExpr.evaluate;
 
   // Sorting state
-  type ExerciseSortKey = 'title' | 'slug' | 'tags' | 'collections' | 'createdAt';
+  type ExerciseSortKey = 'title' | 'difficulty' | 'slug' | 'tags' | 'collections' | 'createdAt';
   const [sortKey, setSortKey] = useState<ExerciseSortKey>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [difficultyFilter, setDifficultyFilter] = useState<string>('ALL');
 
   const handleSort = (key: ExerciseSortKey) => {
     if (sortKey === key) {
@@ -147,6 +157,13 @@ export const TeacherExercisesView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingAsset, setUploadingAsset] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Solution Testing & Output Generation status
+  const [isValidatingSolutions, setIsValidatingSolutions] = useState(false);
+  const [isGeneratingOutputs, setIsGeneratingOutputs] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidateSolutionsResponse | null>(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [selectedValidationLang, setSelectedValidationLang] = useState<string>('');
 
   // Auto-dismiss status messages (except errors) after 4 seconds
   useEffect(() => {
@@ -244,20 +261,31 @@ export const TeacherExercisesView: React.FC = () => {
   }, [mode, saving, draftStatus, selectedId, markdownText, lastSavedDraftMarkdown, publishedMarkdown]);
 
   // Load exercises list
-  const loadExercises = async () => {
+  const loadExercises = async (quiet = false) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       const data = await api.teacherGetExercises();
       setExercises(data);
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: err.message || 'Error al cargar ejercicios' });
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
+    }
+  };
+
+  // Load collections list
+  const loadCollections = async () => {
+    try {
+      const data = await api.teacherGetCollections();
+      setAllCollections(data);
+    } catch (err: any) {
+      console.error('Error al cargar colecciones:', err);
     }
   };
 
   useEffect(() => {
     loadExercises();
+    loadCollections();
   }, []);
 
   // Todas las etiquetas existentes en el catálogo de ejercicios
@@ -324,6 +352,54 @@ export const TeacherExercisesView: React.FC = () => {
     return tags;
   }, [selectedExercises, tagsInSelectedExercises, allExerciseTags, unassignedSearch]);
 
+  // Helper para verificar si un ejercicio pertenece a una colección
+  const normalizeId = (id: string | undefined | null) => (id || '').toLowerCase().trim();
+
+  const isExerciseInCollection = (ex: Exercise, col: TeacherCollectionDetail): boolean => {
+    const exIdNorm = normalizeId(ex.id);
+    const exSlugNorm = (ex.slug || '').toLowerCase().trim();
+    const items = col.exercises || (col as any).items || [];
+
+    const inItems = items.some((item: any) => {
+      const itemExId = normalizeId(item.exerciseId);
+      if (itemExId && itemExId === exIdNorm) return true;
+      const itemSlug = (item.exerciseSlug || '').toLowerCase().trim();
+      if (itemSlug && itemSlug === exSlugNorm) return true;
+      const itemId = normalizeId(item.id);
+      if (itemId && (itemId === exIdNorm || itemId === exSlugNorm)) return true;
+      return false;
+    });
+
+    if (inItems) return true;
+
+    if (ex.collections && ex.collections.some(cTitle => cTitle.toLowerCase().trim() === col.title.toLowerCase().trim())) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Colecciones ordenadas para selección masiva (asignadas primero, luego alfabético)
+  const filteredCollections = useMemo(() => {
+    let cols = [...allCollections];
+    if (unassignedColSearch.trim()) {
+      const q = unassignedColSearch.toLowerCase().trim();
+      cols = cols.filter(c => c.title.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q));
+    }
+
+    return cols.sort((a, b) => {
+      const countA = selectedExercises.filter(ex => isExerciseInCollection(ex, a)).length;
+      const countB = selectedExercises.filter(ex => isExerciseInCollection(ex, b)).length;
+      if ((countA > 0) !== (countB > 0)) {
+        return countA > 0 ? -1 : 1;
+      }
+      if (countA !== countB) {
+        return countB - countA;
+      }
+      return a.title.localeCompare(b.title);
+    });
+  }, [allCollections, unassignedColSearch, selectedExercises]);
+
   const handleToggleExercise = (id: string) => {
     setSelectedExerciseIds(prev => {
       const next = new Set(prev);
@@ -358,6 +434,26 @@ export const TeacherExercisesView: React.FC = () => {
     setSelectedExerciseIds(new Set());
   };
 
+  // ==================== ELIMINACIÓN MÚLTIPLE DE EJERCICIOS ====================
+  const handleConfirmBatchDelete = async () => {
+    if (selectedExerciseIds.size === 0) return;
+    setDeletingBatch(true);
+    const idsToDelete = Array.from(selectedExerciseIds);
+    try {
+      await api.teacherBulkDeleteExercises(idsToDelete);
+      setExercises(prev => prev.filter(e => !selectedExerciseIds.has(e.id)));
+      if (selectedId && selectedExerciseIds.has(selectedId)) {
+        setMode('list');
+      }
+      setSelectedExerciseIds(new Set());
+      setShowBatchDeleteModal(false);
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar los ejercicios seleccionados');
+    } finally {
+      setDeletingBatch(false);
+    }
+  };
+
   const handleBatchAssignTag = async (tagStr: string, targetExerciseIds?: string[]) => {
     const ids = targetExerciseIds && targetExerciseIds.length > 0
       ? targetExerciseIds
@@ -367,7 +463,7 @@ export const TeacherExercisesView: React.FC = () => {
     setBatchSubmitting(true);
     try {
       await api.batchAssignExerciseTag(ids, tagStr.trim());
-      await loadExercises();
+      await loadExercises(true);
     } catch (err: any) {
       alert(err.message || 'Error al asignar la etiqueta en lote');
     } finally {
@@ -384,7 +480,7 @@ export const TeacherExercisesView: React.FC = () => {
     setBatchSubmitting(true);
     try {
       await api.batchRevokeExerciseTag(ids, tagStr.trim());
-      await loadExercises();
+      await loadExercises(true);
     } catch (err: any) {
       alert(err.message || 'Error al revocar la etiqueta en lote');
     } finally {
@@ -401,11 +497,115 @@ export const TeacherExercisesView: React.FC = () => {
     try {
       await api.batchAssignExerciseTag(Array.from(selectedExerciseIds), tag);
       setBulkNewTag('');
-      await loadExercises();
+      await loadExercises(true);
     } catch (err: any) {
       alert(err.message || 'Error al añadir la etiqueta');
     } finally {
       setBatchSubmitting(false);
+    }
+  };
+
+  const handleBatchAssignCollection = async (collection: TeacherCollectionDetail, targetExerciseIds: string[]) => {
+    if (!collection || !targetExerciseIds || targetExerciseIds.length === 0) return;
+
+    setBatchCollectionSubmitting(true);
+    try {
+      const existingItems = collection.exercises || (collection as any).items || [];
+      const currentExerciseIds: string[] = [];
+
+      for (const item of existingItems) {
+        const itemAny = item as any;
+        const itemSlug = (item.exerciseSlug || itemAny.id || '').toLowerCase().trim();
+
+        if (item.exerciseId) {
+          currentExerciseIds.push(item.exerciseId);
+        } else if (itemSlug) {
+          const found = exercises.find(e => e.slug.toLowerCase().trim() === itemSlug || normalizeId(e.id) === normalizeId(itemAny.id));
+          if (found) {
+            currentExerciseIds.push(found.id);
+          }
+        }
+      }
+
+      const currentNormSet = new Set(currentExerciseIds.map(normalizeId));
+      const toAdd = targetExerciseIds.filter(id => !currentNormSet.has(normalizeId(id)));
+      if (toAdd.length === 0) {
+        setBatchCollectionSubmitting(false);
+        return;
+      }
+
+      const updatedExerciseIds = Array.from(new Set([...currentExerciseIds, ...toAdd])).filter(Boolean);
+
+      await api.teacherSaveCollection({
+        title: collection.title.trim(),
+        slug: collection.slug.trim(),
+        description: collection.description ? collection.description.trim() : undefined,
+        visibility: (collection.visibility || 'PUBLIC').toUpperCase() as 'PUBLIC' | 'PRIVATE',
+        exerciseIds: updatedExerciseIds,
+      }, collection.id);
+
+      if (collectionIdParam && collectionIdParam === collection.id) {
+        api.teacherGetCollection(collectionIdParam).then(col => setActiveCollection(col)).catch(() => {});
+      }
+
+      await Promise.all([loadCollections(), loadExercises(true)]);
+    } catch (err: any) {
+      alert(err.message || 'Error al añadir ejercicios a la colección');
+    } finally {
+      setBatchCollectionSubmitting(false);
+    }
+  };
+
+  const handleBatchRevokeCollection = async (collection: TeacherCollectionDetail, targetExerciseIds: string[]) => {
+    if (!collection || !targetExerciseIds || targetExerciseIds.length === 0) return;
+
+    setBatchCollectionSubmitting(true);
+    try {
+      const existingItems = collection.exercises || (collection as any).items || [];
+      const targetNormSet = new Set(targetExerciseIds.map(normalizeId));
+      const targetSlugs = new Set(
+        exercises.filter(e => targetNormSet.has(normalizeId(e.id))).map(e => e.slug.toLowerCase().trim())
+      );
+
+      const remainingExerciseIds: string[] = [];
+
+      for (const item of existingItems) {
+        const itemAny = item as any;
+        const itemExId = normalizeId(item.exerciseId || itemAny.id);
+        const itemSlug = (item.exerciseSlug || itemAny.id || '').toLowerCase().trim();
+
+        if (itemExId && targetNormSet.has(itemExId)) continue;
+        if (itemSlug && targetSlugs.has(itemSlug)) continue;
+
+        if (item.exerciseId) {
+          remainingExerciseIds.push(item.exerciseId);
+        } else if (itemSlug) {
+          const found = exercises.find(e => e.slug.toLowerCase().trim() === itemSlug || normalizeId(e.id) === normalizeId(itemAny.id));
+          if (found && !targetNormSet.has(normalizeId(found.id))) {
+            remainingExerciseIds.push(found.id);
+          }
+        }
+      }
+
+      const finalRemainingIds = Array.from(new Set(remainingExerciseIds)).filter(Boolean);
+
+      await api.teacherSaveCollection({
+        title: collection.title.trim(),
+        slug: collection.slug.trim(),
+        description: collection.description ? collection.description.trim() : undefined,
+        visibility: (collection.visibility || 'PUBLIC').toUpperCase() as 'PUBLIC' | 'PRIVATE',
+        exerciseIds: finalRemainingIds,
+      }, collection.id);
+
+      if (collectionIdParam && collectionIdParam === collection.id) {
+        api.teacherGetCollection(collectionIdParam).then(col => setActiveCollection(col)).catch(() => {});
+      }
+
+      await Promise.all([loadCollections(), loadExercises(true)]);
+    } catch (err: any) {
+      alert(err.message || 'Error al quitar ejercicios de la colección');
+    } finally {
+      setBatchCollectionSubmitting(false);
     }
   };
 
@@ -453,12 +653,25 @@ export const TeacherExercisesView: React.FC = () => {
       result = result.filter((e) => parsedTagExpr.evaluate!(e.tags || []));
     }
 
+    // 3. Filtrado por dificultad
+    if (difficultyFilter !== 'ALL') {
+      if (difficultyFilter === 'UNASSIGNED') {
+        result = result.filter((e) => e.difficulty === null || e.difficulty === undefined);
+      } else {
+        const targetLevel = parseInt(difficultyFilter, 10);
+        result = result.filter((e) => getDifficultyLevel(e.difficulty) === targetLevel);
+      }
+    }
+
     return [...result].sort((a, b) => {
       let valA: string | number = '';
       let valB: string | number = '';
       if (sortKey === 'title') {
         valA = a.title.toLowerCase();
         valB = b.title.toLowerCase();
+      } else if (sortKey === 'difficulty') {
+        valA = a.difficulty !== undefined && a.difficulty !== null ? a.difficulty : -1;
+        valB = b.difficulty !== undefined && b.difficulty !== null ? b.difficulty : -1;
       } else if (sortKey === 'slug') {
         valA = a.slug.toLowerCase();
         valB = b.slug.toLowerCase();
@@ -476,7 +689,7 @@ export const TeacherExercisesView: React.FC = () => {
       if (valA > valB) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [exercises, searchTerm, isTagExprActive, parsedTagExpr, sortKey, sortDir]);
+  }, [exercises, searchTerm, isTagExprActive, parsedTagExpr, difficultyFilter, sortKey, sortDir]);
 
   // Cantidad de ejercicios que coinciden con los criterios actuales
   const matchingCount = useMemo(() => {
@@ -607,9 +820,11 @@ export const TeacherExercisesView: React.FC = () => {
       const serialized = serializeExerciseToMarkdown({
         title: detail.title || '',
         slug: detail.slug || '',
+        difficulty: detail.difficulty,
         tags: detail.tags || [],
         statement: detail.statement || '',
         templates: initialTemplates,
+        solutions: detail.solutions || {},
         testCases: detail.testCases || []
       });
 
@@ -664,6 +879,102 @@ export const TeacherExercisesView: React.FC = () => {
     setStatusMsg({ type: 'info', text: 'Plantilla canónica cargada en el editor.' });
   };
 
+  // Validate test cases against solutions
+  const handleValidateSolutions = async () => {
+    const parsed = parseExerciseMarkdown(markdownText);
+    const solutions = parsed.exercise.solutions || {};
+    const solutionEntries = Object.entries(solutions).filter(([, code]) => code && code.trim());
+    if (solutionEntries.length === 0) {
+      setStatusMsg({ type: 'error', text: 'No se han detectado soluciones en la sección ## Solutions.' });
+      return;
+    }
+    const testCases = parsed.exercise.testCases || [];
+    if (testCases.length === 0) {
+      setStatusMsg({ type: 'error', text: 'No se han detectado casos de prueba en la sección ## Tests.' });
+      return;
+    }
+
+    setIsValidatingSolutions(true);
+    setStatusMsg(null);
+    try {
+      const res = await api.teacherValidateSolutions({
+        solutions,
+        testCases
+      });
+      setValidationResult(res);
+      const firstLang = Object.keys(res.results)[0] || '';
+      setSelectedValidationLang(firstLang);
+      setShowValidationModal(true);
+      if (res.allPassed) {
+        setStatusMsg({ type: 'success', text: `Todos los tests superados (${testCases.length}/${testCases.length}) contra las soluciones.` });
+      } else {
+        setStatusMsg({ type: 'error', text: 'Se encontraron fallos al ejecutar las soluciones contra los tests.' });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: 'error', text: err.message || 'Error al validar soluciones contra los tests.' });
+    } finally {
+      setIsValidatingSolutions(false);
+    }
+  };
+
+  // Generate test outputs using the solution
+  const handleGenerateOutputs = async () => {
+    const parsed = parseExerciseMarkdown(markdownText);
+    const solutions = parsed.exercise.solutions || {};
+    const solutionEntries = Object.entries(solutions).filter(([, code]) => code && code.trim());
+    if (solutionEntries.length === 0) {
+      setStatusMsg({ type: 'error', text: 'Define al menos una solución en ## Solutions para generar las salidas.' });
+      return;
+    }
+    const testCases = parsed.exercise.testCases || [];
+    if (testCases.length === 0) {
+      setStatusMsg({ type: 'error', text: 'Define al menos un test con ```input en la sección ## Tests.' });
+      return;
+    }
+
+    // Prefer Java or first available solution
+    const [lang, code] = solutionEntries.find(([l]) => l.toLowerCase() === 'java') || solutionEntries[0];
+
+    setIsGeneratingOutputs(true);
+    setStatusMsg(null);
+    try {
+      const res = await api.teacherGenerateTestOutputs({
+        sourceCode: code,
+        language: lang,
+        testCases
+      });
+
+      if (!res.success) {
+        setStatusMsg({ type: 'error', text: res.error || 'Error al generar salidas esperadas.' });
+        return;
+      }
+
+      const updatedTestCases = testCases.map((tc, idx) => {
+        const gen = res.outputs.find((o) => o.orderIndex === idx);
+        return gen && gen.success ? { ...tc, expectedOutput: gen.output } : tc;
+      });
+
+      const newMd = serializeExerciseToMarkdown({
+        title: parsed.exercise.title,
+        slug: parsed.exercise.slug,
+        difficulty: parsed.exercise.difficulty,
+        tags: parsed.exercise.tags,
+        statement: parsed.exercise.statement,
+        templates: parsed.exercise.templates,
+        solutions: parsed.exercise.solutions,
+        testCases: updatedTestCases
+      });
+
+      setMarkdownText(newMd);
+      markdownTextRef.current = newMd;
+      setStatusMsg({ type: 'success', text: `Salidas generadas correctamente para ${res.outputs.length} tests usando solución ${lang.toUpperCase()}.` });
+    } catch (err: any) {
+      setStatusMsg({ type: 'error', text: err.message || 'Error al generar salidas esperadas.' });
+    } finally {
+      setIsGeneratingOutputs(false);
+    }
+  };
+
   // Export current markdown as .md file
   const handleExportMarkdownFile = () => {
     const parsed = parseExerciseMarkdown(markdownText);
@@ -716,12 +1027,19 @@ export const TeacherExercisesView: React.FC = () => {
       });
       const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
 
+      const cleanSolutions: Record<string, string> = {};
+      Object.entries(parsed.exercise.solutions || {}).forEach(([k, v]) => {
+        if (v && v.trim()) cleanSolutions[k] = v;
+      });
+
       const saved = await api.teacherSaveExercise({
         title: exTitle,
         slug: parsed.exercise.slug?.trim() || 'ejercicio-' + Date.now(),
         statement: parsed.exercise.statement || '',
+        difficulty: parsed.exercise.difficulty,
         starterCode: primaryStarter,
         templates: cleanTemplates,
+        solutions: cleanSolutions,
         language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
         runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
         tags: parsed.exercise.tags || [],
@@ -794,7 +1112,7 @@ export const TeacherExercisesView: React.FC = () => {
       const newAsset = await api.teacherUploadAsset(currentExId, fileToUpload);
       setAssets((prev) => [...prev.filter((a) => a.filename !== newAsset.filename), newAsset]);
 
-      const imgMarkdown = `\n![${newAsset.filename}](${newAsset.filename})\n`;
+      const imgMarkdown = `\n![${newAsset.filename}](assets/${newAsset.filename})\n`;
       insertMarkdownAtCursor(imgMarkdown);
 
       setStatusMsg({ type: 'success', text: `Imagen "${newAsset.filename}" subida e insertada.` });
@@ -1085,12 +1403,19 @@ export const TeacherExercisesView: React.FC = () => {
       });
       const primaryStarter = cleanTemplates['java'] || Object.values(cleanTemplates)[0] || '';
 
+      const cleanSolutions: Record<string, string> = {};
+      Object.entries(parsed.exercise.solutions || {}).forEach(([k, v]) => {
+        if (v && v.trim()) cleanSolutions[k] = v;
+      });
+
       const payload = {
         title: parsed.exercise.title.trim(),
         slug: parsed.exercise.slug.trim(),
         statement: parsed.exercise.statement,
+        difficulty: parsed.exercise.difficulty,
         starterCode: primaryStarter,
         templates: cleanTemplates,
+        solutions: cleanSolutions,
         language: cleanTemplates['java'] ? 'java' : (Object.keys(cleanTemplates)[0] || 'java'),
         runtimeId: cleanTemplates['java'] ? 'java-26' : (cleanTemplates['python'] ? 'python-314' : 'java-26'),
         tags: parsed.exercise.tags || [],
@@ -1143,317 +1468,418 @@ export const TeacherExercisesView: React.FC = () => {
   if (mode === 'list') {
     return (
       <div className="app-container">
-        {/* MARCO DE ASIGNACIÓN DE ETIQUETAS (Visible al seleccionar 1 o más ejercicios) */}
+        {/* PANEL DE SELECCIÓN */}
         {selectedExerciseIds.size > 0 && (
           <div
             ref={tagPanelRef}
             className="card"
             style={{
-              marginBottom: '1.5rem',
+              marginBottom: '0.75rem',
               border: '2px solid #2563eb',
-              borderRadius: '0.75rem',
+              borderRadius: '0.5rem',
               padding: 0,
-              overflow: 'hidden',
-              boxShadow: '0 4px 14px -2px rgba(37, 99, 235, 0.15)',
+              overflow: 'visible',
               background: '#ffffff',
             }}
           >
-            {/* Cabecera del Marco */}
+            {/* Header de Selección */}
             <div
               style={{
-                padding: '0.875rem 1.25rem',
+                padding: '0.5rem 0.85rem',
                 background: '#eff6ff',
                 borderBottom: '1px solid #bfdbfe',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '0.75rem',
+                gap: '0.5rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                <div style={{ background: '#2563eb', color: '#fff', borderRadius: '0.375rem', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <TagIcon size={16} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ background: '#2563eb', color: '#fff', borderRadius: '0.25rem', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FileText size={13} />
                 </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#1e3a8a' }}>
-                    Asignación de etiquetas
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                  <h2 style={{ margin: 0, fontSize: '0.8125rem', fontWeight: 700, color: '#1e3a8a' }}>
+                    Selección
                   </h2>
-                  <div style={{ fontSize: '0.8125rem', color: '#1d4ed8' }}>
-                    {selectedExercises.length === 1 ? (
-                      <span><strong>{selectedExercises[0].title}</strong> ({selectedExercises[0].slug})</span>
+                  <span style={{ fontSize: '0.75rem', color: '#1d4ed8' }}>
+                    ({selectedExercises.length === 1 ? (
+                      <span><strong>{selectedExercises[0].title}</strong></span>
                     ) : (
                       <strong>{selectedExerciseIds.size} ejercicios seleccionados</strong>
-                    )}
-                  </div>
+                    )})
+                  </span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleClearSelection}
-                className="btn-secondary"
-                style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', background: '#ffffff' }}
-              >
-                Deseleccionar todos
-              </button>
+              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchDeleteModal(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.25rem 0.55rem',
+                    borderRadius: '0.25rem',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  title="Eliminar todos los ejercicios seleccionados"
+                >
+                  <Trash2 size={13} />
+                  <span>Eliminar todos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', background: '#ffffff' }}
+                >
+                  Deseleccionar todos
+                </button>
+              </div>
             </div>
 
-            {/* Contenido: 2 Columnas */}
+            {/* APARTADO 1: ETIQUETAS */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-                gap: '1.5rem',
-                padding: '1.25rem',
+                background: '#f8fafc',
+                padding: '0.5rem 0.85rem',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
               }}
             >
-              {/* LADO IZQUIERDO: Etiquetas en ejercicios seleccionados */}
-              <div
-                style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.5rem',
-                  padding: '1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    Etiquetas en ejercicios seleccionados ({tagsInSelectedExercises.length})
-                  </h3>
+              <TagIcon size={13} color="#2563eb" />
+              <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: '#1e3a8a' }}>
+                Etiquetas
+              </h3>
+            </div>
+
+            {/* Etiquetas no asignadas */}
+            <div style={{ padding: '0.5rem 0.85rem', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <TagIcon size={13} color="#2563eb" /> Etiquetas no asignadas ({unassignedAvailableTags.length})
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 280, overflowY: 'auto' }}>
-                  {tagsInSelectedExercises.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
-                      Ninguno de los ejercicios seleccionados tiene etiquetas activas.
+                {allExerciseTags.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Buscar..."
+                    value={unassignedSearch}
+                    onChange={e => setUnassignedSearch(e.target.value)}
+                    className="input-field"
+                    style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', width: 140 }}
+                  />
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {unassignedAvailableTags.length === 0 ? (
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                    {unassignedSearch ? 'No se encontraron etiquetas' : (allExerciseTags.length === 0 ? 'No hay etiquetas creadas' : 'Todas las etiquetas están asignadas')}
+                  </span>
+                ) : (
+                  unassignedAvailableTags.map(tag => (
+                    <div
+                      key={tag}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        background: '#ffffff',
+                        border: '1.5px solid #d6daed',
+                        borderRadius: '9999px',
+                        gap: '0.45rem',
+                        paddingInlineEnd: '0.25rem',
+                      }}
+                    >
+                      <TagBadge value={tag} style={{ border: 'none' }} />
+                      <button
+                        type="button"
+                        disabled={batchSubmitting}
+                        onClick={() => handleBatchAssignTag(tag, Array.from(selectedExerciseIds))}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          border: '1px solid #bfdbfe',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                        title="Asignar a todos los ejercicios seleccionados"
+                      >
+                        <Plus size={11} />
+                      </button>
                     </div>
-                  ) : (
-                    tagsInSelectedExercises.map(tagInfo => {
-                      const count = tagInfo.exerciseIdsWithTag.length;
-                      const total = selectedExercises.length;
-                      const isAll = count === total;
-                      const unassignedExercises = selectedExercises.filter(e => !tagInfo.exerciseIdsWithTag.includes(e.id)).map(e => e.id);
+                  ))
+                )}
+              </div>
+            </div>
 
-                      return (
-                        <div
-                          key={tagInfo.tag}
+            {/* Formulario de creación rápida */}
+            <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 0.85rem' }}>
+              <form onSubmit={handleBulkCreateAndAssign} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="Nueva etiqueta (ej. strings, bucles)..."
+                  value={bulkNewTag}
+                  onChange={e => setBulkNewTag(e.target.value)}
+                  className="input-field"
+                  style={{ flex: 1, minWidth: 160, maxWidth: 300, fontSize: '0.75rem', padding: '0.25rem 0.4rem' }}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={batchSubmitting || !bulkNewTag.trim()}
+                  style={{ padding: '0.3rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Crear y asignar etiqueta"
+                >
+                  <Plus size={15} />
+                </button>
+              </form>
+            </div>
+
+            {/* Etiquetas en seleccionados */}
+            <div style={{ padding: '0.5rem 0.85rem', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <TagIcon size={13} color="#2563eb" /> Etiquetas en seleccionados ({tagsInSelectedExercises.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {tagsInSelectedExercises.length === 0 ? (
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                    Sin etiquetas activas
+                  </span>
+                ) : (
+                  tagsInSelectedExercises.map(tagInfo => {
+                    const count = tagInfo.exerciseIdsWithTag.length;
+                    const total = selectedExercises.length;
+                    const isAll = count === total;
+                    const unassignedExercises = selectedExercises.filter(e => !tagInfo.exerciseIdsWithTag.includes(e.id)).map(e => e.id);
+
+                    return (
+                      <div
+                        key={tagInfo.tag}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          background: '#ffffff',
+                          border: '1.5px solid #d6daed',
+                          borderRadius: '9999px',
+                          gap: '0.45rem',
+                          paddingInlineEnd: '0.25rem',
+                        }}
+                      >
+                        <TagBadge value={tagInfo.tag} style={{ border: 'none' }} />
+                        <span
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: '#ffffff',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '0.375rem',
-                            padding: '0.4rem 0.625rem',
-                            gap: '0.5rem',
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            padding: '0.05rem 0.3rem',
+                            borderRadius: '9999px',
+                            background: isAll ? '#dcfce7' : '#fef3c7',
+                            color: isAll ? '#166534' : '#92400e',
+                            border: `1px solid ${isAll ? '#bbf7d0' : '#fde68a'}`,
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
-                            <TagBadge value={tagInfo.tag} />
+                          {count}/{total}
+                        </span>
 
-                            <span
-                              style={{
-                                fontSize: '0.6875rem',
-                                fontWeight: 600,
-                                padding: '0.125rem 0.375rem',
-                                borderRadius: '9999px',
-                                background: isAll ? '#dcfce7' : '#fef3c7',
-                                color: isAll ? '#166534' : '#92400e',
-                                border: `1px solid ${isAll ? '#bbf7d0' : '#fde68a'}`,
-                                whiteSpace: 'nowrap',
-                              }}
-                              title={isAll ? 'Todos los ejercicios seleccionados tienen esta etiqueta' : `${count} de ${total} ejercicios seleccionados tienen esta etiqueta`}
-                            >
-                              {count}/{total} {count === 1 ? 'ejercicio' : 'ejercicios'}
-                            </span>
-                          </div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                          <button
+                            type="button"
+                            disabled={batchSubmitting || isAll}
+                            onClick={() => handleBatchAssignTag(tagInfo.tag, unassignedExercises)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              border: isAll ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                              background: isAll ? '#f1f5f9' : '#eff6ff',
+                              color: isAll ? '#94a3b8' : '#1d4ed8',
+                              cursor: isAll ? 'not-allowed' : 'pointer',
+                              padding: 0,
+                            }}
+                            title={isAll ? 'Ya asignada a todos' : `Asignar a los ${unassignedExercises.length} restantes`}
+                          >
+                            {isAll ? <Check size={11} /> : <Plus size={11} />}
+                          </button>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                            {/* Botón '+' para asignarla a todos los seleccionados que no la tengan */}
+                          <button
+                            type="button"
+                            disabled={batchSubmitting}
+                            onClick={() => handleBatchRevokeTag(tagInfo.tag, tagInfo.exerciseIdsWithTag)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              border: '1px solid #fecaca',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                            title={`Quitar de los ${count} ejercicios que la tienen`}
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* APARTADO 2: COLECCIONES */}
+            <div
+              style={{
+                background: '#f8fafc',
+                padding: '0.5rem 0.85rem',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+              }}
+            >
+              <Folder size={13} color="#2563eb" />
+              <h3 style={{ margin: 0, fontSize: '0.75rem', fontWeight: 700, color: '#1e3a8a' }}>
+                Colecciones
+              </h3>
+            </div>
+
+            <div style={{ padding: '0.5rem 0.85rem', background: '#ffffff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Folder size={13} color="#2563eb" /> Colecciones ({filteredCollections.length})
+                </div>
+                {allCollections.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Buscar..."
+                    value={unassignedColSearch}
+                    onChange={e => setUnassignedColSearch(e.target.value)}
+                    className="input-field"
+                    style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', width: 140 }}
+                  />
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '0.35rem' }}>
+                {filteredCollections.length === 0 ? (
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                    {unassignedColSearch ? 'No se encontraron colecciones' : 'No hay colecciones creadas'}
+                  </span>
+                ) : (
+                  filteredCollections.map(col => {
+                    const countWithCol = selectedExercises.filter(ex => isExerciseInCollection(ex, col)).length;
+                    const total = selectedExercises.length;
+                    const isAll = countWithCol === total && total > 0;
+                    const isNone = countWithCol === 0;
+                    const unassignedExerciseIds = selectedExercises.filter(ex => !isExerciseInCollection(ex, col)).map(ex => ex.id);
+                    const assignedExerciseIds = selectedExercises.filter(ex => isExerciseInCollection(ex, col)).map(ex => ex.id);
+
+                    return (
+                      <div
+                        key={col.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          background: isAll ? '#eff6ff' : '#f8fafc',
+                          border: isAll ? '1.5px solid #3b82f6' : '1px solid #cbd5e1',
+                          borderRadius: '0.3rem',
+                          padding: '0.2rem 0.45rem',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <Folder size={12} color={isAll ? '#2563eb' : '#64748b'} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isAll ? '#1d4ed8' : '#1e3a8a' }}>
+                          {col.title}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            padding: '0.05rem 0.3rem',
+                            borderRadius: '9999px',
+                            background: isAll ? '#dcfce7' : (isNone ? '#f1f5f9' : '#fef3c7'),
+                            color: isAll ? '#166534' : (isNone ? '#64748b' : '#92400e'),
+                            border: `1px solid ${isAll ? '#bbf7d0' : (isNone ? '#e2e8f0' : '#fde68a')}`,
+                          }}
+                        >
+                          {countWithCol}/{total}
+                        </span>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                          <button
+                            type="button"
+                            disabled={batchCollectionSubmitting || batchSubmitting || isAll}
+                            onClick={() => handleBatchAssignCollection(col, unassignedExerciseIds)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 20,
+                              height: 20,
+                              borderRadius: '0.2rem',
+                              border: isAll ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
+                              background: isAll ? '#f1f5f9' : '#eff6ff',
+                              color: isAll ? '#94a3b8' : '#1d4ed8',
+                              cursor: isAll ? 'not-allowed' : 'pointer',
+                              padding: 0,
+                            }}
+                            title={isAll ? 'Ya asignada a todos' : `Añadir a los ${unassignedExerciseIds.length} restantes`}
+                          >
+                            {isAll ? <Check size={11} /> : <Plus size={11} />}
+                          </button>
+
+                          {!isNone && (
                             <button
                               type="button"
-                              disabled={batchSubmitting || isAll}
-                              onClick={() => handleBatchAssignTag(tagInfo.tag, unassignedExercises)}
+                              disabled={batchCollectionSubmitting || batchSubmitting}
+                              onClick={() => handleBatchRevokeCollection(col, assignedExerciseIds)}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                width: 26,
-                                height: 26,
-                                borderRadius: '0.25rem',
-                                border: isAll ? '1px solid #e2e8f0' : '1px solid #bfdbfe',
-                                background: isAll ? '#f1f5f9' : '#eff6ff',
-                                color: isAll ? '#94a3b8' : '#1d4ed8',
-                                cursor: isAll ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.15s',
-                              }}
-                              title={isAll ? 'Ya asignada a todos los ejercicios seleccionados' : `Asignar a los ${unassignedExercises.length} ejercicios restantes`}
-                            >
-                              {isAll ? <Check size={14} /> : <Plus size={14} />}
-                            </button>
-
-                            {/* Botón 'x' para eliminarla de todos los seleccionados que la tengan */}
-                            <button
-                              type="button"
-                              disabled={batchSubmitting}
-                              onClick={() => handleBatchRevokeTag(tagInfo.tag, tagInfo.exerciseIdsWithTag)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: 26,
-                                height: 26,
-                                borderRadius: '0.25rem',
+                                width: 20,
+                                height: 20,
+                                borderRadius: '0.2rem',
                                 border: '1px solid #fecaca',
                                 background: '#fef2f2',
                                 color: '#dc2626',
                                 cursor: 'pointer',
-                                transition: 'all 0.15s',
+                                padding: 0,
                               }}
-                              title={`Quitar de los ${count} ejercicios que la tienen`}
+                              title={`Quitar de esta colección (${countWithCol} ${countWithCol === 1 ? 'ejercicio' : 'ejercicios'})`}
                             >
-                              <X size={14} />
+                              <X size={11} />
                             </button>
-                          </div>
+                          )}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* LADO DERECHO: Todas las etiquetas existentes en el catálogo que no tenga ninguno de los ejercicios seleccionados */}
-              <div
-                style={{
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.5rem',
-                  padding: '1rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                    Etiquetas no asignadas ({unassignedAvailableTags.length})
-                  </h3>
-                </div>
-
-                {/* Buscador de etiquetas no asignadas */}
-                {allExerciseTags.length > 5 && (
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <input
-                      type="text"
-                      placeholder="Buscar etiqueta no asignada..."
-                      value={unassignedSearch}
-                      onChange={e => setUnassignedSearch(e.target.value)}
-                      className="input-field"
-                      style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                    />
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 240, overflowY: 'auto' }}>
-                  {unassignedAvailableTags.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: '#94a3b8', fontSize: '0.8125rem', fontStyle: 'italic' }}>
-                      {unassignedSearch ? 'No se encontraron etiquetas con ese término.' : 'No hay más etiquetas existentes en otros ejercicios.'}
-                    </div>
-                  ) : (
-                    unassignedAvailableTags.map(tag => (
-                      <div
-                        key={tag}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          background: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '0.375rem',
-                          padding: '0.4rem 0.625rem',
-                          gap: '0.5rem',
-                        }}
-                      >
-                        <TagBadge value={tag} />
-
-                        <button
-                          type="button"
-                          disabled={batchSubmitting}
-                          onClick={() => handleBatchAssignTag(tag, Array.from(selectedExerciseIds))}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 26,
-                            height: 26,
-                            borderRadius: '0.25rem',
-                            border: '1px solid #bfdbfe',
-                            background: '#eff6ff',
-                            color: '#1d4ed8',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                          }}
-                          title="Asignar a todos los ejercicios seleccionados"
-                        >
-                          <Plus size={14} />
-                        </button>
                       </div>
-                    ))
-                  )}
-                </div>
+                    );
+                  })
+                )}
               </div>
-            </div>
-
-            {/* PARTE INFERIOR: Espacio para crear etiqueta y asignarla a todos los seleccionados */}
-            <div
-              style={{
-                background: '#f8fafc',
-                borderTop: '1px solid #e2e8f0',
-                padding: '0.875rem 1.25rem',
-              }}
-            >
-              <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e3a8a', marginBottom: '0.5rem' }}>
-                Añadir nueva etiqueta a todos los ejercicios seleccionados
-              </div>
-              <form
-                onSubmit={handleBulkCreateAndAssign}
-                style={{
-                  display: 'flex',
-                  gap: '0.75rem',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ minWidth: 240, flex: 1 }}>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nueva etiqueta (ej. strings, bucles, recursividad)..."
-                    value={bulkNewTag}
-                    onChange={e => setBulkNewTag(e.target.value)}
-                    className="input-field"
-                    style={{ width: '100%', fontSize: '0.8125rem', padding: '0.45rem 0.75rem' }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={batchSubmitting || !bulkNewTag.trim()}
-                  className="btn-primary"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.45rem 0.85rem',
-                    fontSize: '0.8125rem',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Plus size={14} /> Añadir a seleccionados
-                </button>
-              </form>
             </div>
           </div>
         )}
@@ -1525,6 +1951,34 @@ export const TeacherExercisesView: React.FC = () => {
                   </button>
                 )}
               </div>
+
+              {/* 3. Filtro de Dificultad */}
+              <div style={{ flex: '0 0 auto' }}>
+                <select
+                  value={difficultyFilter}
+                  onChange={(e) => { setDifficultyFilter(e.target.value); setPage(1); }}
+                  className="input-field"
+                  style={{
+                    height: '38px',
+                    fontSize: '0.875rem',
+                    minWidth: '150px',
+                    cursor: 'pointer',
+                    backgroundColor: difficultyFilter !== 'ALL' ? '#eff6ff' : '#ffffff',
+                    borderColor: difficultyFilter !== 'ALL' ? '#3b82f6' : undefined,
+                    fontWeight: difficultyFilter !== 'ALL' ? 600 : 400,
+                    color: difficultyFilter !== 'ALL' ? '#1d4ed8' : '#334155',
+                  }}
+                  title="Filtrar por dificultad"
+                >
+                  <option value="ALL">Dificultad: Todas</option>
+                  <option value="1">Nivel 1 (0 – 2)</option>
+                  <option value="2">Nivel 2 (2.1 – 4)</option>
+                  <option value="3">Nivel 3 (4.1 – 6)</option>
+                  <option value="4">Nivel 4 (6.1 – 8)</option>
+                  <option value="5">Nivel 5 (8.1 – 10)</option>
+                  <option value="UNASSIGNED">Sin dificultad</option>
+                </select>
+              </div>
             </div>
 
             {/* Botón Crear Ejercicio */}
@@ -1570,6 +2024,14 @@ export const TeacherExercisesView: React.FC = () => {
                       currentSortDir={sortDir}
                       onSort={handleSort}
                       style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}
+                    />
+                    <SortableHeader
+                      label="Dificultad"
+                      sortKey="difficulty"
+                      currentSortKey={sortKey}
+                      currentSortDir={sortDir}
+                      onSort={handleSort}
+                      style={{ padding: '0.875rem 1.25rem', fontWeight: 600, width: 110 }}
                     />
                     <SortableHeader
                       label="Etiquetas"
@@ -1655,6 +2117,19 @@ export const TeacherExercisesView: React.FC = () => {
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', whiteSpace: 'nowrap' }}>
+                          <DifficultyBar
+                            difficulty={ex.difficulty}
+                            onClick={() => {
+                              const lvl = getDifficultyLevel(ex.difficulty);
+                              if (lvl !== null) {
+                                setDifficultyFilter((prev) => (prev === String(lvl) ? 'ALL' : String(lvl)));
+                                setPage(1);
+                              }
+                            }}
+                            style={{ cursor: ex.difficulty !== undefined && ex.difficulty !== null ? 'pointer' : 'default' }}
+                          />
                         </td>
                         <td style={{ padding: '0.875rem 1.25rem' }}>
                           {ex.tags && ex.tags.length > 0 ? (
@@ -1747,6 +2222,58 @@ export const TeacherExercisesView: React.FC = () => {
             </>
           )}
         </div>
+
+        {/* MODAL: CONFIRMAR ELIMINAR EJERCICIOS SELECCIONADOS */}
+        {showBatchDeleteModal && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.4)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+            onClick={() => setShowBatchDeleteModal(false)}
+          >
+            <div
+              className="card"
+              style={{ width: '100%', maxWidth: 380, padding: '1.25rem', background: '#ffffff' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#b91c1c' }}>
+                <AlertCircle size={20} />
+                <strong style={{ fontSize: '1rem' }}>
+                  ¿Eliminar {selectedExerciseIds.size} {selectedExerciseIds.size === 1 ? 'ejercicio' : 'ejercicios'}?
+                </strong>
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: '#475569', marginBottom: '1rem' }}>
+                Se eliminarán los {selectedExerciseIds.size} {selectedExerciseIds.size === 1 ? 'ejercicio seleccionado' : 'ejercicios seleccionados'}. Esta acción no se puede deshacer.
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchDeleteModal(false)}
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingBatch}
+                  onClick={handleConfirmBatchDelete}
+                  className="btn-danger"
+                  style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#ffffff' }}
+                >
+                  {deletingBatch ? 'Eliminando...' : `Eliminar ${selectedExerciseIds.size} ${selectedExerciseIds.size === 1 ? 'ejercicio' : 'ejercicios'}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2085,6 +2612,42 @@ export const TeacherExercisesView: React.FC = () => {
                 >
                   <Columns size={16} />
                 </button>
+                <button
+                  type="button"
+                  onClick={handleValidateSolutions}
+                  disabled={isValidatingSolutions || isGeneratingOutputs}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#15803d',
+                    borderColor: '#bbf7d0',
+                    backgroundColor: '#f0fdf4'
+                  }}
+                  title={isValidatingSolutions ? 'Probando soluciones...' : 'Probar casos de prueba contra las soluciones'}
+                >
+                  <Play size={16} fill="#15803d" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateOutputs}
+                  disabled={isValidatingSolutions || isGeneratingOutputs}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#7c3aed',
+                    borderColor: '#ddd6fe',
+                    backgroundColor: '#f5f3ff'
+                  }}
+                  title={isGeneratingOutputs ? 'Generando salidas...' : 'Autogenerar salidas esperadas usando la solución'}
+                >
+                  <Sparkles size={16} />
+                </button>
 
                 {/* Guardar borrador */}
                 {selectedId && (
@@ -2291,7 +2854,7 @@ export const TeacherExercisesView: React.FC = () => {
                       <span style={{ color: '#94a3b8' }}>({(asset.sizeBytes / 1024).toFixed(1)} KB)</span>
                       <button
                         type="button"
-                        onClick={() => insertMarkdownAtCursor(`\n![${asset.filename}](${asset.filename})\n`)}
+                        onClick={() => insertMarkdownAtCursor(`\n![${asset.filename}](assets/${asset.filename})\n`)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: '0 2px', fontWeight: 500 }}
                         title="Insertar etiqueta Markdown en el cursor"
                       >
@@ -2347,10 +2910,26 @@ export const TeacherExercisesView: React.FC = () => {
                   </h1>
                 </div>
 
-                {/* Etiquetas (tags) si están presentes */}
-                {liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1rem' }}>
-                    {liveParsedMarkdown.exercise.tags.map((tag) => (
+                {/* Metadatos (dificultad y tags) si están presentes */}
+                {(liveParsedMarkdown?.exercise.difficulty !== undefined || (liveParsedMarkdown?.exercise.tags && liveParsedMarkdown.exercise.tags.length > 0)) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1rem', alignItems: 'center' }}>
+                    {liveParsedMarkdown?.exercise.difficulty !== undefined && (
+                      <span
+                        className="badge badge-primary"
+                        style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '0.25rem',
+                          padding: '0.2rem 0.5rem',
+                          fontWeight: 600
+                        }}
+                      >
+                        🎯 Dificultad: {liveParsedMarkdown.exercise.difficulty} / 10
+                      </span>
+                    )}
+                    {liveParsedMarkdown?.exercise.tags?.map((tag) => (
                       <span
                         key={tag}
                         className="badge badge-secondary"
@@ -2372,9 +2951,10 @@ export const TeacherExercisesView: React.FC = () => {
 
                 {/* Enunciado del Ejercicio (sin rótulo ENUNCIADO, exactamente como el alumno) */}
                 {liveParsedMarkdown?.exercise.statement ? (
-                  <div
+                  <MarkdownView
                     className="markdown-statement"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(liveParsedMarkdown.exercise.statement, selectedId) }}
+                    content={liveParsedMarkdown.exercise.statement}
+                    exerciseId={selectedId}
                   />
                 ) : (
                   <div style={{ fontSize: '0.875rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem 0' }}>
@@ -2432,10 +3012,11 @@ export const TeacherExercisesView: React.FC = () => {
                           {tc.explanation && (
                             <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
                               <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                              <div
+                              <MarkdownView
                                 className="markdown-statement"
                                 style={{ marginTop: '0.25rem' }}
-                                dangerouslySetInnerHTML={{ __html: renderMarkdown(tc.explanation, selectedId) }}
+                                content={tc.explanation}
+                                exerciseId={selectedId}
                               />
                             </div>
                           )}
@@ -2467,11 +3048,265 @@ export const TeacherExercisesView: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Soluciones de referencia (## Solutions) */}
+                {liveParsedMarkdown?.exercise.solutions && Object.keys(liveParsedMarkdown.exercise.solutions).length > 0 && (
+                  <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Soluciones de referencia
+                      </h2>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={handleValidateSolutions}
+                          disabled={isValidatingSolutions || isGeneratingOutputs}
+                          className="btn-secondary"
+                          style={{
+                            padding: '0.25rem 0.6rem',
+                            fontSize: '0.8125rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            color: '#15803d',
+                            borderColor: '#bbf7d0',
+                            backgroundColor: '#f0fdf4'
+                          }}
+                        >
+                          <Play size={13} fill="#15803d" />
+                          <span>Probar soluciones</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {Object.entries(liveParsedMarkdown.exercise.solutions).map(([lang, code]) => (
+                        <div key={lang} style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', overflow: 'hidden' }}>
+                          <div style={{ backgroundColor: '#f8fafc', padding: '0.375rem 0.75rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
+                              {lang.toLowerCase() === 'python' ? '🐍 Python' : lang.toLowerCase() === 'java' ? '☕ Java' : lang}
+                            </span>
+                          </div>
+                          <pre style={{ margin: 0, padding: '0.75rem 1rem', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.8125rem', fontFamily: 'Consolas, Monaco, monospace', overflowX: 'auto', lineHeight: 1.5 }}>
+                            <code>{code}</code>
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Modal de validación de soluciones */}
+      {showValidationModal && validationResult && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(2px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+          onClick={() => setShowValidationModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              width: '100%',
+              maxWidth: '850px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              border: '1px solid #cbd5e1'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Cabecera del modal */}
+            <div style={{
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  backgroundColor: validationResult.allPassed ? '#dcfce7' : '#fee2e2',
+                  color: validationResult.allPassed ? '#166534' : '#991b1b',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  {validationResult.allPassed ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                  {validationResult.allPassed ? 'Todos los tests superados' : 'Fallos detectados'}
+                </span>
+
+                {Object.keys(validationResult.results).length > 1 && (
+                  <span style={{
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    backgroundColor: validationResult.crossLanguageMatch ? '#e0e7ff' : '#fef3c7',
+                    color: validationResult.crossLanguageMatch ? '#3730a3' : '#92400e'
+                  }}>
+                    {validationResult.crossLanguageMatch ? '✔ Consistencia políglota' : '⚠️ Discrepancia entre lenguajes'}
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowValidationModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Selector de lenguaje si hay múltiples */}
+            {Object.keys(validationResult.results).length > 1 && (
+              <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 1.25rem', gap: '0.5rem', backgroundColor: '#ffffff' }}>
+                {Object.entries(validationResult.results).map(([lang, res]) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setSelectedValidationLang(lang)}
+                    style={{
+                      padding: '0.6rem 1rem',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: selectedValidationLang === lang ? '2px solid #2563eb' : '2px solid transparent',
+                      fontWeight: selectedValidationLang === lang ? 600 : 400,
+                      color: selectedValidationLang === lang ? '#2563eb' : '#64748b',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span>{lang.toUpperCase()}</span>
+                    <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>({res.passedCount}/{res.totalCount})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Contenido de resultados */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
+              {/* Avisos de discrepancia entre lenguajes */}
+              {validationResult.mismatches && validationResult.mismatches.length > 0 && (
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '0.5rem', fontSize: '0.8125rem', color: '#92400e' }}>
+                  {validationResult.mismatches.map((m, idx) => (
+                    <div key={idx} style={{ marginBottom: idx < validationResult.mismatches.length - 1 ? '0.35rem' : 0 }}>
+                      {m}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(() => {
+                const activeRes = validationResult.results[selectedValidationLang] || Object.values(validationResult.results)[0];
+                if (!activeRes) return null;
+
+                if (!activeRes.compileSuccess) {
+                  return (
+                    <div>
+                      <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                        Error de compilación ({activeRes.language})
+                      </div>
+                      <pre style={{ backgroundColor: '#0f172a', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                        {activeRes.compileError}
+                      </pre>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {activeRes.testResults.map((t, idx) => (
+                      <div
+                        key={t.testId || idx}
+                        style={{
+                          border: `1px solid ${t.passed ? '#e2e8f0' : '#fecaca'}`,
+                          borderRadius: '0.5rem',
+                          padding: '0.75rem 1rem',
+                          backgroundColor: t.passed ? '#ffffff' : '#fef2f2'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#0f172a' }}>
+                            {t.testName} {t.isPublic ? '(Público)' : '(Privado)'}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {t.durationMs !== undefined && (
+                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{t.durationMs} ms</span>
+                            )}
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.25rem',
+                              backgroundColor: t.passed ? '#dcfce7' : '#fee2e2',
+                              color: t.passed ? '#15803d' : '#b91c1c'
+                            }}>
+                              {t.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {!t.passed && (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            {t.input && (
+                              <div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Entrada:</span>
+                                <pre style={{ margin: '0.15rem 0 0', padding: '0.4rem 0.6rem', backgroundColor: '#f1f5f9', borderRadius: '0.25rem', fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                                  {t.input}
+                                </pre>
+                              </div>
+                            )}
+                            <div>
+                              <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 500 }}>Esperado:</span>
+                              <pre style={{ margin: '0.15rem 0 0', padding: '0.4rem 0.6rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.25rem', fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                                {t.expectedOutput || '<vacío>'}
+                              </pre>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>Obtenido:</span>
+                              <pre style={{ margin: '0.15rem 0 0', padding: '0.4rem 0.6rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.25rem', fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                                {t.actualOutput || (t.error ? t.error : '<vacío>')}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

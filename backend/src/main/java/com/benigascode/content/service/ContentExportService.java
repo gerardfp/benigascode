@@ -45,7 +45,7 @@ public class ContentExportService {
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public byte[] exportCollectionZip(UUID collectionId) throws Exception {
         Collection col = collectionRepository.findById(collectionId)
                 .or(() -> collectionVersionRepository.findById(collectionId).map(CollectionVersion::getCollection))
@@ -119,14 +119,14 @@ public class ContentExportService {
                 } catch (Exception ignored) {}
             }
 
-            // 2. Exportar cada ejercicio incluido
+            // 2. Exportar cada ejercicio incluido en formato plano
             for (String exSlug : exerciseSlugs) {
                 Optional<Exercise> exOpt = exerciseRepository.findBySlug(exSlug);
                 if (exOpt.isPresent()) {
                     Exercise ex = exOpt.get();
                     Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
                     if (evOpt.isPresent()) {
-                        writeExerciseToZip(zos, ex, evOpt.get(), "exercises/" + ex.getSlug() + "/");
+                        writeExerciseFlatToZip(zos, ex, evOpt.get(), "exercises/", "exercises/assets/");
                     }
                 }
             }
@@ -134,7 +134,7 @@ public class ContentExportService {
         return baos.toByteArray();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public byte[] exportExerciseZip(UUID exerciseId) throws Exception {
         Exercise ex = exerciseRepository.findById(exerciseId)
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
@@ -145,75 +145,28 @@ public class ContentExportService {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            writeExerciseToZip(zos, ex, ev, ex.getSlug() + "/");
+            writeExerciseFlatToZip(zos, ex, ev, "exercises/", "exercises/assets/");
         }
         return baos.toByteArray();
     }
 
-    private void writeExerciseToZip(ZipOutputStream zos, Exercise ex, ExerciseVersion ev, String prefix) throws Exception {
-        // 1. exercise.md canónico
-        String markdown = ExerciseMarkdownSerializer.serialize(ex, ev, objectMapper);
-        zos.putNextEntry(new ZipEntry(prefix + "exercise.md"));
-        zos.write(markdown.getBytes(StandardCharsets.UTF_8));
-        zos.closeEntry();
-
-        // 2. Assets de imagen desde la BD
-        List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
-        for (ExerciseAsset asset : assets) {
-            zos.putNextEntry(new ZipEntry(prefix + asset.getFilename()));
-            zos.write(asset.getData());
-            zos.closeEntry();
-        }
-    }
-
-    private void writeTestsScope(ZipOutputStream zos, String scopePrefix, JsonNode testsNode) throws Exception {
-        if (!testsNode.isArray()) return;
-        int idx = 0;
-        for (JsonNode t : testsNode) {
-            String dirName = String.format("%02d", idx++);
-            String testFolder = scopePrefix + dirName + "/";
-
-            // input.txt
-            zos.putNextEntry(new ZipEntry(testFolder + "input.txt"));
-            zos.write(t.path("input").asText("").getBytes(StandardCharsets.UTF_8));
-            zos.closeEntry();
-
-            // output.txt
-            zos.putNextEntry(new ZipEntry(testFolder + "output.txt"));
-            zos.write(t.path("expected").asText("").getBytes(StandardCharsets.UTF_8));
-            zos.closeEntry();
-
-            // weight-{val}
-            double w = t.path("weight").asDouble(10.0);
-            String wStr = (w == (long) w) ? String.format("%d", (long) w) : String.valueOf(w);
-            zos.putNextEntry(new ZipEntry(testFolder + "weight-" + wStr));
-            zos.closeEntry();
-
-            // explanation.md
-            if (t.has("explanation") && !t.get("explanation").isNull() && !t.get("explanation").asText().isBlank()) {
-                zos.putNextEntry(new ZipEntry(testFolder + "explanation.md"));
-                zos.write(t.get("explanation").asText().getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            }
-        }
-    }
-
     // ==================== EXPORTACIÓN A DISCO / DIRECTORIO ====================
 
-    @Transactional(readOnly = true)
+    @Transactional
     public void exportAllToDirectory(File baseDir) throws Exception {
         File exercisesDir = new File(baseDir, "exercises");
+        File assetsDir = new File(exercisesDir, "assets");
         File collectionsDir = new File(baseDir, "collections");
 
         exercisesDir.mkdirs();
+        assetsDir.mkdirs();
         collectionsDir.mkdirs();
 
         List<Exercise> exercises = exerciseRepository.findAll();
         for (Exercise ex : exercises) {
             Optional<ExerciseVersion> evOpt = exerciseVersionRepository.findLatestByExerciseId(ex.getId());
             if (evOpt.isPresent()) {
-                File exDir = new File(exercisesDir, ex.getSlug());
-                exportExerciseToDirectory(ex, evOpt.get(), exDir);
+                exportExerciseFlatToDirectory(ex, evOpt.get(), exercisesDir, assetsDir);
             }
         }
 
@@ -227,22 +180,125 @@ public class ContentExportService {
         }
     }
 
+    public void exportExerciseFlatToDirectory(Exercise ex, ExerciseVersion ev, File exercisesDir, File assetsDir) throws Exception {
+        List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
+        ExerciseAssetCatalogHelper.PreparedExportAssets prepared =
+                ExerciseAssetCatalogHelper.prepareAssetsForExport(ex.getSlug(), ev.getStatement(), ev.getTestsConfig(), assets, objectMapper);
+
+        // 1. Exportar assets referenciados a exercises/assets/<slug>-img<N>.<ext>
+        for (ExerciseAssetCatalogHelper.ExportedAssetItem item : prepared.referencedAssets()) {
+            File af = new File(assetsDir, item.newFilename());
+            Files.write(af.toPath(), item.asset().getData());
+        }
+
+        // 2. Escribir exercises/<slug>.md con statement y testsConfig reescritos
+        File mdFile = new File(exercisesDir, ex.getSlug() + ".md");
+        ExerciseVersion exportEv = cloneWithStatementAndTests(ev, prepared.updatedStatement(), prepared.updatedTestsConfig());
+        String markdown = ExerciseMarkdownSerializer.serialize(ex, exportEv, objectMapper);
+        Files.writeString(mdFile.toPath(), markdown, StandardCharsets.UTF_8);
+
+        // 3. Persistir cambios en BD de forma segura evitando colisiones uq_exercise_asset_filename
+        applyExportAssetChanges(prepared, ev);
+    }
+
+    private void writeExerciseFlatToZip(ZipOutputStream zos, Exercise ex, ExerciseVersion ev, String exercisesPrefix, String assetsPrefix) throws Exception {
+        List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
+        ExerciseAssetCatalogHelper.PreparedExportAssets prepared =
+                ExerciseAssetCatalogHelper.prepareAssetsForExport(ex.getSlug(), ev.getStatement(), ev.getTestsConfig(), assets, objectMapper);
+
+        for (ExerciseAssetCatalogHelper.ExportedAssetItem item : prepared.referencedAssets()) {
+            zos.putNextEntry(new ZipEntry(assetsPrefix + item.newFilename()));
+            zos.write(item.asset().getData());
+            zos.closeEntry();
+        }
+
+        ExerciseVersion exportEv = cloneWithStatementAndTests(ev, prepared.updatedStatement(), prepared.updatedTestsConfig());
+        String markdown = ExerciseMarkdownSerializer.serialize(ex, exportEv, objectMapper);
+        zos.putNextEntry(new ZipEntry(exercisesPrefix + ex.getSlug() + ".md"));
+        zos.write(markdown.getBytes(StandardCharsets.UTF_8));
+        zos.closeEntry();
+
+        applyExportAssetChanges(prepared, ev);
+    }
+
+    private void applyExportAssetChanges(ExerciseAssetCatalogHelper.PreparedExportAssets prepared, ExerciseVersion ev) {
+        // 1. Purgar assets no referenciados de la base de datos y hacer flush inmediato para liberar los nombres
+        if (!prepared.unreferencedAssets().isEmpty()) {
+            exerciseAssetRepository.deleteAll(prepared.unreferencedAssets());
+            exerciseAssetRepository.flush();
+        }
+
+        // 2. Renombrado seguro en 2 fases con flush() para evitar colisiones uq_exercise_asset_filename
+        boolean anyChanged = false;
+        for (ExerciseAssetCatalogHelper.ExportedAssetItem item : prepared.referencedAssets()) {
+            if (!item.newFilename().equals(item.asset().getFilename())) {
+                item.asset().setFilename("__tmp_" + UUID.randomUUID().toString().replace("-", "") + "_" + item.newFilename());
+                exerciseAssetRepository.save(item.asset());
+                anyChanged = true;
+            }
+        }
+        if (anyChanged) {
+            exerciseAssetRepository.flush();
+        }
+
+        for (ExerciseAssetCatalogHelper.ExportedAssetItem item : prepared.referencedAssets()) {
+            if (!item.newFilename().equals(item.asset().getFilename())) {
+                item.asset().setFilename(item.newFilename());
+                exerciseAssetRepository.save(item.asset());
+            }
+        }
+        if (anyChanged) {
+            exerciseAssetRepository.flush();
+        }
+
+        // 3. Actualizar enunciado y testsConfig en versión si han cambiado
+        boolean versionChanged = false;
+        if (!Objects.equals(prepared.updatedStatement(), ev.getStatement())) {
+            ev.setStatement(prepared.updatedStatement());
+            versionChanged = true;
+        }
+        if (prepared.updatedTestsConfig() != null && !Objects.equals(prepared.updatedTestsConfig(), ev.getTestsConfig())) {
+            ev.setTestsConfig(prepared.updatedTestsConfig());
+            versionChanged = true;
+        }
+        if (versionChanged) {
+            exerciseVersionRepository.save(ev);
+        }
+    }
+
+    private ExerciseVersion cloneWithStatementAndTests(ExerciseVersion ev, String newStatement, String newTestsConfig) {
+        ExerciseVersion v = new ExerciseVersion();
+        v.setExercise(ev.getExercise());
+        v.setVersionNumber(ev.getVersionNumber());
+        v.setTitle(ev.getTitle());
+        v.setStatement(newStatement);
+        v.setDifficulty(ev.getDifficulty());
+        v.setLanguage(ev.getLanguage());
+        v.setRuntimeId(ev.getRuntimeId());
+        v.setCompileConfig(ev.getCompileConfig());
+        v.setRunConfig(ev.getRunConfig());
+        v.setScoringConfig(ev.getScoringConfig());
+        v.setComparatorConfig(ev.getComparatorConfig());
+        v.setTestsConfig(newTestsConfig != null ? newTestsConfig : ev.getTestsConfig());
+        v.setTemplatesConfig(ev.getTemplatesConfig());
+        v.setTags(ev.getTags());
+        v.setContentHash(ev.getContentHash());
+        v.setGitCommit(ev.getGitCommit());
+        v.setStatus(ev.getStatus());
+        return v;
+    }
+
+    private ExerciseVersion cloneWithStatement(ExerciseVersion ev, String newStatement) {
+        return cloneWithStatementAndTests(ev, newStatement, ev.getTestsConfig());
+    }
+
+    @Transactional
     public void exportExerciseToDirectory(Exercise ex, ExerciseVersion ev, File targetDir) throws Exception {
         if (!targetDir.exists()) {
             targetDir.mkdirs();
         }
-
-        // 1. exercise.md canónico
-        File mdFile = new File(targetDir, "exercise.md");
-        String markdown = ExerciseMarkdownSerializer.serialize(ex, ev, objectMapper);
-        Files.writeString(mdFile.toPath(), markdown, StandardCharsets.UTF_8);
-
-        // 2. Assets de imagen
-        List<ExerciseAsset> assets = exerciseAssetRepository.findByExerciseId(ex.getId());
-        for (ExerciseAsset asset : assets) {
-            File af = new File(targetDir, asset.getFilename());
-            Files.write(af.toPath(), asset.getData());
-        }
+        File assetsDir = new File(targetDir, "assets");
+        exportExerciseFlatToDirectory(ex, ev, targetDir, assetsDir);
     }
 
     public void exportCollectionToDirectory(Collection col, CollectionVersion colVer, File targetDir) throws Exception {

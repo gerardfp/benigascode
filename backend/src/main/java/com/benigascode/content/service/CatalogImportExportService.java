@@ -110,9 +110,9 @@ public class CatalogImportExportService {
             extractZip(file.getInputStream(), tempDir);
             File catalogDir = findCatalogBaseDir(tempDir);
 
-            List<File> exerciseDirs = findExerciseDirectories(catalogDir);
+            List<ExerciseSource> exerciseSources = findExerciseSources(catalogDir);
             List<File> collectionDirs = findCollectionDirectories(catalogDir);
-            if (exerciseDirs.isEmpty() && collectionDirs.isEmpty()) {
+            if (exerciseSources.isEmpty() && collectionDirs.isEmpty()) {
                 throw new ValidationException("El archivo ZIP no contiene ninguna carpeta 'exercises' ni 'collections' válida.");
             }
 
@@ -152,10 +152,10 @@ public class CatalogImportExportService {
         int newCollectionsCount = 0;
 
         // 1. Escanear Ejercicios
-        List<File> exerciseDirs = findExerciseDirectories(catalogDir);
-        for (File exDir : exerciseDirs) {
-            String origSlug = resolveExerciseSlug(exDir);
-            String title = resolveExerciseTitle(exDir, origSlug);
+        List<ExerciseSource> exerciseSources = findExerciseSources(catalogDir);
+        for (ExerciseSource src : exerciseSources) {
+            String origSlug = resolveExerciseSlug(src);
+            String title = resolveExerciseTitle(src, origSlug);
             boolean exists = exerciseRepository.findBySlug(origSlug).isPresent();
 
             String action;
@@ -229,7 +229,7 @@ public class CatalogImportExportService {
             sourceName,
             branch,
             commitSha,
-            exerciseDirs.size(),
+            exerciseSources.size(),
             collectionDirs.size(),
             existingExercisesCount,
             newExercisesCount,
@@ -285,9 +285,9 @@ public class CatalogImportExportService {
             extractZip(file.getInputStream(), tempDir);
             File catalogDir = findCatalogBaseDir(tempDir);
 
-            List<File> exerciseDirs = findExerciseDirectories(catalogDir);
+            List<ExerciseSource> exerciseSources = findExerciseSources(catalogDir);
             List<File> collectionDirs = findCollectionDirectories(catalogDir);
-            if (exerciseDirs.isEmpty() && collectionDirs.isEmpty()) {
+            if (exerciseSources.isEmpty() && collectionDirs.isEmpty()) {
                 throw new ValidationException("El archivo ZIP no contiene ninguna carpeta 'exercises' ni 'collections' válida.");
             }
 
@@ -367,10 +367,10 @@ public class CatalogImportExportService {
         }
 
         // 1. Procesar Ejercicios
-        List<File> exerciseDirs = findExerciseDirectories(catalogDir);
-        for (File exDir : exerciseDirs) {
+        List<ExerciseSource> exerciseSources = findExerciseSources(catalogDir);
+        for (ExerciseSource src : exerciseSources) {
             try {
-                String origSlug = resolveExerciseSlug(exDir);
+                String origSlug = resolveExerciseSlug(src);
                 boolean exists = exerciseRepository.findBySlug(origSlug).isPresent();
 
                 String targetSlug = origSlug;
@@ -399,7 +399,7 @@ public class CatalogImportExportService {
                 }
 
                 ContentSyncService.CollectionDefaults colDefaults = exerciseSlugToDefaults.getOrDefault(origSlug, defaultCollectionDefaults);
-                importSingleExercise(exDir, targetSlug, commitSha, colDefaults);
+                importSingleExercise(src, targetSlug, commitSha, colDefaults);
 
                 if (isNew) importedNew++;
                 else if (isOverwritten) overwritten++;
@@ -408,8 +408,8 @@ public class CatalogImportExportService {
                 createdLog.add("Exercise: " + targetSlug + (isRenamed ? " (renombrado desde " + origSlug + ")" : ""));
 
             } catch (Exception ex) {
-                log.error("Error al importar ejercicio desde " + exDir.getName(), ex);
-                errors.add("Ejercicio " + exDir.getName() + ": " + ex.getMessage());
+                log.error("Error al importar ejercicio desde " + src.defaultSlug(), ex);
+                errors.add("Ejercicio " + src.defaultSlug() + ": " + ex.getMessage());
             }
         }
 
@@ -464,7 +464,7 @@ public class CatalogImportExportService {
     /**
      * Exporta todo el catálogo activo a un repositorio Git haciendo commit y push.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public CatalogExportPushResultDTO exportCatalogToGit(CatalogExportPushRequest request, User teacher) {
         File repoDir = null;
         try {
@@ -545,9 +545,9 @@ public class CatalogImportExportService {
         }
     }
 
-    private void importSingleExercise(File exerciseDir, String targetSlug, String gitCommit, ContentSyncService.CollectionDefaults colDefaults) throws Exception {
-        File mdFile = new File(exerciseDir, "exercise.md");
-        if (!mdFile.exists()) {
+    private void importSingleExercise(ExerciseSource src, String targetSlug, String gitCommit, ContentSyncService.CollectionDefaults colDefaults) throws Exception {
+        File mdFile = src.markdownFile();
+        if (mdFile == null || !mdFile.exists()) {
             return;
         }
 
@@ -558,6 +558,14 @@ public class CatalogImportExportService {
         String finalSlug = (targetSlug != null && !targetSlug.isBlank()) ? targetSlug : pe.slug();
         String title = pe.title();
         String statement = pe.statement();
+
+        // Si se renombró el slug por conflicto NEW_SLUG, actualizar referencias de imágenes en el enunciado
+        if (!finalSlug.equals(src.defaultSlug())) {
+            statement = statement.replaceAll(
+                "assets/" + java.util.regex.Pattern.quote(src.defaultSlug()) + "-img",
+                "assets/" + java.util.regex.Matcher.quoteReplacement(finalSlug) + "-img"
+            );
+        }
 
         String language = colDefaults.language;
         String runtimeId = colDefaults.runtimeId;
@@ -590,7 +598,14 @@ public class CatalogImportExportService {
                 t.put("weight", tc.weight() > 0 ? tc.weight() : 1.0);
                 t.put("is_public", tc.isPublic());
                 if (tc.explanation() != null && !tc.explanation().isBlank()) {
-                    t.put("explanation", tc.explanation());
+                    String explanation = tc.explanation();
+                    if (!finalSlug.equals(src.defaultSlug())) {
+                        explanation = explanation.replaceAll(
+                            "assets/" + java.util.regex.Pattern.quote(src.defaultSlug()) + "-img",
+                            "assets/" + java.util.regex.Matcher.quoteReplacement(finalSlug) + "-img"
+                        );
+                    }
+                    t.put("explanation", explanation);
                 }
 
                 if (tc.isPublic()) {
@@ -612,13 +627,14 @@ public class CatalogImportExportService {
         String comparatorJson = colDefaults.comparatorJson;
 
         String templatesJson = jsonMapper.writeValueAsString(pe.templates() != null ? pe.templates() : Map.of());
+        String solutionsJson = jsonMapper.writeValueAsString(pe.solutions() != null ? pe.solutions() : Map.of());
         String tagsJson = jsonMapper.writeValueAsString(pe.tags() != null ? pe.tags() : List.of());
-        String contentHash = contentSyncService.computeHash(statement + testsJson + compileJson + runJson + templatesJson + tagsJson);
+        String contentHash = contentSyncService.computeHash(statement + testsJson + compileJson + runJson + templatesJson + solutionsJson + tagsJson);
 
         Exercise exercise = exerciseRepository.findBySlug(finalSlug)
                 .orElseGet(() -> exerciseRepository.save(new Exercise(finalSlug)));
 
-        contentSyncService.syncAssets(exercise, exerciseDir);
+        contentSyncService.syncAssets(exercise, src.assetFiles(), finalSlug, src.defaultSlug());
 
         Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
         int nextVersion = latest.map(v -> v.getVersionNumber() + 1).orElse(1);
@@ -628,6 +644,7 @@ public class CatalogImportExportService {
         version.setVersionNumber(nextVersion);
         version.setTitle(title);
         version.setStatement(statement);
+        version.setDifficulty(pe.difficulty());
         version.setLanguage(language);
         version.setRuntimeId(runtimeId);
         version.setCompileConfig(compileJson);
@@ -636,6 +653,7 @@ public class CatalogImportExportService {
         version.setComparatorConfig(comparatorJson);
         version.setTestsConfig(testsJson);
         version.setTemplatesConfig(templatesJson);
+        version.setSolutionsConfig(solutionsJson);
         version.setTags(tagsJson);
         version.setContentHash(contentHash);
         version.setGitCommit(gitCommit);
@@ -694,17 +712,28 @@ public class CatalogImportExportService {
 
     // ==================== DETECCIÓN DE DIRECTORIOS Y SLUGS ====================
 
-    private List<File> findExerciseDirectories(File catalogDir) {
-        List<File> list = new ArrayList<>();
+    public record ExerciseSource(
+            String defaultSlug,
+            File markdownFile,
+            List<File> assetFiles
+    ) {}
+
+    public List<ExerciseSource> findExerciseSources(File catalogDir) {
+        List<ExerciseSource> list = new ArrayList<>();
         File exercisesDir = new File(catalogDir, "exercises");
         if (exercisesDir.exists() && exercisesDir.isDirectory()) {
-            File[] subs = exercisesDir.listFiles(f -> f.isDirectory() && new File(f, "exercise.md").exists());
-            if (subs != null) {
-                Arrays.sort(subs, Comparator.comparing(File::getName));
-                list.addAll(Arrays.asList(subs));
+            File assetsDir = new File(exercisesDir, "assets");
+
+            // Formato plano exclusivo: exercises/*.md con assets en exercises/assets/
+            File[] mdFiles = exercisesDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".md") && !name.equalsIgnoreCase("readme.md"));
+            if (mdFiles != null) {
+                Arrays.sort(mdFiles, Comparator.comparing(File::getName));
+                for (File mdFile : mdFiles) {
+                    String slug = mdFile.getName().substring(0, mdFile.getName().lastIndexOf('.'));
+                    List<File> matchedAssets = contentSyncService.findReferencedAssetsForExercise(slug, mdFile, assetsDir);
+                    list.add(new ExerciseSource(slug, mdFile, matchedAssets));
+                }
             }
-        } else if (new File(catalogDir, "exercise.md").exists()) {
-            list.add(catalogDir);
         }
         return list;
     }
@@ -724,23 +753,23 @@ public class CatalogImportExportService {
         return list;
     }
 
-    private String resolveExerciseSlug(File exDir) {
-        File mdFile = new File(exDir, "exercise.md");
-        if (mdFile.exists()) {
+    private String resolveExerciseSlug(ExerciseSource src) {
+        File mdFile = src.markdownFile();
+        if (mdFile != null && mdFile.exists()) {
             try {
                 String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
-                ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(content, exDir.getName());
+                ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(content, src.defaultSlug());
                 if (res.exercise().slug() != null && !res.exercise().slug().isBlank()) {
                     return res.exercise().slug();
                 }
             } catch (Exception ignored) {}
         }
-        return exDir.getName();
+        return src.defaultSlug();
     }
 
-    private String resolveExerciseTitle(File exDir, String defaultTitle) {
-        File mdFile = new File(exDir, "exercise.md");
-        if (mdFile.exists()) {
+    private String resolveExerciseTitle(ExerciseSource src, String defaultTitle) {
+        File mdFile = src.markdownFile();
+        if (mdFile != null && mdFile.exists()) {
             try {
                 String content = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
                 ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(content, defaultTitle);
@@ -903,9 +932,7 @@ public class CatalogImportExportService {
 
     private boolean hasCatalogMarkers(File dir) {
         return new File(dir, "exercises").isDirectory() ||
-               new File(dir, "collections").isDirectory() ||
-               new File(dir, "exercise.yaml").isFile() ||
-               new File(dir, "statement.md").isFile();
+               new File(dir, "collections").isDirectory();
     }
 }
 

@@ -11,6 +11,7 @@ public record SaveExerciseRequest(
     String title,
     @NotBlank(message = "El enunciado no puede estar vacío")
     String statement,
+    Double difficulty,
     String language,
     String runtimeId,
     String starterCode,
@@ -19,10 +20,52 @@ public record SaveExerciseRequest(
     Map<String, Object> scoringConfig,
     Map<String, Object> comparatorConfig,
     Map<String, String> templates,
+    Map<String, String> solutions,
     List<String> tags,
     List<TestCaseDTO> tests,
     List<TestCaseDTO> testCases
 ) {
+    public SaveExerciseRequest(
+            String slug,
+            String title,
+            String statement,
+            Double difficulty,
+            String language,
+            String runtimeId,
+            String starterCode,
+            Map<String, Object> compileConfig,
+            Map<String, Object> runConfig,
+            Map<String, Object> scoringConfig,
+            Map<String, Object> comparatorConfig,
+            Map<String, String> templates,
+            List<String> tags,
+            List<TestCaseDTO> tests,
+            List<TestCaseDTO> testCases
+    ) {
+        this(slug, title, statement, difficulty, language, runtimeId, starterCode, compileConfig, runConfig,
+                scoringConfig, comparatorConfig, templates, Map.of(), tags, tests, testCases);
+    }
+
+    public SaveExerciseRequest(
+            String slug,
+            String title,
+            String statement,
+            String language,
+            String runtimeId,
+            String starterCode,
+            Map<String, Object> compileConfig,
+            Map<String, Object> runConfig,
+            Map<String, Object> scoringConfig,
+            Map<String, Object> comparatorConfig,
+            Map<String, String> templates,
+            List<String> tags,
+            List<TestCaseDTO> tests,
+            List<TestCaseDTO> testCases
+    ) {
+        this(slug, title, statement, null, language, runtimeId, starterCode, compileConfig, runConfig,
+                scoringConfig, comparatorConfig, templates, Map.of(), tags, tests, testCases);
+    }
+
     public List<TestCaseDTO> effectiveTests() {
         if (testCases != null && !testCases.isEmpty()) return testCases;
         if (tests != null) return tests;

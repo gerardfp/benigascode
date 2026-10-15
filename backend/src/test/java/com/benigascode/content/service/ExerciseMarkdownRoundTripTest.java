@@ -20,6 +20,7 @@ public class ExerciseMarkdownRoundTripTest {
         String md = """
                 ---
                 slug: suma-dos-numeros
+                difficulty: 2.5
                 tags: [basico, matematicas, i/o]
                 ---
                 # Suma de dos números
@@ -57,9 +58,8 @@ public class ExerciseMarkdownRoundTripTest {
                 ```output
                 8
                 ```
-                ```explanation
+                #### Explanation
                 La suma de 3 y 5 es 8.
-                ```
 
                 ### Test private 2
                 ```input
@@ -76,6 +76,7 @@ public class ExerciseMarkdownRoundTripTest {
 
         assertEquals("suma-dos-numeros", ex.slug());
         assertEquals("Suma de dos números", ex.title());
+        assertEquals(2.5, ex.difficulty());
         assertEquals(List.of("basico", "matematicas", "i/o"), ex.tags());
         assertTrue(ex.statement().contains("Escribe un programa que lea dos números enteros."));
         assertTrue(ex.statement().contains("## Entrada"));
@@ -107,6 +108,7 @@ public class ExerciseMarkdownRoundTripTest {
         ev.setExercise(exercise);
         ev.setTitle("Fibonacci con memoización");
         ev.setStatement("Calcula el enésimo término de la sucesión de Fibonacci.");
+        ev.setDifficulty(7.5);
         ev.setLanguage("java");
         ev.setRuntimeId("java-26");
         ev.setTags(objectMapper.writeValueAsString(List.of("dp", "recursividad")));
@@ -128,6 +130,10 @@ public class ExerciseMarkdownRoundTripTest {
         // Serializar a Markdown
         String serializedMd = ExerciseMarkdownSerializer.serialize(exercise, ev, objectMapper);
 
+        assertTrue(serializedMd.contains("difficulty: 7.5"));
+        assertTrue(serializedMd.contains("#### Explanation\nF(5) = 5"));
+        assertFalse(serializedMd.contains("```explanation"));
+
         // Volver a parsear
         ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(serializedMd, null);
         assertTrue(res.success());
@@ -135,6 +141,7 @@ public class ExerciseMarkdownRoundTripTest {
 
         assertEquals("fibonacci-memo", pe.slug());
         assertEquals("Fibonacci con memoización", pe.title());
+        assertEquals(7.5, pe.difficulty());
         assertEquals(List.of("dp", "recursividad"), pe.tags());
         assertEquals("Calcula el enésimo término de la sucesión de Fibonacci.", pe.statement());
         assertEquals(2, pe.templates().size());
@@ -152,5 +159,124 @@ public class ExerciseMarkdownRoundTripTest {
         assertEquals(2.5, tcPrivate.weight());
         assertEquals("10\n", tcPrivate.input());
         assertEquals("55\n", tcPrivate.effectiveExpected());
+    }
+
+    @Test
+    void testParseSolutionsSection() {
+        String md = """
+                # Suma de dos números
+
+                Escribe un programa que sume dos números.
+
+                ## Plantillas
+
+                ```java
+                public class Main {}
+                ```
+
+                ## Solutions
+
+                ```java
+                import java.util.Scanner;
+                public class Main {
+                    public static void main(String[] args) {
+                        Scanner sc = new Scanner(System.in);
+                        System.out.println(sc.nextInt() + sc.nextInt());
+                    }
+                }
+                ```
+
+                ```python
+                import sys
+                print(sum(map(int, sys.stdin.read().split())))
+                ```
+
+                ## Tests
+
+                ### Test
+                ```input
+                2 3
+                ```
+                ```output
+                5
+                ```
+                """;
+
+        ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(md, "suma");
+        assertTrue(res.success());
+        ExerciseMarkdownParser.ParsedExercise ex = res.exercise();
+
+        assertEquals("Suma de dos números", ex.title());
+        assertEquals("Escribe un programa que sume dos números.", ex.statement());
+        assertFalse(ex.statement().contains("Solutions"));
+        assertFalse(ex.statement().contains("Scanner"));
+
+        assertEquals(1, ex.templates().size());
+        assertTrue(ex.templates().containsKey("java"));
+
+        assertEquals(2, ex.solutions().size());
+        assertTrue(ex.solutions().containsKey("java"));
+        assertTrue(ex.solutions().get("java").contains("Scanner sc = new Scanner"));
+        assertTrue(ex.solutions().containsKey("python"));
+        assertTrue(ex.solutions().get("python").contains("sys.stdin.read"));
+
+        assertEquals(1, ex.testCases().size());
+        assertEquals("2 3\n", ex.testCases().get(0).input());
+        assertEquals("5\n", ex.testCases().get(0).effectiveExpected());
+    }
+
+    @Test
+    void testSolutionsRoundTripAndDifferentSectionOrder() throws Exception {
+        String mdOrder = """
+                # Ejercicio Invertido
+
+                Descripción del problema.
+
+                ## Solutions
+
+                ```python
+                print("Hola")
+                ```
+
+                ## Plantillas
+
+                ```python
+                # Plantilla
+                ```
+
+                ## Tests
+
+                ### Test
+                ```input
+                1
+                ```
+                ```output
+                Hola
+                ```
+                """;
+
+        ExerciseMarkdownParser.ParseResult res = ExerciseMarkdownParser.parse(mdOrder, "ej-invertido");
+        assertTrue(res.success());
+        ExerciseMarkdownParser.ParsedExercise pe = res.exercise();
+
+        assertEquals("Descripción del problema.", pe.statement());
+        assertEquals(1, pe.solutions().size());
+        assertTrue(pe.solutions().get("python").contains("print(\"Hola\")"));
+        assertEquals(1, pe.templates().size());
+        assertEquals(1, pe.testCases().size());
+
+        // Serializar de nuevo
+        String serialized = ExerciseMarkdownSerializer.serialize(
+                pe.title(), pe.slug(), pe.difficulty(), pe.tags(), pe.statement(), pe.templates(), pe.solutions(), pe.testCases()
+        );
+
+        assertTrue(serialized.contains("## Solutions\n\n```python\nprint(\"Hola\")"));
+        assertTrue(serialized.contains("## Plantillas\n\n```python\n# Plantilla"));
+
+        // Parsear de nuevo tras serializar
+        ExerciseMarkdownParser.ParseResult roundtripRes = ExerciseMarkdownParser.parse(serialized, null);
+        assertTrue(roundtripRes.success());
+        assertEquals(1, roundtripRes.exercise().solutions().size());
+        assertEquals("print(\"Hola\")\n", roundtripRes.exercise().solutions().get("python"));
     }
 }

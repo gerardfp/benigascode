@@ -6,6 +6,7 @@ import com.benigascode.content.repository.ContentSyncRepository;
 import com.benigascode.content.service.ContentExportService;
 import com.benigascode.content.service.ContentService;
 import com.benigascode.content.service.ContentSyncService;
+import com.benigascode.content.service.ExerciseSolutionTestingService;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.service.UserService;
 import jakarta.validation.Valid;
@@ -31,20 +32,33 @@ public class TeacherContentController {
     private final ContentService contentService;
     private final ContentExportService exportService;
     private final UserService userService;
+    private final ExerciseSolutionTestingService solutionTestingService;
 
     public TeacherContentController(ContentSyncService syncService,
                                     ContentSyncRepository syncRepository,
                                     ContentService contentService,
                                     ContentExportService exportService,
-                                    UserService userService) {
+                                    UserService userService,
+                                    ExerciseSolutionTestingService solutionTestingService) {
         this.syncService = syncService;
         this.syncRepository = syncRepository;
         this.contentService = contentService;
         this.exportService = exportService;
         this.userService = userService;
+        this.solutionTestingService = solutionTestingService;
     }
 
     // ==================== EJERCICIOS ====================
+
+    @PostMapping("/exercises/validate-solutions")
+    public ResponseEntity<ValidateSolutionsResponse> validateSolutions(@RequestBody ValidateSolutionsRequest request) {
+        return ResponseEntity.ok(solutionTestingService.validateSolutions(request));
+    }
+
+    @PostMapping("/exercises/generate-test-outputs")
+    public ResponseEntity<GenerateTestOutputsResponse> generateTestOutputs(@RequestBody GenerateTestOutputsRequest request) {
+        return ResponseEntity.ok(solutionTestingService.generateOutputs(request));
+    }
 
     @GetMapping("/exercises")
     public ResponseEntity<List<ExerciseDTO>> listExercises(@RequestParam(required = false) String search) {
@@ -87,6 +101,13 @@ public class TeacherContentController {
     public ResponseEntity<Void> deleteExercise(@PathVariable UUID id) {
         User teacher = userService.getCurrentUser();
         contentService.deleteExercise(id, teacher);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/exercises/bulk-delete")
+    public ResponseEntity<Void> bulkDeleteExercises(@RequestBody List<UUID> exerciseIds) {
+        User teacher = userService.getCurrentUser();
+        contentService.deleteExercisesBulk(exerciseIds, teacher);
         return ResponseEntity.noContent().build();
     }
 

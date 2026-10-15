@@ -60,6 +60,10 @@ public class ExerciseVersion {
     private String templatesConfig = "{}";
 
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "solutions_config", columnDefinition = "JSONB")
+    private String solutionsConfig = "{}";
+
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tags", columnDefinition = "JSONB")
     private String tags = "[]";
 
@@ -68,6 +72,9 @@ public class ExerciseVersion {
 
     @Column(name = "git_commit", length = 40)
     private String gitCommit;
+
+    @Column(name = "difficulty")
+    private Double difficulty;
 
     @Column(nullable = false, length = 30)
     private String status = "PUBLISHED";
@@ -182,6 +189,14 @@ public class ExerciseVersion {
         this.templatesConfig = templatesConfig;
     }
 
+    public String getSolutionsConfig() {
+        return solutionsConfig;
+    }
+
+    public void setSolutionsConfig(String solutionsConfig) {
+        this.solutionsConfig = solutionsConfig;
+    }
+
     public String getTags() {
         return tags;
     }
@@ -204,6 +219,14 @@ public class ExerciseVersion {
 
     public void setGitCommit(String gitCommit) {
         this.gitCommit = gitCommit;
+    }
+
+    public Double getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Double difficulty) {
+        this.difficulty = difficulty;
     }
 
     public String getStatus() {

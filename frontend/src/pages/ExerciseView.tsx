@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save } from 'lucide-react';
-import { renderMarkdown } from '../utils/markdown';
+import { MarkdownView } from '../components/MarkdownView';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
@@ -619,8 +619,8 @@ export const ExerciseView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSaveWorkspace]);
 
-  // Renderizado del enunciado Markdown
-  const renderedStatementHtml = useMemo(() => {
+  // Enunciado del ejercicio procesado sin título duplicado si ya aparece como primer encabezado #
+  const cleanStatementText = useMemo(() => {
     if (!exercise?.statement) return '';
 
     let statementText = exercise.statement;
@@ -632,12 +632,8 @@ export const ExerciseView: React.FC = () => {
       }
     }
 
-    return renderMarkdown(statementText, exercise.id);
-  }, [exercise?.statement, exercise?.id, exercise?.title]);
-
-  const renderExplanationHtml = useCallback((explanationText: string) => {
-    return renderMarkdown(explanationText, exercise?.id);
-  }, [exercise?.id]);
+    return statementText;
+  }, [exercise?.statement, exercise?.title]);
 
   // Resumen y estado para la barra superior del panel de Tests
   const testSummary = useMemo(() => {
@@ -1224,10 +1220,28 @@ export const ExerciseView: React.FC = () => {
                   ) : null}
                 </div>
 
-                {/* Etiquetas del ejercicio configuradas por el profesor */}
-                {exercise.tags && exercise.tags.length > 0 && (
+                {/* Metadatos: Dificultad y Etiquetas */}
+                {((exercise.difficulty !== undefined && exercise.difficulty !== null) || (exercise.tags && exercise.tags.length > 0)) && (
                   <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {exercise.tags.map((tag) => {
+                    {exercise.difficulty !== undefined && exercise.difficulty !== null && (
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '0.25rem',
+                          padding: '0.2rem 0.5rem',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        🎯 Dificultad: {exercise.difficulty} / 10
+                      </span>
+                    )}
+                    {exercise.tags && exercise.tags.map((tag) => {
                       if (tag.includes(':')) {
                         const [cat, ...val] = tag.split(':');
                         return <TagBadge key={tag} category={cat} value={val.join(':')} />;
@@ -1237,9 +1251,10 @@ export const ExerciseView: React.FC = () => {
                   </div>
                 )}
 
-                <div
+                <MarkdownView
                   className="markdown-statement"
-                  dangerouslySetInnerHTML={{ __html: renderedStatementHtml }}
+                  content={cleanStatementText}
+                  exerciseId={exercise.id}
                 />
 
                 {/* Tests públicos informativos dentro de la misma tarjeta con su <h2> */}
@@ -1267,10 +1282,11 @@ export const ExerciseView: React.FC = () => {
                           {t.explanation && (
                             <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
                               <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                              <div
+                              <MarkdownView
                                 className="markdown-statement"
                                 style={{ marginTop: '0.25rem' }}
-                                dangerouslySetInnerHTML={{ __html: renderExplanationHtml(t.explanation) }}
+                                content={t.explanation}
+                                exerciseId={exercise?.id}
                               />
                             </div>
                           )}

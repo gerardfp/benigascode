@@ -145,6 +145,7 @@ def parse_explanations(body: str) -> dict:
     return explanations
 
 def parse_exercise(slug_dir: str):
+    slug_dir = os.path.normpath(slug_dir)
     slug = os.path.basename(slug_dir)
     json_path = os.path.join(slug_dir, f"{slug}.json")
     if not os.path.exists(json_path):
@@ -240,7 +241,8 @@ def parse_exercise(slug_dir: str):
         test_obj = {
             "name": f"Test {i + 1}",
             "input": test_input,
-            "expected": test_output
+            "expected": test_output,
+            "weight": 1.0
         }
         if exp_text:
             test_obj["explanation"] = exp_text
@@ -294,7 +296,7 @@ def parse_exercise(slug_dir: str):
     }
 
 def main():
-    print("=== Iniciando migración de ejercicios HackerRank (chs) ===")
+    print("=== Iniciando migración/re-importación de ejercicios HackerRank (chs) ===")
     ex_folders = sorted([
         os.path.join(CHS_DIR, d)
         for d in os.listdir(CHS_DIR)
@@ -302,22 +304,29 @@ def main():
     ])
     print(f"Total carpetas encontradas: {len(ex_folders)}")
 
+    print("Consultando ejercicios existentes en la base de datos PostgreSQL...")
+    query_cmd = [
+        "docker", "exec", "benigascode-postgres-dev",
+        "psql", "-U", "benigascode_user", "-d", "benigascode", "-t", "-A", "-c",
+        """
+        SELECT json_build_object(
+            'exercises', COALESCE((SELECT json_object_agg(slug, id) FROM exercises), '{}'::json),
+            'max_versions', COALESCE((SELECT json_object_agg(exercise_id, max_v) FROM (SELECT exercise_id, MAX(version_number) as max_v FROM exercise_versions GROUP BY exercise_id) s), '{}'::json)
+        );
+        """
+    ]
+    raw_info = subprocess.check_output(query_cmd).decode("utf-8")
+    db_info = json.loads(raw_info.strip())
+    existing_exercises = db_info.get("exercises") or {}
+    max_versions = db_info.get("max_versions") or {}
+    print(f"Ejercicios actualmente en BD: {len(existing_exercises)}")
+
     sql_statements = []
-    # 1. Limpieza de base de datos
     sql_statements.append("BEGIN;")
-    sql_statements.append("DELETE FROM test_results;")
-    sql_statements.append("DELETE FROM evaluations;")
-    sql_statements.append("DELETE FROM evaluation_jobs;")
-    sql_statements.append("DELETE FROM attempt_ledger;")
-    sql_statements.append("DELETE FROM submissions;")
-    sql_statements.append("DELETE FROM student_progress;")
-    sql_statements.append("DELETE FROM student_workspaces;")
-    sql_statements.append("DELETE FROM exercise_drafts;")
-    sql_statements.append("DELETE FROM exercise_assets;")
-    sql_statements.append("DELETE FROM exercise_versions;")
-    sql_statements.append("DELETE FROM exercises;")
 
     parsed_count = 0
+    overwritten_count = 0
+    created_new_count = 0
     total_assets_count = 0
     templates_count = 0
 
@@ -331,8 +340,6 @@ def main():
         if not parsed:
             continue
 
-        ex_id = str(uuid.uuid4())
-        ver_id = str(uuid.uuid4())
         slug = parsed["slug"]
         title = parsed["title"]
         stmt = parsed["statement"]
@@ -347,24 +354,39 @@ def main():
             (stmt + tests_json + compile_config_str + run_config_str + tpls_json).encode("utf-8")
         ).hexdigest()
 
-        # Insert exercise
-        sql_statements.append(
-            f"INSERT INTO exercises (id, slug, created_at) "
-            f"VALUES ('{ex_id}', {sql_escape(slug)}, NOW());"
-        )
+        if slug in existing_exercises:
+            ex_id = str(existing_exercises[slug])
+            max_v = int(max_versions.get(ex_id, 0))
+            ver_num = max_v + 1
+            overwritten_count += 1
+
+            # Descartar borradores antiguos para reflejar la versión reimportada
+            sql_statements.append(f"DELETE FROM exercise_drafts WHERE exercise_id = '{ex_id}';")
+            # Reemplazar assets antiguos por los actuales
+            sql_statements.append(f"DELETE FROM exercise_assets WHERE exercise_id = '{ex_id}';")
+        else:
+            ex_id = str(uuid.uuid4())
+            ver_num = 1
+            created_new_count += 1
+            sql_statements.append(
+                f"INSERT INTO exercises (id, slug, created_at) "
+                f"VALUES ('{ex_id}', {sql_escape(slug)}, NOW());"
+            )
+
+        ver_id = str(uuid.uuid4())
 
         # Insert exercise_version
         sql_statements.append(
             f"INSERT INTO exercise_versions ("
             f"id, exercise_id, version_number, title, statement, language, runtime_id, "
             f"compile_config, run_config, scoring_config, comparator_config, "
-            f"tests_config, templates_config, tags, content_hash, status, created_at"
+            f"tests_config, templates_config, tags, content_hash, status, created_at, difficulty"
             f") VALUES ("
-            f"'{ver_id}', '{ex_id}', 1, {sql_escape(title)}, {sql_escape(stmt)}, 'java', 'java-26', "
+            f"'{ver_id}', '{ex_id}', {ver_num}, {sql_escape(title)}, {sql_escape(stmt)}, 'java', 'java-26', "
             f"{sql_escape(compile_config_str)}::jsonb, {sql_escape(run_config_str)}::jsonb, "
             f"{sql_escape(scoring_config_str)}::jsonb, {sql_escape(comparator_config_str)}::jsonb, "
             f"{sql_escape(tests_json)}::jsonb, {sql_escape(tpls_json)}::jsonb, "
-            f"{sql_escape(tags_json)}::jsonb, '{content_hash}', 'PUBLISHED', NOW()"
+            f"{sql_escape(tags_json)}::jsonb, '{content_hash}', 'PUBLISHED', NOW(), NULL"
             f");"
         )
 
@@ -387,6 +409,8 @@ def main():
     sql_statements.append("COMMIT;")
 
     print(f"Ejercicios procesados: {parsed_count}")
+    print(f"  - Sobreescritos (existían en BD): {overwritten_count}")
+    print(f"  - Nuevos insertados: {created_new_count}")
     print(f"Ejercicios con plantilla java8 conservada: {templates_count}")
     print(f"Total assets (imágenes) insertados: {total_assets_count}")
     print(f"Total sentencias SQL generadas: {len(sql_statements)}")

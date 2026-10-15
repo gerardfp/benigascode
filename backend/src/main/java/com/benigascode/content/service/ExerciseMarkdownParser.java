@@ -11,11 +11,21 @@ public class ExerciseMarkdownParser {
     public record ParsedExercise(
             String title,
             String slug,
+            Double difficulty,
             List<String> tags,
             String statement,
             Map<String, String> templates,
+            Map<String, String> solutions,
             List<TestCaseDTO> testCases
-    ) {}
+    ) {
+        public ParsedExercise(String title, String slug, Double difficulty, List<String> tags, String statement, Map<String, String> templates, List<TestCaseDTO> testCases) {
+            this(title, slug, difficulty, tags, statement, templates, Map.of(), testCases);
+        }
+
+        public ParsedExercise(String title, String slug, List<String> tags, String statement, Map<String, String> templates, List<TestCaseDTO> testCases) {
+            this(title, slug, null, tags, statement, templates, Map.of(), testCases);
+        }
+    }
 
     public record ParseResult(
             boolean success,
@@ -26,6 +36,7 @@ public class ExerciseMarkdownParser {
 
     private static final Pattern FRONTMATTER_PATTERN = Pattern.compile("^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n?", Pattern.MULTILINE);
     private static final Pattern SLUG_PATTERN = Pattern.compile("^slug:\\s*['\"]?([^'\"\\r\\n]+)['\"]?", Pattern.MULTILINE);
+    private static final Pattern DIFFICULTY_PATTERN = Pattern.compile("^(?:difficulty|dificultad):\\s*([0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
     private static final Pattern INLINE_TAGS_PATTERN = Pattern.compile("^tags:\\s*\\[(.*?)\\]", Pattern.MULTILINE);
     private static final Pattern LIST_TAGS_PATTERN = Pattern.compile("^tags:\\s*\\r?\\n((?:\\s*-\\s*[^\\r\\n]+\\r?\\n?)+)", Pattern.MULTILINE);
     private static final Pattern TITLE_PATTERN = Pattern.compile("^#\\s+([^\\r\\n]+)", Pattern.MULTILINE);
@@ -33,6 +44,7 @@ public class ExerciseMarkdownParser {
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("```([a-zA-Z0-9_\\-#+]+)?\\r?\\n([\\s\\S]*?)```");
     private static final Pattern TEST_HEADER_PATTERN = Pattern.compile("^###\\s+Test(?:\\s+([^\\r\\n]*))?", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
     private static final Pattern WEIGHT_PATTERN = Pattern.compile("(?:peso[:=]\\s*|\\b)([0-9]+(?:\\.[0-9]+)?)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern EXPLANATION_HEADER_PATTERN = Pattern.compile("^####\\s+(?:explanation|explicación|explicacion)\\b.*$", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
 
     public static String slugify(String text) {
         if (text == null || text.isBlank()) return "";
@@ -50,6 +62,7 @@ public class ExerciseMarkdownParser {
         String text = (rawMarkdown != null ? rawMarkdown : "").replace("\r\n", "\n");
 
         String slug = "";
+        Double difficulty = null;
         List<String> tags = new ArrayList<>();
 
         // 1. Extraer Frontmatter YAML
@@ -61,6 +74,16 @@ public class ExerciseMarkdownParser {
             Matcher slugMatch = SLUG_PATTERN.matcher(yamlContent);
             if (slugMatch.find()) {
                 slug = slugMatch.group(1).trim();
+            }
+
+            Matcher diffMatch = DIFFICULTY_PATTERN.matcher(yamlContent);
+            if (diffMatch.find()) {
+                try {
+                    double val = Double.parseDouble(diffMatch.group(1));
+                    if (val < 0.0) val = 0.0;
+                    if (val > 10.0) val = 10.0;
+                    difficulty = Math.round(val * 10.0) / 10.0;
+                } catch (NumberFormatException ignored) {}
             }
 
             Matcher inlineTags = INLINE_TAGS_PATTERN.matcher(yamlContent);
@@ -104,6 +127,7 @@ public class ExerciseMarkdownParser {
 
         // 3. Identificar secciones H2 (##)
         int templatesStartIndex = -1;
+        int solutionsStartIndex = -1;
         int testsStartIndex = -1;
 
         Matcher h2Matcher = H2_PATTERN.matcher(text);
@@ -111,17 +135,20 @@ public class ExerciseMarkdownParser {
             String heading = h2Matcher.group(1).trim().toLowerCase();
             if (isTemplatesHeading(heading) && templatesStartIndex == -1) {
                 templatesStartIndex = h2Matcher.start();
+            } else if (isSolutionsHeading(heading) && solutionsStartIndex == -1) {
+                solutionsStartIndex = h2Matcher.start();
             } else if (isTestsHeading(heading) && testsStartIndex == -1) {
                 testsStartIndex = h2Matcher.start();
             }
         }
 
-        int statementEndIndex = text.length();
-        if (templatesStartIndex != -1) {
-            statementEndIndex = templatesStartIndex;
-        } else if (testsStartIndex != -1) {
-            statementEndIndex = testsStartIndex;
-        }
+        List<Integer> sectionStarts = new ArrayList<>();
+        if (templatesStartIndex != -1) sectionStarts.add(templatesStartIndex);
+        if (solutionsStartIndex != -1) sectionStarts.add(solutionsStartIndex);
+        if (testsStartIndex != -1) sectionStarts.add(testsStartIndex);
+        Collections.sort(sectionStarts);
+
+        int statementEndIndex = sectionStarts.isEmpty() ? text.length() : sectionStarts.get(0);
 
         String rawStatement = "";
         if (titleEndIndex <= statementEndIndex) {
@@ -131,7 +158,7 @@ public class ExerciseMarkdownParser {
         // 4. Extraer Plantillas
         Map<String, String> templates = new LinkedHashMap<>();
         if (templatesStartIndex != -1) {
-            int templatesEndIndex = testsStartIndex != -1 ? testsStartIndex : text.length();
+            int templatesEndIndex = nextSectionEnd(sectionStarts, templatesStartIndex, text.length());
             String templatesBlock = text.substring(templatesStartIndex, templatesEndIndex);
 
             Matcher codeMatcher = CODE_BLOCK_PATTERN.matcher(templatesBlock);
@@ -143,10 +170,26 @@ public class ExerciseMarkdownParser {
             }
         }
 
-        // 5. Extraer Tests
+        // 5. Extraer Soluciones (## Solutions)
+        Map<String, String> solutions = new LinkedHashMap<>();
+        if (solutionsStartIndex != -1) {
+            int solutionsEndIndex = nextSectionEnd(sectionStarts, solutionsStartIndex, text.length());
+            String solutionsBlock = text.substring(solutionsStartIndex, solutionsEndIndex);
+
+            Matcher codeMatcher = CODE_BLOCK_PATTERN.matcher(solutionsBlock);
+            while (codeMatcher.find()) {
+                String rawLang = codeMatcher.group(1) != null ? codeMatcher.group(1).trim().toLowerCase() : "java";
+                String normLang = normalizeLang(rawLang);
+                String codeContent = codeMatcher.group(2);
+                solutions.put(normLang, codeContent);
+            }
+        }
+
+        // 6. Extraer Tests
         List<TestCaseDTO> testCases = new ArrayList<>();
         if (testsStartIndex != -1) {
-            String testsBlock = text.substring(testsStartIndex);
+            int testsEndIndex = nextSectionEnd(sectionStarts, testsStartIndex, text.length());
+            String testsBlock = text.substring(testsStartIndex, testsEndIndex);
 
             record TestHeader(int index, String params) {}
             List<TestHeader> testHeaders = new ArrayList<>();
@@ -195,8 +238,6 @@ public class ExerciseMarkdownParser {
                         testInput = content;
                     } else if (tag.matches("^(output|out|salida|stdout|expected)$")) {
                         testOutput = content;
-                    } else if (tag.matches("^(explanation|explicacion|explicación)$")) {
-                        testExplanation = content.trim();
                     } else {
                         fallbackBlocks.add(new FallbackBlock(tag, content));
                     }
@@ -208,8 +249,23 @@ public class ExerciseMarkdownParser {
                 if (testOutput == null && !fallbackBlocks.isEmpty()) {
                     testOutput = fallbackBlocks.remove(0).content;
                 }
-                if (testExplanation == null && !fallbackBlocks.isEmpty()) {
-                    testExplanation = fallbackBlocks.remove(0).content.trim();
+
+                // Extraer explicación con #### Explanation
+                Matcher explMatcher = EXPLANATION_HEADER_PATTERN.matcher(chunk);
+                if (explMatcher.find()) {
+                    int explStart = explMatcher.end();
+                    int explEnd = chunk.length();
+                    Matcher cbMatcher = CODE_BLOCK_PATTERN.matcher(chunk);
+                    while (cbMatcher.find()) {
+                        if (cbMatcher.start() > explStart) {
+                            String tag = cbMatcher.group(1) != null ? cbMatcher.group(1).trim().toLowerCase() : "";
+                            if (tag.matches("^(input|in|entrada|stdin|output|out|salida|stdout|expected)$")) {
+                                explEnd = Math.min(explEnd, cbMatcher.start());
+                                break;
+                            }
+                        }
+                    }
+                    testExplanation = chunk.substring(explStart, explEnd).trim();
                 }
 
                 String pubLabel = isPublic ? "pub-" + (i + 1) : "priv-" + (i + 1);
@@ -235,13 +291,28 @@ public class ExerciseMarkdownParser {
         ParsedExercise exercise = new ParsedExercise(
                 title,
                 slug,
+                difficulty,
                 tags,
                 rawStatement,
                 templates,
+                solutions,
                 testCases
         );
 
         return new ParseResult(errors.isEmpty(), exercise, errors, warnings);
+    }
+
+    private static int nextSectionEnd(List<Integer> starts, int currentStart, int textLength) {
+        for (int s : starts) {
+            if (s > currentStart) {
+                return s;
+            }
+        }
+        return textLength;
+    }
+
+    private static boolean isSolutionsHeading(String clean) {
+        return clean.matches("^(solutions?|soluci[oó]n(es)?|código\\s*soluci[oó]n|reference\\s*solutions?)$");
     }
 
     private static boolean isTemplatesHeading(String clean) {

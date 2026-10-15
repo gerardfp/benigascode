@@ -141,18 +141,24 @@ public class ContentSyncService {
             // 2. Sincronizar Ejercicios
             File exercisesDir = new File(rootDir, "exercises");
             if (exercisesDir.exists() && exercisesDir.isDirectory()) {
-                File[] exDirs = exercisesDir.listFiles(f -> f.isDirectory() && new File(f, "exercise.md").exists());
-                if (exDirs != null) {
-                    for (File exDir : exDirs) {
+                File assetsDir = new File(exercisesDir, "assets");
+
+                // A. Nuevo formato plano: exercises/*.md
+                File[] mdFiles = exercisesDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".md") && !name.equalsIgnoreCase("readme.md"));
+                if (mdFiles != null) {
+                    Arrays.sort(mdFiles, Comparator.comparing(File::getName));
+                    for (File mdFile : mdFiles) {
                         try {
-                            CollectionDefaults colDefaults = exerciseSlugToDefaults.getOrDefault(exDir.getName(), defaultCollectionDefaults);
-                            String versionInfo = syncExercise(exDir, sync.getGitCommit(), colDefaults);
+                            String slug = mdFile.getName().substring(0, mdFile.getName().lastIndexOf('.'));
+                            CollectionDefaults colDefaults = exerciseSlugToDefaults.getOrDefault(slug, defaultCollectionDefaults);
+                            List<File> matchedAssets = findReferencedAssetsForExercise(slug, mdFile, assetsDir);
+                            String versionInfo = syncExerciseFlat(slug, mdFile, matchedAssets, sync.getGitCommit(), colDefaults);
                             if (versionInfo != null) {
                                 createdVersions.add(versionInfo);
                             }
                         } catch (Exception ex) {
-                            log.error("Error al sincronizar ejercicio: " + exDir.getName(), ex);
-                            errors.add("Ejercicio " + exDir.getName() + ": " + ex.getMessage());
+                            log.error("Error al sincronizar ejercicio plano: " + mdFile.getName(), ex);
+                            errors.add("Ejercicio " + mdFile.getName() + ": " + ex.getMessage());
                         }
                     }
                 }
@@ -188,21 +194,54 @@ public class ContentSyncService {
         }
     }
 
-    private String syncExercise(File exerciseDir, String gitCommit, CollectionDefaults colDefaults) throws Exception {
-        File mdFile = new File(exerciseDir, "exercise.md");
+    public List<File> findReferencedAssetsForExercise(String slug, File mdFile, File assetsDir) {
+        if (assetsDir == null || !assetsDir.exists() || !assetsDir.isDirectory() || mdFile == null || !mdFile.exists()) {
+            return List.of();
+        }
+        List<File> matched = new ArrayList<>();
+        try {
+            String statement = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
+            List<String> refUrls = ExerciseAssetCatalogHelper.extractReferencedImageUrls(statement);
+            File[] allFiles = assetsDir.listFiles(File::isFile);
+            if (allFiles != null) {
+                for (File af : allFiles) {
+                    String name = af.getName();
+                    boolean isReferenced = false;
+                    for (String u : refUrls) {
+                        if (ExerciseAssetCatalogHelper.matchesAssetFilename(u, name)) {
+                            isReferenced = true;
+                            break;
+                        }
+                    }
+                    if (isReferenced) {
+                        matched.add(af);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return matched;
+    }
+
+    public String syncExerciseFlat(String slug, File mdFile, List<File> assetFiles, String gitCommit, CollectionDefaults colDefaults) throws Exception {
         if (!mdFile.exists()) {
             return null;
         }
 
         String rawContent = Files.readString(mdFile.toPath(), StandardCharsets.UTF_8);
-        ExerciseMarkdownParser.ParseResult parseResult = ExerciseMarkdownParser.parse(rawContent, exerciseDir.getName());
+        ExerciseMarkdownParser.ParseResult parseResult = ExerciseMarkdownParser.parse(rawContent, slug);
         ExerciseMarkdownParser.ParsedExercise pe = parseResult.exercise();
 
-        String slug = (pe.slug() != null && !pe.slug().isBlank()) ? pe.slug() : exerciseDir.getName();
+        String finalSlug = (pe.slug() != null && !pe.slug().isBlank()) ? pe.slug() : slug;
         String title = pe.title();
         String statement = pe.statement();
 
-        // Determinar lenguaje y runtime según plantillas definidas o defaults
+        if (!finalSlug.equals(slug)) {
+            statement = statement.replaceAll(
+                "assets/" + java.util.regex.Pattern.quote(slug) + "-img",
+                "assets/" + java.util.regex.Matcher.quoteReplacement(finalSlug) + "-img"
+            );
+        }
+
         String language = colDefaults.language;
         String runtimeId = colDefaults.runtimeId;
         if (pe.templates() != null && !pe.templates().isEmpty()) {
@@ -219,7 +258,6 @@ public class ContentSyncService {
             }
         }
 
-        // Construir test suite JSON
         Map<String, Object> testSuite = new HashMap<>();
         List<Map<String, Object>> pubTests = new ArrayList<>();
         List<Map<String, Object>> privTests = new ArrayList<>();
@@ -235,7 +273,14 @@ public class ContentSyncService {
                 t.put("weight", tc.weight() > 0 ? tc.weight() : 1.0);
                 t.put("is_public", tc.isPublic());
                 if (tc.explanation() != null && !tc.explanation().isBlank()) {
-                    t.put("explanation", tc.explanation());
+                    String explanation = tc.explanation();
+                    if (!finalSlug.equals(slug)) {
+                        explanation = explanation.replaceAll(
+                            "assets/" + java.util.regex.Pattern.quote(slug) + "-img",
+                            "assets/" + java.util.regex.Matcher.quoteReplacement(finalSlug) + "-img"
+                        );
+                    }
+                    t.put("explanation", explanation);
                 }
 
                 if (tc.isPublic()) {
@@ -257,19 +302,18 @@ public class ContentSyncService {
         String comparatorJson = colDefaults.comparatorJson;
 
         String templatesJson = jsonMapper.writeValueAsString(pe.templates() != null ? pe.templates() : Map.of());
+        String solutionsJson = jsonMapper.writeValueAsString(pe.solutions() != null ? pe.solutions() : Map.of());
         String tagsJson = jsonMapper.writeValueAsString(pe.tags() != null ? pe.tags() : List.of());
 
-        // Calcular Hash del contenido
-        String contentHash = computeHash(statement + testsJson + compileJson + runJson + templatesJson + tagsJson);
+        String contentHash = computeHash(statement + (pe.difficulty() != null ? pe.difficulty().toString() : "") + testsJson + compileJson + runJson + templatesJson + solutionsJson + tagsJson);
 
-        Exercise exercise = exerciseRepository.findBySlug(slug)
-                .orElseGet(() -> exerciseRepository.save(new Exercise(slug)));
+        Exercise exercise = exerciseRepository.findBySlug(finalSlug)
+                .orElseGet(() -> exerciseRepository.save(new Exercise(finalSlug)));
 
-        syncAssets(exercise, exerciseDir);
+        syncAssets(exercise, assetFiles, finalSlug, slug);
 
         Optional<ExerciseVersion> latest = exerciseVersionRepository.findLatestByExerciseId(exercise.getId());
         if (latest.isPresent() && latest.get().getContentHash().equals(contentHash)) {
-            // El contenido no ha cambiado, no duplicar versión
             return null;
         }
 
@@ -280,6 +324,7 @@ public class ContentSyncService {
         version.setVersionNumber(nextVersion);
         version.setTitle(title);
         version.setStatement(statement);
+        version.setDifficulty(pe.difficulty());
         version.setLanguage(language);
         version.setRuntimeId(runtimeId);
         version.setCompileConfig(compileJson);
@@ -288,39 +333,73 @@ public class ContentSyncService {
         version.setComparatorConfig(comparatorJson);
         version.setTestsConfig(testsJson);
         version.setTemplatesConfig(templatesJson);
+        version.setSolutionsConfig(solutionsJson);
         version.setTags(tagsJson);
         version.setContentHash(contentHash);
         version.setGitCommit(gitCommit);
         version.setStatus("PUBLISHED");
 
         exerciseVersionRepository.save(version);
-        return "Exercise: " + slug + " (v" + nextVersion + ")";
+        return "Exercise: " + finalSlug + " (v" + nextVersion + ")";
     }
 
-    public void syncAssets(Exercise exercise, File exerciseDir) {
-        File[] files = exerciseDir.listFiles(File::isFile);
-        if (files != null) {
-            for (File f : files) {
-                String name = f.getName().toLowerCase();
-                if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
-                    name.endsWith(".gif") || name.endsWith(".svg") || name.endsWith(".webp")) {
-                    try {
-                        byte[] data = Files.readAllBytes(f.toPath());
-                        String contentType = determineContentType(name);
-                        Optional<ExerciseAsset> existing = exerciseAssetRepository.findByExerciseIdAndFilename(exercise.getId(), f.getName());
-                        if (existing.isPresent()) {
-                            ExerciseAsset asset = existing.get();
-                            asset.setData(data);
-                            asset.setContentType(contentType);
-                            asset.setSizeBytes(data.length);
-                            exerciseAssetRepository.save(asset);
-                        } else {
-                            ExerciseAsset asset = new ExerciseAsset(exercise, f.getName(), contentType, data);
-                            exerciseAssetRepository.save(asset);
-                        }
-                    } catch (Exception ex) {
-                        log.warn("Error importando asset " + f.getName() + " para ejercicio " + exercise.getSlug(), ex);
+    public void syncAssets(Exercise exercise, List<File> assetFiles, String targetSlug, String originalSlug) {
+        if (assetFiles == null) assetFiles = List.of();
+
+        // 1. Calcular nombres de destino para assets a importar
+        Set<String> targetFilenames = new HashSet<>();
+        for (File f : assetFiles) {
+            String name = f.getName().toLowerCase();
+            if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+                name.endsWith(".gif") || name.endsWith(".svg") || name.endsWith(".webp")) {
+                String targetFilename = f.getName();
+                if (targetSlug != null && originalSlug != null && !targetSlug.equals(originalSlug)) {
+                    targetFilename = targetFilename.replaceFirst(
+                        "^" + java.util.regex.Pattern.quote(originalSlug + "-img"),
+                        java.util.regex.Matcher.quoteReplacement(targetSlug + "-img")
+                    );
+                }
+                targetFilenames.add(targetFilename);
+            }
+        }
+
+        // 2. Purgar assets huérfanos que ya no existan o no estén referenciados y liberar nombres de inmediato
+        List<ExerciseAsset> currentDbAssets = exerciseAssetRepository.findByExerciseId(exercise.getId());
+        for (ExerciseAsset dbAsset : currentDbAssets) {
+            if (!targetFilenames.contains(dbAsset.getFilename())) {
+                exerciseAssetRepository.delete(dbAsset);
+            }
+        }
+        exerciseAssetRepository.flush();
+
+        // 3. Importar o actualizar assets referenciados
+        for (File f : assetFiles) {
+            String name = f.getName().toLowerCase();
+            if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+                name.endsWith(".gif") || name.endsWith(".svg") || name.endsWith(".webp")) {
+                try {
+                    String targetFilename = f.getName();
+                    if (targetSlug != null && originalSlug != null && !targetSlug.equals(originalSlug)) {
+                        targetFilename = targetFilename.replaceFirst(
+                            "^" + java.util.regex.Pattern.quote(originalSlug + "-img"),
+                            java.util.regex.Matcher.quoteReplacement(targetSlug + "-img")
+                        );
                     }
+                    byte[] data = Files.readAllBytes(f.toPath());
+                    String contentType = determineContentType(targetFilename);
+                    Optional<ExerciseAsset> existing = exerciseAssetRepository.findByExerciseIdAndFilename(exercise.getId(), targetFilename);
+                    if (existing.isPresent()) {
+                        ExerciseAsset asset = existing.get();
+                        asset.setData(data);
+                        asset.setContentType(contentType);
+                        asset.setSizeBytes(data.length);
+                        exerciseAssetRepository.save(asset);
+                    } else {
+                        ExerciseAsset asset = new ExerciseAsset(exercise, targetFilename, contentType, data);
+                        exerciseAssetRepository.save(asset);
+                    }
+                } catch (Exception ex) {
+                    log.warn("Error importando asset " + f.getName() + " para ejercicio " + exercise.getSlug(), ex);
                 }
             }
         }

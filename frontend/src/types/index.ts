@@ -26,6 +26,7 @@ export interface Exercise {
   slug: string;
   title: string;
   statement: string;
+  difficulty?: number;
   language: string;
   runtimeId: string;
   versionNumber: number;
@@ -339,11 +340,13 @@ export interface TeacherExerciseDetail {
   slug: string;
   title: string;
   statement: string;
+  difficulty?: number;
   language: string;
   runtimeId: string;
   versionNumber: number;
   starterCode?: string;
   templates?: Record<string, string>;
+  solutions?: Record<string, string>;
   tags?: string[];
   testCases: TestCaseDTO[];
   assets: AssetDTO[];
@@ -356,12 +359,74 @@ export interface SaveExerciseRequest {
   title: string;
   slug: string;
   statement: string;
+  difficulty?: number;
   language?: string;
   runtimeId?: string;
   starterCode?: string;
   templates?: Record<string, string>;
+  solutions?: Record<string, string>;
   tags?: string[];
   testCases: TestCaseDTO[];
+}
+
+export interface SolutionTestDetail {
+  testId: string;
+  testName: string;
+  isPublic: boolean;
+  passed: boolean;
+  status: string;
+  durationMs?: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  error?: string | null;
+}
+
+export interface SolutionEvaluationResult {
+  language: string;
+  status: string;
+  compileSuccess: boolean;
+  compileError?: string | null;
+  passedCount: number;
+  totalCount: number;
+  testResults: SolutionTestDetail[];
+}
+
+export interface ValidateSolutionsResponse {
+  allPassed: boolean;
+  crossLanguageMatch: boolean;
+  results: Record<string, SolutionEvaluationResult>;
+  mismatches: string[];
+}
+
+export interface ValidateSolutionsRequest {
+  solutions: Record<string, string>;
+  testCases: TestCaseDTO[];
+  compileConfig?: Record<string, any>;
+  runConfig?: Record<string, any>;
+  comparatorConfig?: Record<string, any>;
+}
+
+export interface GeneratedOutputItem {
+  orderIndex: number;
+  testId: string;
+  output: string;
+  success: boolean;
+  error?: string | null;
+}
+
+export interface GenerateTestOutputsResponse {
+  success: boolean;
+  error?: string | null;
+  outputs: GeneratedOutputItem[];
+}
+
+export interface GenerateTestOutputsRequest {
+  sourceCode: string;
+  language: string;
+  testCases: TestCaseDTO[];
+  compileConfig?: Record<string, any>;
+  runConfig?: Record<string, any>;
 }
 
 export interface CollectionItemDTO {

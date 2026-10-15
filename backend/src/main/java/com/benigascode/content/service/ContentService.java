@@ -3,6 +3,7 @@ package com.benigascode.content.service;
 import com.benigascode.common.exception.AccessDeniedException;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.common.exception.ValidationException;
+import java.io.File;
 import com.benigascode.content.domain.*;
 import com.benigascode.content.domain.Collection;
 import com.benigascode.content.dto.*;
@@ -517,24 +518,35 @@ public class ContentService {
         UUID exerciseId = version.getExercise().getId();
 
         // 1. Buscar en la Base de Datos (PostgreSQL) primero
-        Optional<ExerciseAsset> dbAsset = exerciseAssetRepository.findByExerciseIdAndFilename(exerciseId, filename);
+        final String finalFilename = filename;
+        final String cleanFilename = finalFilename.startsWith("assets/") ? finalFilename.substring(7) : finalFilename;
+        Optional<ExerciseAsset> dbAsset = exerciseAssetRepository.findByExerciseIdAndFilename(exerciseId, cleanFilename)
+                .or(() -> exerciseAssetRepository.findByExerciseIdAndFilename(exerciseId, finalFilename))
+                .or(() -> {
+                    String baseName = new File(cleanFilename).getName();
+                    return exerciseAssetRepository.findByExerciseIdAndFilename(exerciseId, baseName);
+                });
+
         if (dbAsset.isPresent()) {
             return new ByteArrayResource(dbAsset.get().getData());
         }
 
-        // 2. Fallback a disco (para assets no migrados todavía)
-        String slug = version.getExercise().getSlug();
+        // 2. Fallback a disco (para assets en exercises/assets/)
         List<Path> candidateDirs = new ArrayList<>();
-        candidateDirs.add(Path.of("/var/lib/benigascode/catalog/exercises", slug));
-        candidateDirs.add(Path.of("/var/lib/benigascode/content/exercises", slug));
-        candidateDirs.add(Path.of("catalog/exercises", slug));
-        candidateDirs.add(Path.of("content-example/exercises", slug));
+        candidateDirs.add(Path.of("/var/lib/benigascode/catalog/exercises/assets"));
+        candidateDirs.add(Path.of("/var/lib/benigascode/content/exercises/assets"));
+        candidateDirs.add(Path.of("catalog/exercises/assets"));
+        candidateDirs.add(Path.of("content-example/exercises/assets"));
 
         for (Path dir : candidateDirs) {
             if (Files.isDirectory(dir)) {
-                Path candidateFile = dir.resolve(filename).normalize();
+                Path candidateFile = dir.resolve(cleanFilename).normalize();
                 if (candidateFile.startsWith(dir) && Files.isRegularFile(candidateFile)) {
                     return new FileSystemResource(candidateFile);
+                }
+                Path candidateRaw = dir.resolve(filename).normalize();
+                if (candidateRaw.startsWith(dir) && Files.isRegularFile(candidateRaw)) {
+                    return new FileSystemResource(candidateRaw);
                 }
             }
         }
@@ -662,6 +674,7 @@ public class ContentService {
                             ex.getSlug(),
                             ev.getTitle(),
                             ev.getStatement(),
+                            ev.getDifficulty(),
                             ev.getLanguage(),
                             ev.getRuntimeId(),
                             ev.getVersionNumber(),
@@ -692,6 +705,7 @@ public class ContentService {
         Map<String, Object> scoringConfig = parseMap(ev.getScoringConfig());
         Map<String, Object> comparatorConfig = parseMap(ev.getComparatorConfig());
         Map<String, String> templates = parseTemplatesMap(ev.getTemplatesConfig());
+        Map<String, String> solutions = parseTemplatesMap(ev.getSolutionsConfig());
 
         List<TestCaseDTO> tests = new ArrayList<>();
         if (ev.getTestsConfig() != null && !ev.getTestsConfig().isBlank()) {
@@ -769,6 +783,7 @@ public class ContentService {
                 exercise.getSlug(),
                 ev.getTitle(),
                 ev.getStatement(),
+                ev.getDifficulty(),
                 ev.getLanguage(),
                 ev.getRuntimeId(),
                 ev.getVersionNumber(),
@@ -778,6 +793,7 @@ public class ContentService {
                 scoringConfig,
                 comparatorConfig,
                 templates,
+                solutions,
                 tagsList,
                 tests,
                 tests,
@@ -861,6 +877,19 @@ public class ContentService {
                 .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
         exerciseRepository.delete(exercise);
+    }
+
+    @Transactional
+    public void deleteExercisesBulk(List<UUID> exerciseIds, User teacher) {
+        if (exerciseIds == null || exerciseIds.isEmpty()) return;
+        for (UUID exerciseId : exerciseIds) {
+            Exercise exercise = exerciseRepository.findById(exerciseId)
+                    .or(() -> exerciseVersionRepository.findById(exerciseId).map(ExerciseVersion::getExercise))
+                    .orElse(null);
+            if (exercise != null) {
+                exerciseRepository.delete(exercise);
+            }
+        }
     }
 
     @Transactional
@@ -982,6 +1011,25 @@ public class ContentService {
             });
         }
 
+        Map<String, String> solutionsMap = new LinkedHashMap<>();
+        if (req.solutions() != null) {
+            for (Map.Entry<String, String> entry : req.solutions().entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    String normKey = normalizeLanguageKey(entry.getKey());
+                    if (normKey != null) {
+                        solutionsMap.put(normKey, entry.getValue());
+                    }
+                }
+            }
+        } else if (exercise != null && exercise.getId() != null) {
+            exerciseVersionRepository.findLatestByExerciseId(exercise.getId()).ifPresent(prev -> {
+                Map<String, String> prevSols = parseTemplatesMap(prev.getSolutionsConfig());
+                if (prevSols != null) {
+                    solutionsMap.putAll(prevSols);
+                }
+            });
+        }
+
         // Only use legacy starterCode fallback if req.templates() was null
         if (req.templates() == null && req.starterCode() != null) {
             if (!req.starterCode().isBlank()) {
@@ -1020,14 +1068,16 @@ public class ContentService {
             String scoringJson = objectMapper.writeValueAsString(req.scoringConfig() != null ? req.scoringConfig() : Map.of("mode", "weighted", "total_score", 100));
             String comparatorJson = objectMapper.writeValueAsString(req.comparatorConfig() != null ? req.comparatorConfig() : Map.of("type", "exact_line_by_line", "ignore_trailing_whitespace", true));
             String templatesJson = objectMapper.writeValueAsString(templatesMap);
+            String solutionsJson = objectMapper.writeValueAsString(solutionsMap);
 
-            String contentHash = sha256(req.statement() + testsJson + compileJson + runJson + templatesJson);
+            String contentHash = sha256(req.statement() + testsJson + compileJson + runJson + templatesJson + solutionsJson);
 
             ExerciseVersion version = new ExerciseVersion();
             version.setExercise(exercise);
             version.setVersionNumber(versionNumber);
             version.setTitle(req.title().trim());
             version.setStatement(req.statement());
+            version.setDifficulty(req.difficulty());
             version.setLanguage(lang);
             version.setRuntimeId(runtimeId);
             version.setCompileConfig(compileJson);
@@ -1036,6 +1086,7 @@ public class ContentService {
             version.setComparatorConfig(comparatorJson);
             version.setTestsConfig(testsJson);
             version.setTemplatesConfig(templatesJson);
+            version.setSolutionsConfig(solutionsJson);
             if (req.tags() != null) {
                 version.setTags(objectMapper.writeValueAsString(req.tags()));
             } else {

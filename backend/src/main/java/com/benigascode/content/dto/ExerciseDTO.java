@@ -14,6 +14,7 @@ public record ExerciseDTO(
     String slug,
     String title,
     String statement,
+    Double difficulty,
     String language,
     String runtimeId,
     int versionNumber,
@@ -39,7 +40,7 @@ public record ExerciseDTO(
         String starterCode,
         List<String> tags
     ) {
-        this(id, exerciseId, slug, title, statement, language, runtimeId, versionNumber, starterCode, tags, List.of(), null, Map.of(), language, false);
+        this(id, exerciseId, slug, title, statement, null, language, runtimeId, versionNumber, starterCode, tags, List.of(), null, Map.of(), language, false);
     }
 
     public ExerciseDTO(
@@ -56,7 +57,7 @@ public record ExerciseDTO(
         List<String> collections,
         Instant createdAt
     ) {
-        this(id, exerciseId, slug, title, statement, language, runtimeId, versionNumber, starterCode, tags, collections, createdAt, Map.of(), language, false);
+        this(id, exerciseId, slug, title, statement, null, language, runtimeId, versionNumber, starterCode, tags, collections, createdAt, Map.of(), language, false);
     }
 
     public ExerciseDTO(
@@ -74,7 +75,26 @@ public record ExerciseDTO(
         Instant createdAt,
         boolean hasDraft
     ) {
-        this(id, exerciseId, slug, title, statement, language, runtimeId, versionNumber, starterCode, tags, collections, createdAt, Map.of(), language, hasDraft);
+        this(id, exerciseId, slug, title, statement, null, language, runtimeId, versionNumber, starterCode, tags, collections, createdAt, Map.of(), language, hasDraft);
+    }
+
+    public ExerciseDTO(
+        UUID id,
+        UUID exerciseId,
+        String slug,
+        String title,
+        String statement,
+        Double difficulty,
+        String language,
+        String runtimeId,
+        int versionNumber,
+        String starterCode,
+        List<String> tags,
+        List<String> collections,
+        Instant createdAt,
+        boolean hasDraft
+    ) {
+        this(id, exerciseId, slug, title, statement, difficulty, language, runtimeId, versionNumber, starterCode, tags, collections, createdAt, Map.of(), language, hasDraft);
     }
 
     public static ExerciseDTO fromVersion(ExerciseVersion version) {
@@ -110,6 +130,7 @@ public record ExerciseDTO(
             version.getExercise() != null ? version.getExercise().getSlug() : null,
             version.getTitle(),
             version.getStatement(),
+            version.getDifficulty(),
             version.getLanguage(),
             version.getRuntimeId(),
             version.getVersionNumber(),

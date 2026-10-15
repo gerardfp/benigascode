@@ -15,6 +15,7 @@ public class ExerciseMarkdownSerializer {
         String title = version.getTitle() != null ? version.getTitle() : "Ejercicio";
         String slug = exercise != null && exercise.getSlug() != null ? exercise.getSlug() : "";
         String statement = version.getStatement() != null ? version.getStatement() : "";
+        Double difficulty = version.getDifficulty();
 
         List<String> tags = new ArrayList<>();
         if (version.getTags() != null && !version.getTags().isBlank()) {
@@ -32,6 +33,20 @@ public class ExerciseMarkdownSerializer {
                         String rawK = e.getKey().toLowerCase().trim();
                         String normK = (rawK.startsWith("python") || rawK.equals("py")) ? "python" : (rawK.startsWith("java") ? "java" : rawK);
                         templates.putIfAbsent(normK, e.getValue());
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        Map<String, String> solutions = new LinkedHashMap<>();
+        if (version.getSolutionsConfig() != null && !version.getSolutionsConfig().isBlank()) {
+            try {
+                Map<String, String> parsed = objectMapper.readValue(version.getSolutionsConfig(), new TypeReference<Map<String, String>>() {});
+                for (Map.Entry<String, String> e : parsed.entrySet()) {
+                    if (e.getValue() != null && !e.getValue().isBlank()) {
+                        String rawK = e.getKey().toLowerCase().trim();
+                        String normK = (rawK.startsWith("python") || rawK.equals("py")) ? "python" : (rawK.startsWith("java") ? "java" : rawK);
+                        solutions.putIfAbsent(normK, e.getValue());
                     }
                 }
             } catch (Exception ignored) {}
@@ -73,7 +88,7 @@ public class ExerciseMarkdownSerializer {
             } catch (Exception ignored) {}
         }
 
-        return serialize(title, slug, tags, statement, templates, testCases);
+        return serialize(title, slug, difficulty, tags, statement, templates, solutions, testCases);
     }
 
     public static String serialize(String title,
@@ -82,16 +97,44 @@ public class ExerciseMarkdownSerializer {
                                     String statement,
                                     Map<String, String> templates,
                                     List<TestCaseDTO> testCases) {
+        return serialize(title, slug, null, tags, statement, templates, Map.of(), testCases);
+    }
+
+    public static String serialize(String title,
+                                    String slug,
+                                    Double difficulty,
+                                    List<String> tags,
+                                    String statement,
+                                    Map<String, String> templates,
+                                    List<TestCaseDTO> testCases) {
+        return serialize(title, slug, difficulty, tags, statement, templates, Map.of(), testCases);
+    }
+
+    public static String serialize(String title,
+                                    String slug,
+                                    Double difficulty,
+                                    List<String> tags,
+                                    String statement,
+                                    Map<String, String> templates,
+                                    Map<String, String> solutions,
+                                    List<TestCaseDTO> testCases) {
         StringBuilder sb = new StringBuilder();
 
         String cleanSlug = (slug != null) ? slug.trim() : "";
         List<String> cleanTags = (tags != null) ? tags.stream().filter(t -> t != null && !t.isBlank()).toList() : List.of();
 
         // 1. Frontmatter
-        if (!cleanSlug.isEmpty() || !cleanTags.isEmpty()) {
+        if (!cleanSlug.isEmpty() || !cleanTags.isEmpty() || difficulty != null) {
             sb.append("---\n");
             if (!cleanSlug.isEmpty()) {
                 sb.append("slug: ").append(cleanSlug).append("\n");
+            }
+            if (difficulty != null) {
+                if (difficulty == Math.floor(difficulty) && !Double.isInfinite(difficulty)) {
+                    sb.append("difficulty: ").append(String.format(Locale.ROOT, "%.1f", difficulty)).append("\n");
+                } else {
+                    sb.append("difficulty: ").append(difficulty).append("\n");
+                }
             }
             if (!cleanTags.isEmpty()) {
                 sb.append("tags: [").append(String.join(", ", cleanTags)).append("]\n");
@@ -138,7 +181,26 @@ public class ExerciseMarkdownSerializer {
             }
         }
 
-        // 5. Tests
+        // 5. Soluciones (## Solutions)
+        if (solutions != null && !solutions.isEmpty()) {
+            boolean hasSolutions = false;
+            for (Map.Entry<String, String> entry : solutions.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    if (!hasSolutions) {
+                        sb.append("## Solutions\n\n");
+                        hasSolutions = true;
+                    }
+                    String lang = entry.getKey().toLowerCase().trim();
+                    String code = entry.getValue();
+                    if (!code.endsWith("\n")) code += "\n";
+                    sb.append("```").append(lang).append("\n")
+                            .append(code)
+                            .append("```\n\n");
+                }
+            }
+        }
+
+        // 6. Tests
         if (testCases != null && !testCases.isEmpty()) {
             sb.append("## Tests\n\n");
             for (TestCaseDTO tc : testCases) {
@@ -167,7 +229,7 @@ public class ExerciseMarkdownSerializer {
                 sb.append("```output\n").append(output).append("```\n");
 
                 if (tc.explanation() != null && !tc.explanation().isBlank()) {
-                    sb.append("```explanation\n").append(tc.explanation().trim()).append("\n```\n");
+                    sb.append("#### Explanation\n").append(tc.explanation().trim()).append("\n");
                 }
 
                 sb.append("\n");
