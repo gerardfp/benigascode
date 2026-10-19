@@ -1,1 +1,6 @@
 La típica plataforma d'exercicis de programació amb casos de prova
+
+
+```
+docker compose -f deployment/docker-compose.dev.yml up
+```
