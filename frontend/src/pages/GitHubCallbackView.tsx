@@ -54,6 +54,28 @@ export const GitHubCallbackView: React.FC<GitHubCallbackViewProps> = ({ onAuthSu
       return;
     }
 
+    // Caso 1b: Exportación de catálogo de alumno a GitHub (state === 'export')
+    if (state === 'export') {
+      const storedRedirect = sessionStorage.getItem('github_oauth_redirect_uri');
+      const redirectUri = storedRedirect || `${window.location.origin}${window.location.pathname}`;
+      api.exchangeStudentGitHubCode(code, redirectUri)
+        .then((res) => {
+          sessionStorage.removeItem('github_oauth_redirect_uri');
+          if (res.accessToken) {
+            sessionStorage.setItem('github_export_token', res.accessToken);
+            navigate('/?export=true');
+          } else {
+            setError('No se pudo obtener el token de acceso de GitHub.');
+            setErrorAction({ label: 'Volver a Mis Colecciones', to: '/' });
+          }
+        })
+        .catch((err) => {
+          setError(err.message || 'Fallo al intercambiar el código con GitHub.');
+          setErrorAction({ label: 'Volver a Mis Colecciones', to: '/' });
+        });
+      return;
+    }
+
     // Caso 2: Registro por invitación o inicio de sesión
     let invitationCode: string | undefined = undefined;
     if (state.startsWith('signup:')) {

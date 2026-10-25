@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Activity, Collection, TeachingSpace, CollectionProgressDTO } from '../types';
 import { StudentCollectionCard } from '../components/StudentCollectionCard';
-import { BookOpen, FolderGit2, Key, Award, ArrowRight, Users, CheckCircle2 } from 'lucide-react';
+import { StudentExportModal } from '../components/StudentExportModal';
+import { BookOpen, FolderGit2, Key, Award, ArrowRight, Users, CheckCircle2, Download } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +15,15 @@ export const StudentDashboard: React.FC = () => {
   const [accessKey, setAccessKey] = useState('');
   const [claimStatus, setClaimStatus] = useState<{ message: string; isError: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('export') === 'true') {
+      setIsExportModalOpen(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const loadData = async () => {
     try {
@@ -168,32 +178,37 @@ export const StudentDashboard: React.FC = () => {
 
           {/* SECCIÓN: Mis Colecciones */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <BookOpen size={22} style={{ color: '#0284c7' }} />
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Mis Colecciones
-                  </h2>
-                  <p style={{ margin: '0.125rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-                    Colecciones en las que participas o asignadas a tus espacios docentes
-                  </p>
-                </div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                  Mis Colecciones
+                </h2>
               </div>
-              <Link
-                to="/collections"
-                style={{
-                  fontSize: '0.8125rem',
-                  color: '#2563eb',
-                  textDecoration: 'none',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                }}
-              >
-                Ver todas <ArrowRight size={14} />
-              </Link>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsExportModalOpen(true)}
+                  className="btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', padding: '0.375rem 0.625rem' }}
+                >
+                  <Download size={14} /> Exportar
+                </button>
+                <Link
+                  to="/collections"
+                  style={{
+                    fontSize: '0.8125rem',
+                    color: '#2563eb',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                  }}
+                >
+                  Ver todas <ArrowRight size={14} />
+                </Link>
+              </div>
             </div>
 
             {collections.length === 0 ? (
@@ -350,6 +365,11 @@ export const StudentDashboard: React.FC = () => {
         </div>
 
       </div>
+
+      <StudentExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
     </div>
   );
 };

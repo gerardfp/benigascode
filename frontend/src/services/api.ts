@@ -1,4 +1,4 @@
-import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse, ExerciseTag, ValidateSolutionsRequest, ValidateSolutionsResponse, GenerateTestOutputsRequest, GenerateTestOutputsResponse } from '../types';
+import { User, Collection, Exercise, PublicTest, Activity, Course, Group, Submission, Evaluation, PreviewRunResult, GitRepository, GitHubRepo, GitHubConfig, GitHubUserProfile, DeployKey, StudentWorkspace, StudentProgress, AssetDTO, TeacherExerciseDetail, SaveExerciseRequest, TeacherCollectionDetail, SaveCollectionRequest, CollectionProgressDTO, StudentInsightsDTO, TeacherInsightsDTO, TeacherSubmissionItem, TeacherSubmissionDetail, InvitationCode, ValidateInvitationResponse, TeacherStudent, CatalogConflictStrategy, CatalogImportRequest, CatalogImportPreviewDTO, CatalogImportResultDTO, CatalogExportPushRequest, CatalogExportPushResultDTO, CourseCollectionDTO, AuthorizedTeacherDTO, Tag, StudentTag, TeachingSpace, ContextPreviewDTO, BulkCreateStudentItem, BulkCreateStudentResponse, BulkAddTeacherResponse, ExerciseTag, ValidateSolutionsRequest, ValidateSolutionsResponse, GenerateTestOutputsRequest, GenerateTestOutputsResponse, StudentExportSummary, StudentExportPushRequest, StudentExportResult } from '../types';
 
 
 
@@ -820,6 +820,35 @@ export const api = {
 
   pushCatalogExport: (data: CatalogExportPushRequest): Promise<CatalogExportPushResultDTO> =>
     request<CatalogExportPushResultDTO>('/teacher/catalog/export/push', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // ==================== ALUMNO - EXPORTACIÓN DE CATÁLOGO ====================
+  getStudentExportSummary: (): Promise<StudentExportSummary> =>
+    request<StudentExportSummary>('/student/export/summary'),
+
+  getStudentExportZipUrl: (): string =>
+    `${API_BASE}/student/export/zip`,
+
+  getStudentExportGitHubAuthUrl: (redirectUri?: string): Promise<{ url: string }> => {
+    const sp = new URLSearchParams();
+    if (redirectUri) sp.set('redirectUri', redirectUri);
+    const qs = sp.toString();
+    return request<{ url: string }>(`/student/export/github/auth-url${qs ? `?${qs}` : ''}`);
+  },
+
+  exchangeStudentGitHubCode: (code: string, redirectUri?: string): Promise<{ accessToken: string }> =>
+    request<{ accessToken: string }>('/student/export/github/exchange-code', {
+      method: 'POST',
+      body: JSON.stringify({ code, redirectUri }),
+    }),
+
+  getStudentExportGitHubRepos: (token: string): Promise<GitHubRepo[]> =>
+    request<GitHubRepo[]>(`/student/export/github/repos?token=${encodeURIComponent(token)}`),
+
+  pushStudentExportToGitHub: (data: StudentExportPushRequest): Promise<StudentExportResult> =>
+    request<StudentExportResult>('/student/export/github/push', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

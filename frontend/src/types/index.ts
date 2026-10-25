@@ -808,4 +808,36 @@ export interface BulkAddTeacherResponse {
   errors: string[];
 }
 
+export interface StudentExportExerciseItem {
+  slug: string;
+  title: string;
+  language: string;
+  hasSubmission: boolean;
+  publicTestsCount: number;
+}
+
+export interface StudentExportSummary {
+  startedCollectionsCount: number;
+  exercisesCount: number;
+  exercises: StudentExportExerciseItem[];
+}
+
+export interface StudentExportPushRequest {
+  repositoryName: string;
+  createNewRepo: boolean;
+  isPrivate: boolean;
+  branch?: string;
+  commitMessage?: string;
+  githubToken: string;
+}
+
+export interface StudentExportResult {
+  success: boolean;
+  repositoryUrl: string;
+  commitSha: string;
+  exercisesCount: number;
+  message: string;
+}
+
+
 

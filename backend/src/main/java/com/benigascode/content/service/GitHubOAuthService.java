@@ -71,6 +71,22 @@ public class GitHubOAuthService {
         return sb.toString();
     }
 
+    public String buildExportAuthorizeUrl(String redirectUriOverride) {
+        if (!isConfigured()) {
+            throw new ValidationException("GitHub OAuth no está configurado en el servidor (faltan client-id / client-secret).");
+        }
+        String redirect = (redirectUriOverride != null && !redirectUriOverride.isBlank()) ? redirectUriOverride : redirectUri;
+        String encodedRedirect = URLEncoder.encode(redirect, StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder("https://github.com/login/oauth/authorize?client_id=").append(clientId);
+        if (!isGitHubApp()) {
+            String scope = URLEncoder.encode("repo,read:user", StandardCharsets.UTF_8);
+            sb.append("&scope=").append(scope);
+        }
+        sb.append("&redirect_uri=").append(encodedRedirect).append("&state=export");
+        return sb.toString();
+    }
+
+
 
     public String buildStudentAuthorizeUrl(String state, String redirectUriOverride) {
         if (!isConfigured()) {
