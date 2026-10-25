@@ -63,15 +63,15 @@ export const GitHubCallbackView: React.FC<GitHubCallbackViewProps> = ({ onAuthSu
           sessionStorage.removeItem('github_oauth_redirect_uri');
           if (res.accessToken) {
             sessionStorage.setItem('github_export_token', res.accessToken);
-            navigate('/?export=true');
+            navigate('/export');
           } else {
             setError('No se pudo obtener el token de acceso de GitHub.');
-            setErrorAction({ label: 'Volver a Mis Colecciones', to: '/' });
+            setErrorAction({ label: 'Volver a Exportar', to: '/export' });
           }
         })
         .catch((err) => {
           setError(err.message || 'Fallo al intercambiar el código con GitHub.');
-          setErrorAction({ label: 'Volver a Mis Colecciones', to: '/' });
+          setErrorAction({ label: 'Volver a Exportar', to: '/export' });
         });
       return;
     }

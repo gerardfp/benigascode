@@ -1,16 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { GitHubRepo, StudentExportSummary, StudentExportResult } from '../types';
-import { X, Download, Github, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Github, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
-interface StudentExportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, onClose }) => {
+export const StudentExportView: React.FC = () => {
   const [summary, setSummary] = useState<StudentExportSummary | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // GitHub OAuth & Push state
@@ -31,11 +26,27 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [selectedRepoUrl, setSelectedRepoUrl] = useState('');
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const loadGitHubRepos = (token: string) => {
+    setLoadingRepos(true);
+    api.getStudentExportGitHubRepos(token)
+      .then((repos) => {
+        setExistingRepos(repos);
+        if (repos.length > 0 && !selectedRepoUrl) {
+          setSelectedRepoUrl(repos[0].html_url || repos[0].clone_url || repos[0].name);
+        }
+      })
+      .catch((err) => {
+        console.error('Error al cargar repositorios de GitHub:', err);
+        if (err.message && (err.message.includes('401') || err.message.includes('Bad credentials'))) {
+          sessionStorage.removeItem('github_export_token');
+          setGithubToken(null);
+        }
+      })
+      .finally(() => setLoadingRepos(false));
+  };
 
+  useEffect(() => {
     setError(null);
-    setPushResult(null);
     setLoadingSummary(true);
 
     api.getStudentExportSummary()
@@ -48,27 +59,7 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
     if (token) {
       loadGitHubRepos(token);
     }
-  }, [isOpen]);
-
-  const loadGitHubRepos = (token: string) => {
-    setLoadingRepos(true);
-    api.getStudentExportGitHubRepos(token)
-      .then((repos) => {
-        setExistingRepos(repos);
-        if (repos.length > 0 && !selectedRepoUrl) {
-          setSelectedRepoUrl(repos[0].html_url || repos[0].clone_url || repos[0].name);
-        }
-      })
-      .catch((err) => {
-        console.error('Error al cargar repositorios de GitHub:', err);
-        // Si el token falló o expiró, resetearlo
-        if (err.message && (err.message.includes('401') || err.message.includes('Bad credentials'))) {
-          sessionStorage.removeItem('github_export_token');
-          setGithubToken(null);
-        }
-      })
-      .finally(() => setLoadingRepos(false));
-  };
+  }, []);
 
   const handleConnectGitHub = async () => {
     try {
@@ -119,137 +110,98 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: 540,
-          padding: '1.5rem',
-          backgroundColor: '#ffffff',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxSizing: 'border-box',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Cabecera */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
-            Exportar catálogo de ejercicios
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#64748b',
-              padding: '0.25rem',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <X size={20} />
-          </button>
+    <div className="app-container">
+      {/* Cabecera */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.5rem' }}>
+        <Download size={26} style={{ color: '#2563eb' }} />
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#0f172a' }}>
+          Exportar Catálogo
+        </h1>
+      </div>
+
+      {/* Resumen de elementos a exportar */}
+      {loadingSummary ? (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', marginBottom: '1.5rem' }}>
+          <Loader2 size={18} className="animate-spin" />
+          <span style={{ fontSize: '0.875rem' }}>Cargando catálogo...</span>
         </div>
+      ) : summary ? (
+        <div
+          className="card"
+          style={{
+            display: 'flex',
+            gap: '1rem',
+            alignItems: 'center',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            color: '#334155',
+          }}
+        >
+          <span><strong>{summary.startedCollectionsCount}</strong> {summary.startedCollectionsCount === 1 ? 'colección iniciada' : 'colecciones iniciadas'}</span>
+          <span>•</span>
+          <span><strong>{summary.exercisesCount}</strong> {summary.exercisesCount === 1 ? 'ejercicio preparado' : 'ejercicios preparados'}</span>
+        </div>
+      ) : null}
 
-        {/* Resumen */}
-        {loadingSummary ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', padding: '0.75rem 0' }}>
-            <Loader2 size={16} className="animate-spin" />
-            <span style={{ fontSize: '0.875rem' }}>Cargando catálogo...</span>
-          </div>
-        ) : summary ? (
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.75rem',
-              marginBottom: '1.25rem',
-              padding: '0.75rem',
-              backgroundColor: '#f8fafc',
-              borderRadius: '0.5rem',
-              border: '1px solid #e2e8f0',
-              fontSize: '0.8125rem',
-              color: '#334155',
-            }}
-          >
-            <span><strong>{summary.startedCollectionsCount}</strong> {summary.startedCollectionsCount === 1 ? 'colección iniciada' : 'colecciones iniciadas'}</span>
-            <span>•</span>
-            <span><strong>{summary.exercisesCount}</strong> {summary.exercisesCount === 1 ? 'ejercicio preparado' : 'ejercicios preparados'}</span>
-          </div>
-        ) : null}
+      {error && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#fef2f2',
+            color: '#b91c1c',
+            border: '1px solid #fecaca',
+            borderRadius: '0.5rem',
+            fontSize: '0.875rem',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+          <span>{error}</span>
+        </div>
+      )}
 
-        {error && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.625rem 0.75rem',
-              backgroundColor: '#fef2f2',
-              color: '#b91c1c',
-              border: '1px solid #fecaca',
-              borderRadius: '0.375rem',
-              fontSize: '0.8125rem',
-              marginBottom: '1rem',
-            }}
-          >
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
+      {pushResult && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            padding: '1rem',
+            backgroundColor: '#f0fdf4',
+            color: '#15803d',
+            border: '1px solid #bbf7d0',
+            borderRadius: '0.5rem',
+            fontSize: '0.875rem',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+            <CheckCircle2 size={18} />
+            <span>Exportado correctamente</span>
           </div>
-        )}
+          {pushResult.repositoryUrl && (
+            <a
+              href={pushResult.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#16a34a', textDecoration: 'underline', wordBreak: 'break-all' }}
+            >
+              {pushResult.repositoryUrl}
+            </a>
+          )}
+        </div>
+      )}
 
-        {pushResult && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.375rem',
-              padding: '0.75rem',
-              backgroundColor: '#f0fdf4',
-              color: '#15803d',
-              border: '1px solid #bbf7d0',
-              borderRadius: '0.375rem',
-              fontSize: '0.8125rem',
-              marginBottom: '1.25rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-              <CheckCircle2 size={16} />
-              <span>Exportado correctamente</span>
-            </div>
-            {pushResult.repositoryUrl && (
-              <a
-                href={pushResult.repositoryUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#16a34a', textDecoration: 'underline', wordBreak: 'break-all' }}
-              >
-                {pushResult.repositoryUrl}
-              </a>
-            )}
-          </div>
-        )}
-
-        {/* Sección 1: Descargar ZIP */}
-        <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+        {/* Opción 1: Descargar paquete ZIP */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#0f172a' }}>
+            Descargar archivo ZIP
+          </h2>
           <a
             href={api.getStudentExportZipUrl()}
             download
@@ -259,10 +211,8 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
-              width: '100%',
-              padding: '0.625rem',
+              padding: '0.625rem 1rem',
               fontSize: '0.875rem',
-              fontWeight: 500,
               textDecoration: 'none',
               boxSizing: 'border-box',
             }}
@@ -272,8 +222,31 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
           </a>
         </div>
 
-        {/* Sección 2: Exportar a GitHub */}
-        <div>
+        {/* Opción 2: Exportar a GitHub */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Github size={20} />
+              <span>Exportar a GitHub</span>
+            </h2>
+            {githubToken && (
+              <button
+                type="button"
+                onClick={handleDisconnectGitHub}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                Desconectar
+              </button>
+            )}
+          </div>
+
           {!githubToken ? (
             <button
               type="button"
@@ -285,8 +258,7 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                width: '100%',
-                padding: '0.625rem',
+                padding: '0.625rem 1rem',
                 fontSize: '0.875rem',
                 boxSizing: 'border-box',
               }}
@@ -296,21 +268,8 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
             </button>
           ) : (
             <form onSubmit={handlePushToGitHub} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  <Github size={16} /> GitHub
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDisconnectGitHub}
-                  style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  Desconectar
-                </button>
-              </div>
-
-              {/* Selector de modo: Nuevo vs Existente */}
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8125rem' }}>
+              {/* Selector de modo */}
+              <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.8125rem' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer' }}>
                   <input
                     type="radio"
@@ -429,10 +388,8 @@ export const StudentExportModal: React.FC<StudentExportModalProps> = ({ isOpen, 
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.5rem',
-                  width: '100%',
-                  padding: '0.625rem',
+                  padding: '0.625rem 1rem',
                   fontSize: '0.875rem',
-                  marginTop: '0.5rem',
                   boxSizing: 'border-box',
                 }}
               >

@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Collection, CollectionProgressDTO } from '../types';
 import { StudentCollectionCard } from '../components/StudentCollectionCard';
-import { StudentExportModal } from '../components/StudentExportModal';
-import { BookOpen, Search, FolderGit2, Download } from 'lucide-react';
+import { BookOpen, Search, FolderGit2 } from 'lucide-react';
 
 export const StudentCollectionsView: React.FC = () => {
   const [publicCollections, setPublicCollections] = useState<Collection[]>([]);
@@ -11,7 +10,6 @@ export const StudentCollectionsView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     api.getPublicCollections()
@@ -67,26 +65,16 @@ export const StudentCollectionsView: React.FC = () => {
           </h1>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setIsExportModalOpen(true)}
-            className="btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', padding: '0.45rem 0.75rem' }}
-          >
-            <Download size={14} /> Exportar
-          </button>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 300 }}>
-            <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Buscar colección..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ paddingLeft: '2.25rem', width: '100%', boxSizing: 'border-box' }}
-            />
-          </div>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 300 }}>
+          <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <input
+            type="text"
+            className="input-field"
+            placeholder="Buscar colección..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ paddingLeft: '2.25rem', width: '100%', boxSizing: 'border-box' }}
+          />
         </div>
       </div>
 
@@ -115,11 +103,6 @@ export const StudentCollectionsView: React.FC = () => {
           ))}
         </div>
       )}
-
-      <StudentExportModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-      />
     </div>
   );
 };

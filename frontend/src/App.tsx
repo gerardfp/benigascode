@@ -8,6 +8,7 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentSpaceDetailView } from './pages/StudentSpaceDetailView';
 import { StudentCollectionsView } from './pages/StudentCollectionsView';
 import { StudentHistoryView } from './pages/StudentHistoryView';
+import { StudentExportView } from './pages/StudentExportView';
 import { ExerciseView } from './pages/ExerciseView';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { TeacherActivityView } from './pages/TeacherActivityView';
@@ -118,6 +119,10 @@ export const App: React.FC = () => {
           <Route
             path="/activity/:activityId/exercise/:exerciseId"
             element={user ? <ExerciseView /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/export"
+            element={user ? <StudentExportView /> : <Navigate to="/login" replace />}
           />
 
           {/* Rutas de Profesor */}

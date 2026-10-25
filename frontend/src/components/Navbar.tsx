@@ -143,6 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                   <Link to="/collections" className={`nav-link ${isPathActive('/collections') ? 'active' : ''}`}>Colecciones</Link>
                   <Link to="/progress" className={`nav-link ${isPathActive('/progress') ? 'active' : ''}`}>Mi Progreso</Link>
                   <Link to="/history" className={`nav-link ${isPathActive('/history') ? 'active' : ''}`}>Historial</Link>
+                  <Link to="/export" className={`nav-link ${isPathActive('/export') ? 'active' : ''}`}>Exportar</Link>
                 </>
               )}
               {(user.role === 'TEACHER' || user.role === 'ADMIN') && (
