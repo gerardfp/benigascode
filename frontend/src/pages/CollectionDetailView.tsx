@@ -7,6 +7,8 @@ import { getTagBadgeStyles, getDeterministicTagColor, getCustomExerciseTagColor 
 import { matchTag } from '../utils/tagExpression';
 import { DifficultyBar, getDifficultyLevel } from '../components/DifficultyBar';
 
+export type TagFilterMode = 'INCLUDE' | 'EXCLUDE';
+
 export const CollectionDetailView: React.FC = () => {
   const { collectionId } = useParams<{ collectionId: string }>();
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -15,10 +17,10 @@ export const CollectionDetailView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtros de búsqueda, estado, etiquetas y dificultad
+  // Filtros de búsqueda, estado, etiquetas tri-estado y dificultad
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'NOT_STARTED' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [tagFilters, setTagFilters] = useState<Record<string, TagFilterMode>>({});
   const [difficultyFilter, setDifficultyFilter] = useState<string>('ALL');
 
   useEffect(() => {
@@ -106,14 +108,18 @@ export const CollectionDetailView: React.FC = () => {
     return 'NOT_STARTED';
   };
 
-  // Activar o desactivar etiqueta en los filtros
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(tag)) {
-        next.delete(tag);
+  // Ciclar estado de etiqueta: Neutro -> INCLUDE (Requerida) -> EXCLUDE (Descartada) -> Neutro
+  const cycleTagFilter = (tag: string) => {
+    const key = tag.trim().toLowerCase();
+    setTagFilters((prev) => {
+      const next = { ...prev };
+      const current = next[key];
+      if (!current) {
+        next[key] = 'INCLUDE';
+      } else if (current === 'INCLUDE') {
+        next[key] = 'EXCLUDE';
       } else {
-        next.add(tag);
+        delete next[key];
       }
       return next;
     });
@@ -131,8 +137,8 @@ export const CollectionDetailView: React.FC = () => {
     return getTagBadgeStyles(effectiveColor);
   };
 
-  // Lista única de todas las etiquetas presentes en los ejercicios de la colección
-  const allTags = useMemo(() => {
+  // Mapa canónico de etiquetas de todos los ejercicios de la colección: lowercase -> display name original
+  const canonicalTagMap = useMemo(() => {
     const map = new Map<string, string>();
     exercises.forEach((ex) => {
       if (ex.tags && Array.isArray(ex.tags)) {
@@ -147,21 +153,8 @@ export const CollectionDetailView: React.FC = () => {
         });
       }
     });
-    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+    return map;
   }, [exercises]);
-
-  // Cantidad de ejercicios asociados a cada etiqueta en esta colección
-  const tagCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    exercises.forEach((ex) => {
-      allTags.forEach((tag) => {
-        if (matchTag(ex.tags, tag)) {
-          counts[tag] = (counts[tag] || 0) + 1;
-        }
-      });
-    });
-    return counts;
-  }, [exercises, allTags]);
 
   // Cantidad de ejercicios según su estado de progreso
   const statusCounts = useMemo(() => {
@@ -200,8 +193,12 @@ export const CollectionDetailView: React.FC = () => {
     return counts;
   }, [exercises]);
 
-  // Lista de ejercicios filtrada por búsqueda, estado, etiquetas activas y dificultad
+  // Lista de ejercicios filtrada por búsqueda, estado, etiquetas tri-estado y dificultad
   const filteredExercises = useMemo(() => {
+    const activeTagEntries = Object.entries(tagFilters);
+    const includeTags = activeTagEntries.filter(([_, mode]) => mode === 'INCLUDE').map(([tag]) => tag);
+    const excludeTags = activeTagEntries.filter(([_, mode]) => mode === 'EXCLUDE').map(([tag]) => tag);
+
     return exercises.filter((ex) => {
       // 1. Filtro por nombre o slug
       if (searchTerm.trim()) {
@@ -217,15 +214,7 @@ export const CollectionDetailView: React.FC = () => {
         if (statusFilter !== st) return false;
       }
 
-      // 3. Filtro por etiquetas activables
-      if (selectedTags.size > 0) {
-        const matchesAnyTag = Array.from(selectedTags).some((tag) =>
-          matchTag(ex.tags, tag)
-        );
-        if (!matchesAnyTag) return false;
-      }
-
-      // 4. Filtro por dificultad
+      // 3. Filtro por dificultad
       if (difficultyFilter !== 'ALL') {
         if (difficultyFilter === 'UNASSIGNED') {
           if (ex.difficulty !== null && ex.difficulty !== undefined) return false;
@@ -235,9 +224,64 @@ export const CollectionDetailView: React.FC = () => {
         }
       }
 
+      // 4. Filtro por etiquetas requeridas (INCLUDE: el ejercicio debe tener todas)
+      for (const inc of includeTags) {
+        if (!matchTag(ex.tags, inc)) {
+          return false;
+        }
+      }
+
+      // 5. Filtro por etiquetas excluidas (EXCLUDE: el ejercicio no debe tener ninguna)
+      for (const exc of excludeTags) {
+        if (matchTag(ex.tags, exc)) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [exercises, searchTerm, statusFilter, selectedTags, difficultyFilter, progress]);
+  }, [exercises, searchTerm, statusFilter, difficultyFilter, tagFilters, progress]);
+
+  // Lista de etiquetas visibles: presentes en los ejercicios listados actualmente + las que tengan filtro activo
+  const visibleTags = useMemo(() => {
+    const tagSet = new Set<string>();
+
+    filteredExercises.forEach((ex) => {
+      if (ex.tags && Array.isArray(ex.tags)) {
+        ex.tags.forEach((t) => {
+          if (t && t.trim()) {
+            tagSet.add(t.trim().toLowerCase());
+          }
+        });
+      }
+    });
+
+    // Mantener visibles las etiquetas con filtro activo (INCLUDE o EXCLUDE) para verlas y desmarcarlas
+    Object.keys(tagFilters).forEach((k) => tagSet.add(k));
+
+    const list: string[] = [];
+    tagSet.forEach((key) => {
+      const displayName = canonicalTagMap.get(key) || key;
+      list.push(displayName);
+    });
+
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [filteredExercises, tagFilters, canonicalTagMap]);
+
+  // Cantidad de ejercicios listados actualmente asociados a cada etiqueta visible
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    visibleTags.forEach((tag) => {
+      let count = 0;
+      filteredExercises.forEach((ex) => {
+        if (matchTag(ex.tags, tag)) {
+          count++;
+        }
+      });
+      counts[tag] = count;
+    });
+    return counts;
+  }, [filteredExercises, visibleTags]);
 
   if (loading) {
     return (
@@ -263,21 +307,6 @@ export const CollectionDetailView: React.FC = () => {
 
   return (
     <div className="app-container">
-      <Link
-        to="/collections"
-        style={{
-          color: '#64748b',
-          textDecoration: 'none',
-          fontSize: '0.875rem',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          marginBottom: '0.75rem',
-        }}
-      >
-        &larr; Volver a Colecciones
-      </Link>
-
       {/* Tarjeta única con Cabecera, Progreso, Filtros y Lista de Ejercicios */}
       <div className="card">
         {/* Cabecera y progreso de la colección */}
@@ -531,8 +560,8 @@ export const CollectionDetailView: React.FC = () => {
           </div>
         </div>
 
-        {/* Barra con todas las etiquetas presentes en los ejercicios de la colección */}
-        {allTags.length > 0 && (
+        {/* Barra con etiquetas disponibles según los ejercicios listados y filtros activos */}
+        {visibleTags.length > 0 && (
           <div
             style={{
               display: 'flex',
@@ -561,8 +590,10 @@ export const CollectionDetailView: React.FC = () => {
               <span>Etiquetas:</span>
             </div>
 
-            {allTags.map((tag) => {
-              const isSelected = selectedTags.has(tag);
+            {visibleTags.map((tag) => {
+              const filterState = tagFilters[tag.toLowerCase()];
+              const isIncluded = filterState === 'INCLUDE';
+              const isExcluded = filterState === 'EXCLUDE';
               const tagStyles = getTagStyles(tag);
               const count = tagCounts[tag] || 0;
 
@@ -570,7 +601,15 @@ export const CollectionDetailView: React.FC = () => {
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => toggleTag(tag)}
+                  onClick={() => cycleTagFilter(tag)}
+                  aria-pressed={isIncluded ? true : isExcluded ? 'mixed' : false}
+                  title={
+                    isIncluded
+                      ? `${tag}: Requerida (clic para excluir)`
+                      : isExcluded
+                      ? `${tag}: Excluida (clic para quitar filtro)`
+                      : `${tag}: Clic para requerir`
+                  }
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -578,45 +617,67 @@ export const CollectionDetailView: React.FC = () => {
                     padding: '0.2rem 0.5rem',
                     borderRadius: '9999px',
                     fontSize: '0.75rem',
-                    fontWeight: isSelected ? 600 : 500,
+                    fontWeight: isIncluded || isExcluded ? 600 : 500,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
-                    backgroundColor: isSelected ? tagStyles.bg : '#ffffff',
-                    color: isSelected ? '#0f172a' : '#475569',
-                    border: isSelected
+                    backgroundColor: isIncluded
+                      ? tagStyles.bg
+                      : isExcluded
+                      ? '#fef2f2'
+                      : '#ffffff',
+                    color: isIncluded
+                      ? '#0f172a'
+                      : isExcluded
+                      ? '#991b1b'
+                      : '#475569',
+                    border: isIncluded
                       ? `1.5px solid ${tagStyles.dot}`
+                      : isExcluded
+                      ? '1.5px solid #f87171'
                       : '1px solid #cbd5e1',
-                    boxShadow: isSelected ? `0 0 0 1px ${tagStyles.dot}20` : 'none',
+                    boxShadow: isIncluded
+                      ? `0 0 0 1px ${tagStyles.dot}20`
+                      : isExcluded
+                      ? '0 0 0 1px rgba(239, 68, 68, 0.15)'
+                      : 'none',
+                    textDecoration: isExcluded ? 'line-through' : 'none',
                   }}
                 >
-                  <span
-                    style={{
-                      width: '0.45rem',
-                      height: '0.45rem',
-                      borderRadius: '50%',
-                      backgroundColor: tagStyles.dot,
-                      flexShrink: 0,
-                    }}
-                  />
+                  {isIncluded ? (
+                    <Check size={11} style={{ color: tagStyles.dot, strokeWidth: 3 }} />
+                  ) : isExcluded ? (
+                    <X size={11} style={{ color: '#ef4444', strokeWidth: 2.5 }} />
+                  ) : (
+                    <span
+                      style={{
+                        width: '0.45rem',
+                        height: '0.45rem',
+                        borderRadius: '50%',
+                        backgroundColor: tagStyles.dot,
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                   <span>{tag}</span>
-                  <span
-                    style={{
-                      fontSize: '0.6875rem',
-                      color: isSelected ? '#0f172a' : '#94a3b8',
-                      opacity: 0.85,
-                    }}
-                  >
-                    ({count})
-                  </span>
-                  {isSelected && <Check size={11} style={{ color: tagStyles.dot, strokeWidth: 2.5 }} />}
+                  {!isExcluded && (
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        color: isIncluded ? '#0f172a' : '#94a3b8',
+                        opacity: 0.85,
+                      }}
+                    >
+                      ({count})
+                    </span>
+                  )}
                 </button>
               );
             })}
 
-            {selectedTags.size > 0 && (
+            {Object.keys(tagFilters).length > 0 && (
               <button
                 type="button"
-                onClick={() => setSelectedTags(new Set())}
+                onClick={() => setTagFilters({})}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -648,7 +709,8 @@ export const CollectionDetailView: React.FC = () => {
               onClick={() => {
                 setSearchTerm('');
                 setStatusFilter('ALL');
-                setSelectedTags(new Set());
+                setDifficultyFilter('ALL');
+                setTagFilters({});
               }}
               style={{ fontSize: '0.8125rem', padding: '0.3rem 0.625rem' }}
             >
@@ -764,7 +826,9 @@ export const CollectionDetailView: React.FC = () => {
 
                       {/* Etiquetas (Tags) redondeadas como el filtro y sin el # */}
                       {ex.tags && ex.tags.length > 0 && ex.tags.map((t) => {
-                        const isTagActive = selectedTags.has(t);
+                        const filterMode = tagFilters[t.trim().toLowerCase()];
+                        const isIncluded = filterMode === 'INCLUDE';
+                        const isExcluded = filterMode === 'EXCLUDE';
                         const tagStyles = getTagStyles(t);
                         return (
                           <button
@@ -772,15 +836,32 @@ export const CollectionDetailView: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.preventDefault();
-                              toggleTag(t);
+                              e.stopPropagation();
+                              cycleTagFilter(t);
                             }}
-                            title={`Filtrar por etiqueta: ${t}`}
+                            title={
+                              isIncluded
+                                ? `${t}: Requerida (clic para excluir)`
+                                : isExcluded
+                                ? `${t}: Excluida (clic para quitar filtro)`
+                                : `${t}: Clic para requerir`
+                            }
                             style={{
                               fontSize: '0.6875rem',
-                              backgroundColor: isTagActive ? tagStyles.bg : '#ffffff',
-                              color: isTagActive ? '#0f172a' : '#475569',
-                              border: isTagActive
+                              backgroundColor: isIncluded
+                                ? tagStyles.bg
+                                : isExcluded
+                                ? '#fef2f2'
+                                : '#ffffff',
+                              color: isIncluded
+                                ? '#0f172a'
+                                : isExcluded
+                                ? '#991b1b'
+                                : '#475569',
+                              border: isIncluded
                                 ? `1.5px solid ${tagStyles.dot}`
+                                : isExcluded
+                                ? '1.5px solid #f87171'
                                 : '1px solid #e2e8f0',
                               padding: '0.125rem 0.5rem',
                               borderRadius: '9999px',
@@ -788,20 +869,27 @@ export const CollectionDetailView: React.FC = () => {
                               alignItems: 'center',
                               gap: '0.25rem',
                               cursor: 'pointer',
-                              fontWeight: isTagActive ? 600 : 500,
+                              fontWeight: isIncluded || isExcluded ? 600 : 500,
+                              textDecoration: isExcluded ? 'line-through' : 'none',
                               lineHeight: 1.25,
                               transition: 'all 0.15s ease',
                             }}
                           >
-                            <span
-                              style={{
-                                width: '0.375rem',
-                                height: '0.375rem',
-                                borderRadius: '50%',
-                                backgroundColor: tagStyles.dot,
-                                flexShrink: 0,
-                              }}
-                            />
+                            {isIncluded ? (
+                              <Check size={10} style={{ color: tagStyles.dot, strokeWidth: 3 }} />
+                            ) : isExcluded ? (
+                              <X size={10} style={{ color: '#ef4444', strokeWidth: 2.5 }} />
+                            ) : (
+                              <span
+                                style={{
+                                  width: '0.375rem',
+                                  height: '0.375rem',
+                                  borderRadius: '50%',
+                                  backgroundColor: tagStyles.dot,
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
                             {t}
                           </button>
                         );
