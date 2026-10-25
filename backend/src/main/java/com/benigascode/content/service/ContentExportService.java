@@ -281,6 +281,7 @@ public class ContentExportService {
         v.setComparatorConfig(ev.getComparatorConfig());
         v.setTestsConfig(newTestsConfig != null ? newTestsConfig : ev.getTestsConfig());
         v.setTemplatesConfig(ev.getTemplatesConfig());
+        v.setSolutionsConfig(ev.getSolutionsConfig());
         v.setTags(ev.getTags());
         v.setContentHash(ev.getContentHash());
         v.setGitCommit(ev.getGitCommit());

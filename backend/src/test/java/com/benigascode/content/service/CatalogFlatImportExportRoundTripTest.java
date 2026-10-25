@@ -379,6 +379,7 @@ public class CatalogFlatImportExportRoundTripTest {
         ev.setTitle("Xocolata IF");
         ev.setStatement(initialStatement);
         ev.setTestsConfig(initialTestsConfig);
+        ev.setSolutionsConfig("{\"java\":\"public class Main {}\\n\",\"python\":\"print(10)\\n\"}");
 
         ExerciseAsset asset1 = new ExerciseAsset(ex, "logo.png", "image/png", new byte[]{1, 1, 1});
         asset1.setId(UUID.randomUUID());
@@ -403,7 +404,7 @@ public class CatalogFlatImportExportRoundTripTest {
         assertTrue(img0.exists(), "Debe existir xocolata-if-img0.png");
         assertTrue(img1.exists(), "Debe existir xocolata-if-img1.png");
 
-        // 3. Verificar que el markdown exportado tiene las rutas reescritas tanto en enunciado como en explanation
+        // 3. Verificar que el markdown exportado tiene las rutas reescritas tanto en enunciado como en explanation, y también ## Solutions
         File mdFile = new File(baseDir, "exercises/xocolata-if.md");
         assertTrue(mdFile.exists());
         String mdContent = Files.readString(mdFile.toPath());
@@ -411,6 +412,9 @@ public class CatalogFlatImportExportRoundTripTest {
         assertTrue(mdContent.contains("#### Explanation"));
         assertTrue(mdContent.contains("![Diagrama](assets/xocolata-if-img1.png)"));
         assertFalse(mdContent.contains("test-diagram.png"));
+        assertTrue(mdContent.contains("## Solutions"), "El markdown exportado debe incluir el apartado ## Solutions");
+        assertTrue(mdContent.contains("```java\npublic class Main {}\n```"));
+        assertTrue(mdContent.contains("```python\nprint(10)\n```"));
 
         // 4. Verificar que al importar el catálogo, detecta ambos assets para el ejercicio
         List<CatalogImportExportService.ExerciseSource> sources = catalogService.findExerciseSources(baseDir);
