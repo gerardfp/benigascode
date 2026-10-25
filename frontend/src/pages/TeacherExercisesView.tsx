@@ -1597,7 +1597,6 @@ export const TeacherExercisesView: React.FC = () => {
                         border: '1.5px solid #d6daed',
                         borderRadius: '9999px',
                         gap: '0.45rem',
-                        paddingInlineEnd: '0.25rem',
                       }}
                     >
                       <TagBadge value={tag} style={{ border: 'none' }} />
@@ -1679,7 +1678,6 @@ export const TeacherExercisesView: React.FC = () => {
                           border: '1.5px solid #d6daed',
                           borderRadius: '9999px',
                           gap: '0.45rem',
-                          paddingInlineEnd: '0.25rem',
                         }}
                       >
                         <TagBadge value={tagInfo.tag} style={{ border: 'none' }} />
