@@ -242,36 +242,15 @@ export const CollectionDetailView: React.FC = () => {
     });
   }, [exercises, searchTerm, statusFilter, difficultyFilter, tagFilters, progress]);
 
-  // Lista de etiquetas visibles: presentes en los ejercicios listados actualmente + las que tengan filtro activo
-  const visibleTags = useMemo(() => {
-    const tagSet = new Set<string>();
+  // Lista de todas las etiquetas de la colección ordenadas alfabéticamente
+  const allTags = useMemo(() => {
+    return Array.from(canonicalTagMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [canonicalTagMap]);
 
-    filteredExercises.forEach((ex) => {
-      if (ex.tags && Array.isArray(ex.tags)) {
-        ex.tags.forEach((t) => {
-          if (t && t.trim()) {
-            tagSet.add(t.trim().toLowerCase());
-          }
-        });
-      }
-    });
-
-    // Mantener visibles las etiquetas con filtro activo (INCLUDE o EXCLUDE) para verlas y desmarcarlas
-    Object.keys(tagFilters).forEach((k) => tagSet.add(k));
-
-    const list: string[] = [];
-    tagSet.forEach((key) => {
-      const displayName = canonicalTagMap.get(key) || key;
-      list.push(displayName);
-    });
-
-    return list.sort((a, b) => a.localeCompare(b));
-  }, [filteredExercises, tagFilters, canonicalTagMap]);
-
-  // Cantidad de ejercicios listados actualmente asociados a cada etiqueta visible
+  // Cantidad de ejercicios listados actualmente asociados a cada etiqueta de la colección
   const tagCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    visibleTags.forEach((tag) => {
+    allTags.forEach((tag) => {
       let count = 0;
       filteredExercises.forEach((ex) => {
         if (matchTag(ex.tags, tag)) {
@@ -281,7 +260,7 @@ export const CollectionDetailView: React.FC = () => {
       counts[tag] = count;
     });
     return counts;
-  }, [filteredExercises, visibleTags]);
+  }, [filteredExercises, allTags]);
 
   if (loading) {
     return (
@@ -560,8 +539,8 @@ export const CollectionDetailView: React.FC = () => {
           </div>
         </div>
 
-        {/* Barra con etiquetas disponibles según los ejercicios listados y filtros activos */}
-        {visibleTags.length > 0 && (
+        {/* Barra con todas las etiquetas presentes en la colección */}
+        {allTags.length > 0 && (
           <div
             style={{
               display: 'flex',
@@ -590,21 +569,30 @@ export const CollectionDetailView: React.FC = () => {
               <span>Etiquetas:</span>
             </div>
 
-            {visibleTags.map((tag) => {
+            {allTags.map((tag) => {
               const filterState = tagFilters[tag.toLowerCase()];
               const isIncluded = filterState === 'INCLUDE';
               const isExcluded = filterState === 'EXCLUDE';
-              const tagStyles = getTagStyles(tag);
               const count = tagCounts[tag] || 0;
+              const isDisabled = !filterState && count === 0;
+              const tagStyles = getTagStyles(tag);
 
               return (
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => cycleTagFilter(tag)}
+                  disabled={isDisabled}
+                  onClick={() => {
+                    if (!isDisabled) {
+                      cycleTagFilter(tag);
+                    }
+                  }}
                   aria-pressed={isIncluded ? true : isExcluded ? 'mixed' : false}
+                  aria-disabled={isDisabled}
                   title={
-                    isIncluded
+                    isDisabled
+                      ? `${tag} (0 ejercicios)`
+                      : isIncluded
                       ? `${tag}: Requerida (clic para excluir)`
                       : isExcluded
                       ? `${tag}: Excluida (clic para quitar filtro)`
@@ -618,29 +606,38 @@ export const CollectionDetailView: React.FC = () => {
                     borderRadius: '9999px',
                     fontSize: '0.75rem',
                     fontWeight: isIncluded || isExcluded ? 600 : 500,
-                    cursor: 'pointer',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
                     transition: 'all 0.15s ease',
-                    backgroundColor: isIncluded
+                    backgroundColor: isDisabled
+                      ? '#f1f5f9'
+                      : isIncluded
                       ? tagStyles.bg
                       : isExcluded
                       ? '#fef2f2'
                       : '#ffffff',
-                    color: isIncluded
+                    color: isDisabled
+                      ? '#94a3b8'
+                      : isIncluded
                       ? '#0f172a'
                       : isExcluded
                       ? '#991b1b'
                       : '#475569',
-                    border: isIncluded
+                    border: isDisabled
+                      ? '1px solid #e2e8f0'
+                      : isIncluded
                       ? `1.5px solid ${tagStyles.dot}`
                       : isExcluded
                       ? '1.5px solid #f87171'
                       : '1px solid #cbd5e1',
-                    boxShadow: isIncluded
+                    boxShadow: isDisabled
+                      ? 'none'
+                      : isIncluded
                       ? `0 0 0 1px ${tagStyles.dot}20`
                       : isExcluded
                       ? '0 0 0 1px rgba(239, 68, 68, 0.15)'
                       : 'none',
                     textDecoration: isExcluded ? 'line-through' : 'none',
+                    opacity: isDisabled ? 0.65 : 1,
                   }}
                 >
                   {isIncluded ? (
@@ -653,7 +650,7 @@ export const CollectionDetailView: React.FC = () => {
                         width: '0.45rem',
                         height: '0.45rem',
                         borderRadius: '50%',
-                        backgroundColor: tagStyles.dot,
+                        backgroundColor: isDisabled ? '#cbd5e1' : tagStyles.dot,
                         flexShrink: 0,
                       }}
                     />
@@ -663,7 +660,7 @@ export const CollectionDetailView: React.FC = () => {
                     <span
                       style={{
                         fontSize: '0.6875rem',
-                        color: isIncluded ? '#0f172a' : '#94a3b8',
+                        color: isDisabled ? '#cbd5e1' : isIncluded ? '#0f172a' : '#94a3b8',
                         opacity: 0.85,
                       }}
                     >
