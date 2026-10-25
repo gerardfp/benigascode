@@ -189,20 +189,34 @@ export async function processMathAndMermaid(container: HTMLElement | null): Prom
   }
 
   // 2. Procesar fórmulas matemáticas con MathJax
-  if (typeof window !== 'undefined' && (window as any).MathJax) {
-    const mathJax = (window as any).MathJax;
-    if (typeof mathJax.typesetPromise === 'function') {
-      try {
-        await mathJax.typesetPromise([container]);
-      } catch {
-        // Ignorar errores temporales durante edición continua
+  if (typeof window !== 'undefined') {
+    const renderMath = (mj: any) => {
+      if (typeof mj?.typesetPromise === 'function') {
+        mj.typesetPromise([container]).catch(() => {});
+      } else if (mj?.startup?.promise) {
+        mj.startup.promise.then(() => {
+          if (typeof mj.typesetPromise === 'function') {
+            mj.typesetPromise([container]).catch(() => {});
+          }
+        });
       }
-    } else if (mathJax.startup?.promise) {
-      mathJax.startup.promise.then(() => {
-        if (typeof mathJax.typesetPromise === 'function') {
-          mathJax.typesetPromise([container]).catch(() => {});
+    };
+
+    const mathJax = (window as any).MathJax;
+    if (mathJax && (typeof mathJax.typesetPromise === 'function' || mathJax.startup?.promise)) {
+      renderMath(mathJax);
+    } else {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        const mj = (window as any).MathJax;
+        if (mj && (typeof mj.typesetPromise === 'function' || mj.startup?.promise)) {
+          clearInterval(timer);
+          renderMath(mj);
+        } else if (attempts >= 50) {
+          clearInterval(timer);
         }
-      });
+      }, 100);
     }
   }
 }
