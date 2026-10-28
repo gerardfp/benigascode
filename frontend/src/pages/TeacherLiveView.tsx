@@ -585,7 +585,7 @@ export const TeacherLiveView: React.FC = () => {
                     key={st.id} 
                     style={{ 
                       borderBottom: isLast && !isExpanded ? 'none' : '1px solid #f1f5f9',
-                      padding: '0.5rem 1rem',
+                      padding: '0.1rem 1rem',
                       transition: 'background-color 0.15s ease',
                     }}
                   >

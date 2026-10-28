@@ -204,33 +204,56 @@ export const ExerciseView: React.FC = () => {
     };
   }, [collectionExercises, exerciseId]);
 
-  // Responsive layout & resizable splitter state
+  // Responsive layout & resizable splitter state (2 columns)
   const [leftPanelRatio, setLeftPanelRatio] = useState<number>(() => {
     const saved = localStorage.getItem('benigascode_exercise_split_ratio');
     if (saved) {
       const val = parseFloat(saved);
-      if (!isNaN(val) && val >= 25 && val <= 75) return val;
+      if (!isNaN(val) && val >= 20 && val <= 80) return val;
     }
     return 44; // Default 44% left, 56% right
   });
-  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
 
-  // Vertical splitter state for Right Column (Top: Editor, Bottom: Test Results)
+  // Resizable splitter state for 3 columns: [col1%, col2%, col3%]
+  const [threeColRatios, setThreeColRatios] = useState<[number, number, number]>(() => {
+    const saved = localStorage.getItem('benigascode_exercise_3col_ratios');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length === 3 &&
+          parsed.every((v) => typeof v === 'number' && !isNaN(v) && v >= 12 && v <= 76)
+        ) {
+          return [parsed[0], parsed[1], parsed[2]];
+        }
+      } catch {
+        // Ignore parse error
+      }
+    }
+    return [34, 30, 36];
+  });
+  const [draggingColSplitter, setDraggingColSplitter] = useState<null | 1 | 2>(null);
+
+  // Vertical splitter state (TopSlot vs BottomSlot Test Results)
   const [rightTopPanelRatio, setRightTopPanelRatio] = useState<number>(() => {
     const saved = localStorage.getItem('benigascode_exercise_right_split_ratio');
     if (saved) {
       const val = parseFloat(saved);
-      if (!isNaN(val) && val >= 20 && val <= 80) return val;
+      if (!isNaN(val) && val >= 15 && val <= 85) return val;
     }
-    return 58; // Default 58% top editor, 42% bottom tests
+    return 58; // Default 58% top, 42% bottom tests
   });
   const [isDraggingRightSplitter, setIsDraggingRightSplitter] = useState(false);
   const rightContainerRef = useRef<HTMLDivElement>(null);
   const [copiedFeedback, setCopiedFeedback] = useState(false);
 
-  // Altura fija de la cabecera del panel de Test cuando está colapsado (en px)
+  // Altura fija de la cabecera de cualquier panel cuando está colapsado (en px)
   const TEST_PANEL_HEADER_HEIGHT = 44;
-  const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState<boolean>(false);
+  // En modos con división vertical (opciones 1, 2, 3), indica qué slot está colapsado ('none' | 'top' | 'bottom')
+  const [collapsedVerticalSlot, setCollapsedVerticalSlot] = useState<'none' | 'top' | 'bottom'>('none');
+  // En modos de 3 columnas (opciones 4, 5), indica si la columna de Test Result está colapsada
+  const [isTestColumnCollapsed, setIsTestColumnCollapsed] = useState<boolean>(false);
   const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -272,52 +295,73 @@ export const ExerciseView: React.FC = () => {
     return () => window.removeEventListener('resize', handleWindowResize);
   }, []);
 
-  // Control del arrastre horizontal de la línea divisoria (Splitter)
+  // Control del arrastre horizontal de las líneas divisorias de columnas (1 o 2)
   useEffect(() => {
-    if (!isDraggingSplitter) return;
+    if (!draggingColSplitter) return;
 
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const updateHorizontalSplit = (clientX: number) => {
       if (!splitContainerRef.current) return;
       const rect = splitContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.clientX - rect.left) / rect.width) * 100;
-      const clampedRatio = Math.min(75, Math.max(25, rawRatio));
-      setLeftPanelRatio(clampedRatio);
+      if (rect.width <= 0) return;
+      const pct = ((clientX - rect.left) / rect.width) * 100;
+
+      if (!isColumnMode || isTestColumnCollapsed) {
+        const clampedRatio = Math.min(80, Math.max(20, pct));
+        setLeftPanelRatio(clampedRatio);
+      } else {
+        const MIN_COL = 15;
+        setThreeColRatios((prev) => {
+          if (draggingColSplitter === 1) {
+            const total12 = 100 - prev[2];
+            const newCol1 = Math.min(total12 - MIN_COL, Math.max(MIN_COL, pct));
+            const newCol2 = total12 - newCol1;
+            return [newCol1, newCol2, prev[2]];
+          } else {
+            const total23 = 100 - prev[0];
+            const rawCol2 = pct - prev[0];
+            const newCol2 = Math.min(total23 - MIN_COL, Math.max(MIN_COL, rawCol2));
+            const newCol3 = total23 - newCol2;
+            return [prev[0], newCol2, newCol3];
+          }
+        });
+      }
     };
 
-    const handleMouseUp = () => {
-      setIsDraggingSplitter(false);
-      setLeftPanelRatio((currentRatio) => {
-        try {
-          localStorage.setItem('benigascode_exercise_split_ratio', currentRatio.toFixed(1));
-        } catch {
-          // Ignore localStorage errors
-        }
-        return currentRatio;
-      });
+    const finishHorizontalSplit = () => {
+      setDraggingColSplitter(null);
+      if (!isColumnMode || isTestColumnCollapsed) {
+        setLeftPanelRatio((currentRatio) => {
+          try {
+            localStorage.setItem('benigascode_exercise_split_ratio', currentRatio.toFixed(1));
+          } catch {
+            // Ignore localStorage errors
+          }
+          return currentRatio;
+        });
+      } else {
+        setThreeColRatios((currentRatios) => {
+          try {
+            localStorage.setItem(
+              'benigascode_exercise_3col_ratios',
+              JSON.stringify(currentRatios.map((v) => Number(v.toFixed(1))))
+            );
+          } catch {
+            // Ignore localStorage errors
+          }
+          return currentRatios;
+        });
+      }
     };
 
+    const handleMouseMove = (e: MouseEvent) => updateHorizontalSplit(e.clientX);
+    const handleMouseUp = () => finishHorizontalSplit();
     const handleTouchMove = (e: TouchEvent) => {
-      if (!splitContainerRef.current || e.touches.length === 0) return;
-      const rect = splitContainerRef.current.getBoundingClientRect();
-      const rawRatio = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
-      const clampedRatio = Math.min(75, Math.max(25, rawRatio));
-      setLeftPanelRatio(clampedRatio);
+      if (e.touches.length > 0) updateHorizontalSplit(e.touches[0].clientX);
     };
-
-    const handleTouchEnd = () => {
-      setIsDraggingSplitter(false);
-      setLeftPanelRatio((currentRatio) => {
-        try {
-          localStorage.setItem('benigascode_exercise_split_ratio', currentRatio.toFixed(1));
-        } catch {
-          // Ignore localStorage errors
-        }
-        return currentRatio;
-      });
-    };
+    const handleTouchEnd = () => finishHorizontalSplit();
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -332,36 +376,39 @@ export const ExerciseView: React.FC = () => {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDraggingSplitter]);
+  }, [draggingColSplitter, isColumnMode, isTestColumnCollapsed]);
 
-  // Control del arrastre vertical de la línea divisoria en la columna derecha
+  // Control del arrastre vertical bidireccional (permite colapsar el slot superior o el inferior)
   useEffect(() => {
     if (!isDraggingRightSplitter) return;
 
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const updateVerticalSplit = (clientY: number) => {
       if (!rightContainerRef.current) return;
       const rect = rightContainerRef.current.getBoundingClientRect();
       const totalHeight = rect.height;
-      const cursorY = e.clientY - rect.top;
-      const maxEditorHeight = totalHeight - 8 - TEST_PANEL_HEADER_HEIGHT;
-      const minEditorHeight = 100;
+      if (totalHeight <= 0) return;
+      const cursorY = clientY - rect.top;
 
-      if (cursorY >= maxEditorHeight - 12) {
-        setIsTestPanelCollapsed(true);
-      } else if (cursorY <= minEditorHeight) {
-        setIsTestPanelCollapsed(false);
-        setRightTopPanelRatio((minEditorHeight / totalHeight) * 100);
+      const topCollapseThreshold = TEST_PANEL_HEADER_HEIGHT + 24;
+      const bottomCollapseThreshold = totalHeight - 8 - TEST_PANEL_HEADER_HEIGHT - 24;
+
+      if (cursorY <= topCollapseThreshold) {
+        setCollapsedVerticalSlot('top');
+      } else if (cursorY >= bottomCollapseThreshold) {
+        setCollapsedVerticalSlot('bottom');
       } else {
-        setIsTestPanelCollapsed(false);
-        const rawRatio = (cursorY / totalHeight) * 100;
-        setRightTopPanelRatio(rawRatio);
+        setCollapsedVerticalSlot('none');
+        const minTopPx = Math.max(95, topCollapseThreshold + 4);
+        const maxTopPx = Math.min(totalHeight - 95, bottomCollapseThreshold - 4);
+        const clampedY = Math.min(maxTopPx, Math.max(minTopPx, cursorY));
+        setRightTopPanelRatio((clampedY / totalHeight) * 100);
       }
     };
 
-    const handleMouseUp = () => {
+    const finishVerticalSplit = () => {
       setIsDraggingRightSplitter(false);
       setRightTopPanelRatio((currentRatio) => {
         try {
@@ -373,37 +420,12 @@ export const ExerciseView: React.FC = () => {
       });
     };
 
+    const handleMouseMove = (e: MouseEvent) => updateVerticalSplit(e.clientY);
+    const handleMouseUp = () => finishVerticalSplit();
     const handleTouchMove = (e: TouchEvent) => {
-      if (!rightContainerRef.current || e.touches.length === 0) return;
-      const rect = rightContainerRef.current.getBoundingClientRect();
-      const totalHeight = rect.height;
-      const cursorY = e.touches[0].clientY - rect.top;
-      const maxEditorHeight = totalHeight - 8 - TEST_PANEL_HEADER_HEIGHT;
-      const minEditorHeight = 100;
-
-      if (cursorY >= maxEditorHeight - 12) {
-        setIsTestPanelCollapsed(true);
-      } else if (cursorY <= minEditorHeight) {
-        setIsTestPanelCollapsed(false);
-        setRightTopPanelRatio((minEditorHeight / totalHeight) * 100);
-      } else {
-        setIsTestPanelCollapsed(false);
-        const rawRatio = (cursorY / totalHeight) * 100;
-        setRightTopPanelRatio(rawRatio);
-      }
+      if (e.touches.length > 0) updateVerticalSplit(e.touches[0].clientY);
     };
-
-    const handleTouchEnd = () => {
-      setIsDraggingRightSplitter(false);
-      setRightTopPanelRatio((currentRatio) => {
-        try {
-          localStorage.setItem('benigascode_exercise_right_split_ratio', currentRatio.toFixed(1));
-        } catch {
-          // Ignore localStorage errors
-        }
-        return currentRatio;
-      });
-    };
+    const handleTouchEnd = () => finishVerticalSplit();
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -420,25 +442,28 @@ export const ExerciseView: React.FC = () => {
     };
   }, [isDraggingRightSplitter]);
 
-  // Expandir panel de tests automáticamente al 50% de la columna
-  const expandTestPanelToHalf = useCallback(() => {
-    setIsTestPanelCollapsed(false);
-    setRightTopPanelRatio(50);
-    try {
-      localStorage.setItem('benigascode_exercise_right_split_ratio', '50.0');
-    } catch {
-      // Ignore localStorage errors
+  // Asegurar que el panel de tests esté visible al ejecutar Probar o Enviar
+  const ensureTestPanelExpanded = useCallback(() => {
+    if (isColumnMode) {
+      setIsTestColumnCollapsed(false);
+    } else if (collapsedVerticalSlot === 'bottom') {
+      setCollapsedVerticalSlot('none');
     }
+  }, [isColumnMode, collapsedVerticalSlot]);
+
+  // Alternar colapso/expansión del slot superior (Problema y/o Código cuando tienen Test Result debajo)
+  const toggleTopSlot = useCallback(() => {
+    setCollapsedVerticalSlot((prev) => (prev === 'top' ? 'none' : 'top'));
   }, []);
 
   // Alternar colapso/expansión del panel de tests
   const toggleTestPanel = useCallback(() => {
-    if (isTestPanelCollapsed) {
-      expandTestPanelToHalf();
+    if (isColumnMode) {
+      setIsTestColumnCollapsed((prev) => !prev);
     } else {
-      setIsTestPanelCollapsed(true);
+      setCollapsedVerticalSlot((prev) => (prev === 'bottom' ? 'none' : 'bottom'));
     }
-  }, [isTestPanelCollapsed, expandTestPanelToHalf]);
+  }, [isColumnMode]);
 
   // Copiar todo el código al portapapeles
   const handleCopyCode = async () => {
@@ -937,9 +962,7 @@ export const ExerciseView: React.FC = () => {
   // Ejecución real de pruebas preliminares públicas
   const handlePreviewRun = async () => {
     if (!exerciseId || !canPreview) return;
-    if (isTestPanelCollapsed) {
-      expandTestPanelToHalf();
-    }
+    ensureTestPanelExpanded();
     setPreviewLoading(true);
     setPreviewResult(null);
     setSubmission(null);
@@ -1008,9 +1031,7 @@ export const ExerciseView: React.FC = () => {
       return;
     }
 
-    if (isTestPanelCollapsed) {
-      expandTestPanelToHalf();
-    }
+    ensureTestPanelExpanded();
     setSubmitLoading(true);
     setSubmission(null);
     setEvaluation(null);
@@ -1085,6 +1106,12 @@ export const ExerciseView: React.FC = () => {
     );
   }
 
+  const canCollapseStatement = !isSmallScreen && (testPanelPlacement === 'bottom-full' || testPanelPlacement === 'bottom-left');
+  const isStatementCollapsed = canCollapseStatement && collapsedVerticalSlot === 'top';
+
+  const canCollapseEditor = !isSmallScreen && (testPanelPlacement === 'bottom-full' || testPanelPlacement === 'bottom-right');
+  const isEditorCollapsed = canCollapseEditor && collapsedVerticalSlot === 'top';
+
   const renderStatementPanel = (customStyle?: React.CSSProperties) => (
     <div
       className="card"
@@ -1093,367 +1120,396 @@ export const ExerciseView: React.FC = () => {
         flexDirection: 'column',
         height: isSmallScreen ? 'auto' : '100%',
         boxSizing: 'border-box',
-        padding: '0.75rem 1rem',
+        padding: isStatementCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
         overflow: 'hidden',
         ...customStyle,
       }}
     >
-            {/* Barra superior de navegación y selector de vista */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                borderBottom: '1px solid #e2e8f0',
-                paddingBottom: '0.45rem',
-                marginBottom: '0.6rem',
-                flexShrink: 0,
-              }}
-            >
-              {/* Sección Izquierda: Navegación (Volver, Anterior, Siguiente) */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {collectionId ? (
-                  <Link
-                    to={`/collections/${collectionId}`}
-                    className="btn-secondary"
-                    style={{
-                      textDecoration: 'none',
-                      fontSize: '0.75rem',
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#475569',
-                      borderRadius: '0.375rem',
-                    }}
-                    title="Volver a la Colección"
-                  >
-                    <ArrowLeft size={16} />
-                  </Link>
-                ) : activityId ? (
-                  <Link
-                    to={`/activity/${activityId}`}
-                    className="btn-secondary"
-                    style={{
-                      textDecoration: 'none',
-                      fontSize: '0.75rem',
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#475569',
-                      borderRadius: '0.375rem',
-                    }}
-                    title="Volver a la Actividad"
-                  >
-                    <ArrowLeft size={16} />
-                  </Link>
-                ) : (
-                  <Link
-                    to="/"
-                    className="btn-secondary"
-                    style={{
-                      textDecoration: 'none',
-                      fontSize: '0.75rem',
-                      padding: '0.3rem 0.5rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#475569',
-                      borderRadius: '0.375rem',
-                    }}
-                    title="Volver al Dashboard"
-                  >
-                    <ArrowLeft size={16} />
-                  </Link>
-                )}
+      {/* Barra superior de título, navegación y selector de vista */}
+      <div
+        onClick={canCollapseStatement ? toggleTopSlot : undefined}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: isStatementCollapsed ? 'nowrap' : 'wrap',
+          gap: '0.5rem',
+          borderBottom: isStatementCollapsed ? 'none' : '1px solid #e2e8f0',
+          paddingBottom: isStatementCollapsed ? 0 : '0.45rem',
+          marginBottom: isStatementCollapsed ? 0 : '0.6rem',
+          height: isStatementCollapsed ? '100%' : 'auto',
+          flexShrink: 0,
+          cursor: canCollapseStatement ? 'pointer' : 'default',
+          userSelect: 'none',
+        }}
+        title={
+          canCollapseStatement
+            ? isStatementCollapsed
+              ? 'Expandir panel'
+              : 'Colapsar panel'
+            : undefined
+        }
+      >
+        {/* Sección Izquierda: Título Problema + Navegación (Volver, Anterior, Siguiente) */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+            <FileText size={16} style={{ color: '#2563eb' }} />
+            <span>Problema</span>
+          </div>
 
-                {collectionId && (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '0.375rem',
-                      overflow: 'hidden',
-                      backgroundColor: '#f8fafc',
-                    }}
-                  >
-                    {prevExercise ? (
-                      <Link
-                        to={`/collections/${collectionId}/exercise/${prevExercise.id}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.3rem 0.5rem',
-                          color: '#334155',
-                          textDecoration: 'none',
-                          borderRight: '1px solid #cbd5e1',
-                        }}
-                        title={`Anterior: ${prevExercise.title}`}
-                      >
-                        <ChevronLeft size={16} />
-                      </Link>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.3rem 0.5rem',
-                          color: '#94a3b8',
-                          borderRight: '1px solid #cbd5e1',
-                          cursor: 'not-allowed',
-                          opacity: 0.6,
-                        }}
-                        title="No hay ejercicio anterior"
-                      >
-                        <ChevronLeft size={16} />
-                      </span>
-                    )}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}
+          >
+            {collectionId ? (
+              <Link
+                to={`/collections/${collectionId}`}
+                className="btn-secondary"
+                style={{
+                  textDecoration: 'none',
+                  fontSize: '0.75rem',
+                  padding: '0.3rem 0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#475569',
+                  borderRadius: '0.375rem',
+                }}
+                title="Volver a la Colección"
+              >
+                <ArrowLeft size={16} />
+              </Link>
+            ) : activityId ? (
+              <Link
+                to={`/activity/${activityId}`}
+                className="btn-secondary"
+                style={{
+                  textDecoration: 'none',
+                  fontSize: '0.75rem',
+                  padding: '0.3rem 0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#475569',
+                  borderRadius: '0.375rem',
+                }}
+                title="Volver a la Actividad"
+              >
+                <ArrowLeft size={16} />
+              </Link>
+            ) : (
+              <Link
+                to="/"
+                className="btn-secondary"
+                style={{
+                  textDecoration: 'none',
+                  fontSize: '0.75rem',
+                  padding: '0.3rem 0.5rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#475569',
+                  borderRadius: '0.375rem',
+                }}
+                title="Volver al Dashboard"
+              >
+                <ArrowLeft size={16} />
+              </Link>
+            )}
 
-                    {nextExercise ? (
-                      <Link
-                        to={`/collections/${collectionId}/exercise/${nextExercise.id}`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.3rem 0.5rem',
-                          color: '#334155',
-                          textDecoration: 'none',
-                        }}
-                        title={`Siguiente: ${nextExercise.title}`}
-                      >
-                        <ChevronRight size={16} />
-                      </Link>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.3rem 0.5rem',
-                          color: '#94a3b8',
-                          cursor: 'not-allowed',
-                          opacity: 0.6,
-                        }}
-                        title="No hay siguiente ejercicio"
-                      >
-                        <ChevronRight size={16} />
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Sección Derecha: Selector de contenido (Enunciado / Entregas) con diseño tipo segmented-control diferenciado */}
+            {collectionId && (
               <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  padding: '0.15rem',
-                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
                   borderRadius: '0.375rem',
-                  border: '1px solid #e2e8f0',
+                  overflow: 'hidden',
+                  backgroundColor: '#f8fafc',
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setLeftTab('statement')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.2rem 0.6rem',
-                    borderRadius: '0.25rem',
-                    border: 'none',
-                    backgroundColor: leftTab === 'statement' ? '#ffffff' : 'transparent',
-                    color: leftTab === 'statement' ? '#1e293b' : '#64748b',
-                    fontWeight: leftTab === 'statement' ? 700 : 500,
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    boxShadow: leftTab === 'statement' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <FileText size={14} style={{ color: leftTab === 'statement' ? '#2563eb' : '#64748b' }} />
-                  <span>Enunciado</span>
-                </button>
+                {prevExercise ? (
+                  <Link
+                    to={`/collections/${collectionId}/exercise/${prevExercise.id}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.3rem 0.5rem',
+                      color: '#334155',
+                      textDecoration: 'none',
+                      borderRight: '1px solid #cbd5e1',
+                    }}
+                    title={`Anterior: ${prevExercise.title}`}
+                  >
+                    <ChevronLeft size={16} />
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.3rem 0.5rem',
+                      color: '#94a3b8',
+                      borderRight: '1px solid #cbd5e1',
+                      cursor: 'not-allowed',
+                      opacity: 0.6,
+                    }}
+                    title="No hay ejercicio anterior"
+                  >
+                    <ChevronLeft size={16} />
+                  </span>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => setLeftTab('submissions')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.2rem 0.6rem',
-                    borderRadius: '0.25rem',
-                    border: 'none',
-                    backgroundColor: leftTab === 'submissions' ? '#ffffff' : 'transparent',
-                    color: leftTab === 'submissions' ? '#1e293b' : '#64748b',
-                    fontWeight: leftTab === 'submissions' ? 700 : 500,
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    boxShadow: leftTab === 'submissions' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <History size={14} style={{ color: leftTab === 'submissions' ? '#2563eb' : '#64748b' }} />
-                  <span>Entregas</span>
-                  {submissionsHistory.length > 0 && (
+                {nextExercise ? (
+                  <Link
+                    to={`/collections/${collectionId}/exercise/${nextExercise.id}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.3rem 0.5rem',
+                      color: '#334155',
+                      textDecoration: 'none',
+                    }}
+                    title={`Siguiente: ${nextExercise.title}`}
+                  >
+                    <ChevronRight size={16} />
+                  </Link>
+                ) : (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.3rem 0.5rem',
+                      color: '#94a3b8',
+                      cursor: 'not-allowed',
+                      opacity: 0.6,
+                    }}
+                    title="No hay siguiente ejercicio"
+                  >
+                    <ChevronRight size={16} />
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sección Derecha: Selector de contenido (Enunciado / Entregas) */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '0.15rem',
+            backgroundColor: '#f1f5f9',
+            borderRadius: '0.375rem',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setLeftTab('statement');
+              if (isStatementCollapsed) setCollapsedVerticalSlot('none');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '0.25rem',
+              border: 'none',
+              backgroundColor: leftTab === 'statement' ? '#ffffff' : 'transparent',
+              color: leftTab === 'statement' ? '#1e293b' : '#64748b',
+              fontWeight: leftTab === 'statement' ? 700 : 500,
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              boxShadow: leftTab === 'statement' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <FileText size={14} style={{ color: leftTab === 'statement' ? '#2563eb' : '#64748b' }} />
+            <span>Enunciado</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLeftTab('submissions');
+              if (isStatementCollapsed) setCollapsedVerticalSlot('none');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '0.25rem',
+              border: 'none',
+              backgroundColor: leftTab === 'submissions' ? '#ffffff' : 'transparent',
+              color: leftTab === 'submissions' ? '#1e293b' : '#64748b',
+              fontWeight: leftTab === 'submissions' ? 700 : 500,
+              fontSize: '0.75rem',
+              cursor: 'pointer',
+              boxShadow: leftTab === 'submissions' ? '0 1px 2px rgba(0, 0, 0, 0.08)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <History size={14} style={{ color: leftTab === 'submissions' ? '#2563eb' : '#64748b' }} />
+            <span>Entregas</span>
+            {submissionsHistory.length > 0 && (
+              <span
+                style={{
+                  marginLeft: '0.15rem',
+                  backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#e2e8f0',
+                  color: leftTab === 'submissions' ? '#1e40af' : '#475569',
+                  fontSize: '0.65rem',
+                  padding: '0.02rem 0.35rem',
+                  borderRadius: '9999px',
+                  fontWeight: 700,
+                }}
+              >
+                {submissionsHistory.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Contenedor scrolleable del contenido (la cabecera superior permanece fija) */}
+      {!isStatementCollapsed && (
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: isSmallScreen ? 'visible' : 'auto',
+          }}
+        >
+          {leftTab === 'statement' ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
+                {isResolved ? (
+                  <div
+                    title="Ejercicio resuelto con éxito (100% de tests superados)"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      backgroundColor: '#dcfce7',
+                      border: '1.5px solid #86efac',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#15803d',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                ) : isAttempted ? (
+                  <div
+                    title={`Intentado (${scorePct}% superado)`}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      backgroundColor: getScoreColorConfig(scorePct).bg,
+                      border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: getScoreColorConfig(scorePct).iconColor,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Metadatos: Dificultad y Etiquetas */}
+              {((exercise.difficulty !== undefined && exercise.difficulty !== null) || (exercise.tags && exercise.tags.length > 0)) && (
+                <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {exercise.difficulty !== undefined && exercise.difficulty !== null && (
                     <span
                       style={{
-                        marginLeft: '0.15rem',
-                        backgroundColor: leftTab === 'submissions' ? '#dbeafe' : '#e2e8f0',
-                        color: leftTab === 'submissions' ? '#1e40af' : '#475569',
-                        fontSize: '0.65rem',
-                        padding: '0.02rem 0.35rem',
-                        borderRadius: '9999px',
-                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        backgroundColor: '#eff6ff',
+                        color: '#1d4ed8',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '0.25rem',
+                        padding: '0.2rem 0.5rem',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
                       }}
                     >
-                      {submissionsHistory.length}
+                      🎯 Dificultad: {exercise.difficulty} / 10
                     </span>
                   )}
-                </button>
-              </div>
-            </div>
-
-            {/* Contenedor scrolleable del contenido (la cabecera superior permanece fija) */}
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: isSmallScreen ? 'visible' : 'auto',
-              }}
-            >
-              {leftTab === 'statement' ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                  <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>{exercise.title}</h1>
-                  {isResolved ? (
-                    <div
-                      title="Ejercicio resuelto con éxito (100% de tests superados)"
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: '50%',
-                        backgroundColor: '#dcfce7',
-                        border: '1.5px solid #86efac',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#15803d',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <CheckCircle2 size={18} />
-                    </div>
-                  ) : isAttempted ? (
-                    <div
-                      title={`Intentado (${scorePct}% superado)`}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: '50%',
-                        backgroundColor: getScoreColorConfig(scorePct).bg,
-                        border: `1.5px solid ${getScoreColorConfig(scorePct).border}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: getScoreColorConfig(scorePct).iconColor,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <CheckCircle2 size={18} />
-                    </div>
-                  ) : null}
+                  {exercise.tags && exercise.tags.map((tag) => {
+                    if (tag.includes(':')) {
+                      const [cat, ...val] = tag.split(':');
+                      return <TagBadge key={tag} category={cat} value={val.join(':')} />;
+                    }
+                    return <TagBadge key={tag} value={tag} />;
+                  })}
                 </div>
+              )}
 
-                {/* Metadatos: Dificultad y Etiquetas */}
-                {((exercise.difficulty !== undefined && exercise.difficulty !== null) || (exercise.tags && exercise.tags.length > 0)) && (
-                  <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {exercise.difficulty !== undefined && exercise.difficulty !== null && (
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          backgroundColor: '#eff6ff',
-                          color: '#1d4ed8',
-                          border: '1px solid #bfdbfe',
-                          borderRadius: '0.25rem',
-                          padding: '0.2rem 0.5rem',
-                          fontWeight: 600,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                        }}
-                      >
-                        🎯 Dificultad: {exercise.difficulty} / 10
-                      </span>
-                    )}
-                    {exercise.tags && exercise.tags.map((tag) => {
-                      if (tag.includes(':')) {
-                        const [cat, ...val] = tag.split(':');
-                        return <TagBadge key={tag} category={cat} value={val.join(':')} />;
-                      }
-                      return <TagBadge key={tag} value={tag} />;
-                    })}
-                  </div>
-                )}
+              <MarkdownView
+                className="markdown-statement"
+                content={cleanStatementText}
+                exerciseId={exercise.id}
+              />
 
-                <MarkdownView
-                  className="markdown-statement"
-                  content={cleanStatementText}
-                  exerciseId={exercise.id}
-                />
-
-                {/* Tests públicos informativos dentro de la misma tarjeta con su <h2> */}
-                {publicTests.length > 0 && (
-                  <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 1rem', color: '#0f172a' }}>
-                      Tests públicos
-                    </h2>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                      {publicTests.map((t, idx) => (
-                        <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
-                            {getTestDisplayName(t.id, t.name, idx)}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <div>
-                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
-                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
-                              <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                            </div>
-                          </div>
-                          {t.explanation && (
-                            <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
-                              <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
-                              <MarkdownView
-                                className="markdown-statement"
-                                style={{ marginTop: '0.25rem' }}
-                                content={t.explanation}
-                                exerciseId={exercise?.id}
-                              />
-                            </div>
-                          )}
+              {/* Tests públicos informativos dentro de la misma tarjeta con su <h2> */}
+              {publicTests.length > 0 && (
+                <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 1rem', color: '#0f172a' }}>
+                    Tests públicos
+                  </h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {publicTests.map((t, idx) => (
+                      <div key={t.id || idx} style={{ borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none', paddingTop: idx > 0 ? '1.25rem' : 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#14532d', marginBottom: '0.5rem' }}>
+                          {getTestDisplayName(t.id, t.name, idx)}
                         </div>
-                      ))}
-                    </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div>
+                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Entrada:</span>
+                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.input || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', fontSize: '0.8125rem', fontWeight: 500 }}>Salida esperada:</span>
+                            <pre style={{ margin: '0.25rem 0 0', padding: '0.5rem 0.75rem', background: '#f1f5f9', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.8125rem', whiteSpace: 'pre-wrap' }}>{t.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
+                          </div>
+                        </div>
+                        {t.explanation && (
+                          <div style={{ marginTop: '0.5rem', color: '#475569', fontSize: '0.8125rem' }}>
+                            <span style={{ fontWeight: 500, color: '#334155' }}>Explicación: </span>
+                            <MarkdownView
+                              className="markdown-statement"
+                              style={{ marginTop: '0.25rem' }}
+                              content={t.explanation}
+                              exerciseId={exercise?.id}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
-              </>
-            ) : (
-              /* Lista de Envíos / Historial dentro de la misma tarjeta */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Lista de Envíos / Historial dentro de la misma tarjeta */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
                 <div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>
@@ -1632,21 +1688,23 @@ export const ExerciseView: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-    );
+      )}
+    </div>
+  );
 
-  const renderHorizontalSplitter = () => {
+  const renderHorizontalSplitter = (splitterIndex: 1 | 2 = 1) => {
     if (isSmallScreen) return null;
+    const isActive = draggingColSplitter === splitterIndex;
     return (
       <div
-        onMouseDown={() => setIsDraggingSplitter(true)}
-        onTouchStart={() => setIsDraggingSplitter(true)}
+        onMouseDown={() => setDraggingColSplitter(splitterIndex)}
+        onTouchStart={() => setDraggingColSplitter(splitterIndex)}
         style={{
           width: '8px',
           cursor: 'col-resize',
           flexShrink: 0,
           userSelect: 'none',
-          background: isDraggingSplitter ? '#3b82f6' : 'transparent',
+          background: isActive ? '#3b82f6' : 'transparent',
           borderRadius: '4px',
           transition: 'background-color 0.15s ease',
           zIndex: 10,
@@ -1661,7 +1719,7 @@ export const ExerciseView: React.FC = () => {
             width: '3px',
             height: '36px',
             borderRadius: '2px',
-            backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
+            backgroundColor: isActive ? '#ffffff' : '#cbd5e1',
           }}
         />
       </div>
@@ -1675,208 +1733,229 @@ export const ExerciseView: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
-        padding: '0.75rem 1rem',
+        padding: isEditorCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
         overflow: 'hidden',
         marginBottom: 0,
         ...customStyle,
       }}
     >
-            {/* Barra superior del Editor: 3 bloques (Izquierda, Centro, Derecha) */}
+      {/* Barra superior del Editor: 3 bloques (Izquierda, Centro, Derecha) */}
+      <div
+        onClick={canCollapseEditor ? toggleTopSlot : undefined}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: isEditorCollapsed ? 'none' : '1px solid #e2e8f0',
+          paddingBottom: isEditorCollapsed ? 0 : '0.45rem',
+          marginBottom: isEditorCollapsed ? 0 : '0.5rem',
+          height: isEditorCollapsed ? '100%' : 'auto',
+          flexWrap: isEditorCollapsed ? 'nowrap' : 'wrap',
+          gap: '0.5rem',
+          flexShrink: 0,
+          cursor: canCollapseEditor ? 'pointer' : 'default',
+          userSelect: 'none',
+        }}
+        title={
+          canCollapseEditor
+            ? isEditorCollapsed
+              ? 'Expandir panel'
+              : 'Colapsar panel'
+            : undefined
+        }
+      >
+        {/* Bloque 1 (Izquierda): Código, Java / Python */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 'fit-content' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+            <Code2 size={16} style={{ color: '#2563eb' }} />
+            <span>Código</span>
+          </div>
+
+          {/* Selector de plantilla si hay múltiples y el código no ha sido modificado aún */}
+          {availableTemplates.length > 1 && isUntouched ? (
             <div
+              onClick={(e) => e.stopPropagation()}
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '0.5rem',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                flexShrink: 0,
+                display: 'inline-flex',
+                borderRadius: '0.375rem',
+                border: '1px solid #cbd5e1',
+                overflow: 'hidden',
+                background: '#f8fafc',
               }}
             >
-              {/* Bloque 1 (Izquierda): Código, Java / Python */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 'fit-content' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
-                  <Code2 size={16} style={{ color: '#2563eb' }} />
-                  <span>Código</span>
-                </div>
-
-                {/* Selector de plantilla si hay múltiples y el código no ha sido modificado aún */}
-                {availableTemplates.length > 1 && isUntouched ? (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      borderRadius: '0.375rem',
-                      border: '1px solid #cbd5e1',
-                      overflow: 'hidden',
-                      background: '#f8fafc',
-                    }}
-                  >
-                    {availableTemplates.map((lang) => {
-                      const isSel = selectedLang.toLowerCase() === lang.toLowerCase();
-                      return (
-                        <button
-                          key={lang}
-                          type="button"
-                          onClick={() => handleSelectLanguage(lang)}
-                          style={{
-                            padding: '0.15rem 0.55rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            border: 'none',
-                            background: isSel ? '#2563eb' : 'transparent',
-                            color: isSel ? '#ffffff' : '#64748b',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          {lang.toLowerCase() === 'python' ? '🐍 PYTHON' : '☕ JAVA'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <span className="badge badge-neutral" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
-                    {currentLang === 'python' ? '🐍 Python' : '☕ Java'}
-                  </span>
-                )}
-
-              </div>
-
-              {/* Bloque 2 (Centro): Copiar, Pegar */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
-                <button
-                  type="button"
-                  onClick={handleCopyCode}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.3rem 0.5rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title={copiedFeedback ? 'Copiado al portapapeles' : 'Copiar todo el código al portapapeles'}
-                >
-                  {copiedFeedback ? <Check size={16} style={{ color: '#16a34a' }} /> : <Copy size={16} />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePasteCode}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.3rem 0.5rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  title="Pegar del portapapeles borrando todo el contenido actual"
-                >
-                  <Clipboard size={16} />
-                </button>
-              </div>
-
-              {/* Bloque 3 (Derecha): Guardar, Plantilla, Probar, Enviar */}
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem', minWidth: 'fit-content' }}>
-                <button
-                  type="button"
-                  onClick={handleSaveWorkspace}
-                  disabled={!canSave}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.3rem 0.5rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: !canSave ? 0.45 : 1,
-                    cursor: !canSave ? 'not-allowed' : 'pointer',
-                  }}
-                  title={
-                    saveStatus === 'saving'
-                      ? 'Guardando borrador...'
-                      : isDraftSaved
-                        ? 'Borrador guardado'
-                        : 'Guardar borrador (Ctrl+S)'
-                  }
-                >
-                  {isDraftSaved ? (
-                    <SaveWithCheck size={16} />
-                  ) : (
-                    <Save size={16} />
-                  )}
-                </button>
-
-                {((exercise.starterCode && exercise.starterCode.trim().length > 0) || (exercise.starterTemplates && Object.keys(exercise.starterTemplates).length > 0)) && (
+              {availableTemplates.map((lang) => {
+                const isSel = selectedLang.toLowerCase() === lang.toLowerCase();
+                return (
                   <button
+                    key={lang}
                     type="button"
-                    onClick={handleResetTemplate}
-                    disabled={submitLoading}
-                    className="btn-secondary"
+                    onClick={() => handleSelectLanguage(lang)}
                     style={{
+                      padding: '0.15rem 0.55rem',
                       fontSize: '0.75rem',
-                      padding: '0.25rem 0.55rem',
-                      color: '#64748b',
+                      fontWeight: 700,
+                      border: 'none',
+                      background: isSel ? '#2563eb' : 'transparent',
+                      color: isSel ? '#ffffff' : '#64748b',
+                      cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.3rem',
+                      gap: '0.25rem',
+                      transition: 'all 0.15s ease',
                     }}
-                    title="Restablecer código a la plantilla inicial"
                   >
-                    ↺ Plantilla
+                    {lang.toLowerCase() === 'python' ? '🐍 PYTHON' : '☕ JAVA'}
                   </button>
-                )}
-
-                <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.15rem' }} />
-
-                <button
-                  type="button"
-                  onClick={handlePreviewRun}
-                  disabled={!canPreview}
-                  className="btn-secondary"
-                  style={{
-                    fontSize: '0.75rem',
-                    padding: '0.25rem 0.65rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    opacity: canPreview ? 1 : 0.5,
-                    cursor: canPreview ? 'pointer' : 'not-allowed',
-                    backgroundColor: '#f1f5f9',
-                  }}
-                  title={canPreview ? 'Probar solución contra tests públicos' : 'Modifica el código para volver a probar'}
-                >
-                  {previewLoading ? '⏳ Probando...' : '▶ Probar'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="btn-primary"
-                  style={{
-                    fontSize: '0.75rem',
-                    padding: '0.25rem 0.75rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    opacity: canSubmit ? 1 : 0.5,
-                    cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  }}
-                  title={canSubmit ? 'Enviar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
-                >
-                  {submitLoading ? '⏳ Evaluando...' : '✓ Enviar'}
-                </button>
-              </div>
+                );
+              })}
             </div>
+          ) : (
+            <span className="badge badge-neutral" style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}>
+              {currentLang === 'python' ? '🐍 Python' : '☕ Java'}
+            </span>
+          )}
+        </div>
 
-            {/* Monaco Editor ocupando el 100% de la altura disponible */}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} height="100%" />
-            </div>
+        {/* Bloque 2 (Centro): Copiar, Pegar */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+        >
+          <button
+            type="button"
+            onClick={handleCopyCode}
+            className="btn-secondary"
+            style={{
+              padding: '0.3rem 0.5rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title={copiedFeedback ? 'Copiado al portapapeles' : 'Copiar todo el código al portapapeles'}
+          >
+            {copiedFeedback ? <Check size={16} style={{ color: '#16a34a' }} /> : <Copy size={16} />}
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePasteCode}
+            className="btn-secondary"
+            style={{
+              padding: '0.3rem 0.5rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title="Pegar del portapapeles borrando todo el contenido actual"
+          >
+            <Clipboard size={16} />
+          </button>
+        </div>
+
+        {/* Bloque 3 (Derecha): Guardar, Plantilla, Probar, Enviar */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem', minWidth: 'fit-content' }}
+        >
+          <button
+            type="button"
+            onClick={handleSaveWorkspace}
+            disabled={!canSave}
+            className="btn-secondary"
+            style={{
+              padding: '0.3rem 0.5rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: !canSave ? 0.45 : 1,
+              cursor: !canSave ? 'not-allowed' : 'pointer',
+            }}
+            title={
+              saveStatus === 'saving'
+                ? 'Guardando borrador...'
+                : isDraftSaved
+                  ? 'Borrador guardado'
+                  : 'Guardar borrador (Ctrl+S)'
+            }
+          >
+            {isDraftSaved ? (
+              <SaveWithCheck size={16} />
+            ) : (
+              <Save size={16} />
+            )}
+          </button>
+
+          {((exercise.starterCode && exercise.starterCode.trim().length > 0) || (exercise.starterTemplates && Object.keys(exercise.starterTemplates).length > 0)) && (
+            <button
+              type="button"
+              onClick={handleResetTemplate}
+              disabled={submitLoading}
+              className="btn-secondary"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.55rem',
+                color: '#64748b',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+              }}
+              title="Restablecer código a la plantilla inicial"
+            >
+              ↺ Plantilla
+            </button>
+          )}
+
+          <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.15rem' }} />
+
+          <button
+            type="button"
+            onClick={handlePreviewRun}
+            disabled={!canPreview}
+            className="btn-secondary"
+            style={{
+              fontSize: '0.75rem',
+              padding: '0.25rem 0.65rem',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              opacity: canPreview ? 1 : 0.5,
+              cursor: canPreview ? 'pointer' : 'not-allowed',
+              backgroundColor: '#f1f5f9',
+            }}
+            title={canPreview ? 'Probar solución contra tests públicos' : 'Modifica el código para volver a probar'}
+          >
+            {previewLoading ? '⏳ Probando...' : '▶ Probar'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="btn-primary"
+            style={{
+              fontSize: '0.75rem',
+              padding: '0.25rem 0.75rem',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              opacity: canSubmit ? 1 : 0.5,
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+            title={canSubmit ? 'Enviar solución oficial' : 'Modifica el código para realizar una nueva entrega'}
+          >
+            {submitLoading ? '⏳ Evaluando...' : '✓ Enviar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Monaco Editor ocupando el 100% de la altura disponible */}
+      {!isEditorCollapsed && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} height="100%" />
+        </div>
+      )}
     </div>
   );
 
@@ -1899,7 +1978,7 @@ export const ExerciseView: React.FC = () => {
           justifyContent: 'center',
           zIndex: 10,
         }}
-        title="Arrastra para redimensionar Editor y Tests"
+        title="Arrastra para redimensionar paneles"
       >
         <div
           style={{
@@ -1915,8 +1994,9 @@ export const ExerciseView: React.FC = () => {
 
   const renderTestResultsPanel = (customStyle?: React.CSSProperties) => {
     const isEffectiveColumnMode = !isSmallScreen && isColumnMode;
+    const isVerticalCollapsed = !isSmallScreen && !isColumnMode && collapsedVerticalSlot === 'bottom';
 
-    if (isEffectiveColumnMode && isTestPanelCollapsed) {
+    if (isEffectiveColumnMode && isTestColumnCollapsed) {
       return (
         <div
           className="card"
@@ -2004,6 +2084,9 @@ export const ExerciseView: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setTestPanelPlacement(opt.id);
+                        if (opt.id === 'middle-column' || opt.id === 'right-column') {
+                          setCollapsedVerticalSlot('none');
+                        }
                         setIsPlacementMenuOpen(false);
                         try {
                           localStorage.setItem('benigascode_test_panel_placement', opt.id);
@@ -2065,16 +2148,17 @@ export const ExerciseView: React.FC = () => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            borderBottom: isTestPanelCollapsed ? 'none' : '1px solid #e2e8f0',
-            paddingBottom: isTestPanelCollapsed ? 0 : '0.45rem',
-            marginBottom: isTestPanelCollapsed ? 0 : '0.6rem',
-            flexWrap: 'wrap',
+            borderBottom: isVerticalCollapsed ? 'none' : '1px solid #e2e8f0',
+            paddingBottom: isVerticalCollapsed ? 0 : '0.45rem',
+            marginBottom: isVerticalCollapsed ? 0 : '0.6rem',
+            height: isVerticalCollapsed ? '100%' : 'auto',
+            flexWrap: isVerticalCollapsed ? 'nowrap' : 'wrap',
             gap: '0.5rem',
             flexShrink: 0,
             cursor: 'pointer',
             userSelect: 'none',
           }}
-          title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
+          title={isVerticalCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
@@ -2158,6 +2242,9 @@ export const ExerciseView: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setTestPanelPlacement(opt.id);
+                          if (opt.id === 'middle-column' || opt.id === 'right-column') {
+                            setCollapsedVerticalSlot('none');
+                          }
                           setIsPlacementMenuOpen(false);
                           try {
                             localStorage.setItem('benigascode_test_panel_placement', opt.id);
@@ -2200,7 +2287,7 @@ export const ExerciseView: React.FC = () => {
         </div>
 
         {/* Contenido del resultado de pruebas */}
-        {!isTestPanelCollapsed && (
+        {!isVerticalCollapsed && (
           <div
             style={{
               flex: 1,
@@ -2475,6 +2562,21 @@ export const ExerciseView: React.FC = () => {
       );
     }
 
+    const isTopCollapsed = collapsedVerticalSlot === 'top';
+    const isBottomCollapsed = collapsedVerticalSlot === 'bottom';
+
+    const topSlotHeight = isTopCollapsed
+      ? `${TEST_PANEL_HEADER_HEIGHT}px`
+      : isBottomCollapsed
+        ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+        : `calc(${rightTopPanelRatio}% - 4px)`;
+
+    const bottomSlotHeight = isBottomCollapsed
+      ? `${TEST_PANEL_HEADER_HEIGHT}px`
+      : isTopCollapsed
+        ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+        : `calc(${100 - rightTopPanelRatio}% - 4px)`;
+
     if (testPanelPlacement === 'bottom-full') {
       return (
         <div
@@ -2487,48 +2589,44 @@ export const ExerciseView: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Fila superior: Enunciado + Splitter Horizontal + Editor */}
+          {/* Fila superior (TopSlot): Problema + Splitter Horizontal + Código */}
           <div
             ref={splitContainerRef}
             style={{
               display: 'flex',
               flexDirection: 'row',
               width: '100%',
-              height: isTestPanelCollapsed
-                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
-                : `calc(${rightTopPanelRatio}% - 4px)`,
-              minHeight: '160px',
+              height: topSlotHeight,
+              minHeight: isTopCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
               overflow: 'hidden',
               transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
-              userSelect: isDraggingSplitter ? 'none' : 'auto',
+              userSelect: draggingColSplitter ? 'none' : 'auto',
             }}
           >
             {renderStatementPanel({
               width: `calc(${leftPanelRatio}% - 4px)`,
               height: '100%',
-              minWidth: '260px',
-              maxWidth: '75%',
+              minWidth: '200px',
+              maxWidth: '80%',
             })}
 
-            {renderHorizontalSplitter()}
+            {renderHorizontalSplitter(1)}
 
             {renderEditorPanel({
               width: `calc(${100 - leftPanelRatio}% - 4px)`,
               height: '100%',
-              minWidth: '320px',
+              minWidth: '240px',
               flex: 1,
             })}
           </div>
 
-          {!isTestPanelCollapsed && renderVerticalSplitter()}
+          {renderVerticalSplitter()}
 
           {renderTestResultsPanel({
             width: '100%',
-            height: isTestPanelCollapsed
-              ? `${TEST_PANEL_HEADER_HEIGHT}px`
-              : `calc(${100 - rightTopPanelRatio}% - 4px)`,
-            minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
-            padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+            height: bottomSlotHeight,
+            minHeight: isBottomCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
+            padding: isBottomCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
             transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
           })}
         </div>
@@ -2545,10 +2643,10 @@ export const ExerciseView: React.FC = () => {
             width: '100%',
             height: '100%',
             overflow: 'hidden',
-            userSelect: isDraggingSplitter ? 'none' : 'auto',
+            userSelect: draggingColSplitter ? 'none' : 'auto',
           }}
         >
-          {/* Columna Izquierda: Enunciado (arriba) + Resultados Tests (abajo) */}
+          {/* Columna Izquierda: Problema (TopSlot) + Resultados Tests (BottomSlot) */}
           <div
             ref={rightContainerRef}
             style={{
@@ -2556,38 +2654,34 @@ export const ExerciseView: React.FC = () => {
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              minWidth: '260px',
-              maxWidth: '75%',
+              minWidth: '200px',
+              maxWidth: '80%',
               overflow: 'hidden',
             }}
           >
             {renderStatementPanel({
-              height: isTestPanelCollapsed
-                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
-                : `calc(${rightTopPanelRatio}% - 4px)`,
-              minHeight: '160px',
-              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
+              height: topSlotHeight,
+              minHeight: isTopCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
             })}
 
-            {!isTestPanelCollapsed && renderVerticalSplitter()}
+            {renderVerticalSplitter()}
 
             {renderTestResultsPanel({
-              height: isTestPanelCollapsed
-                ? `${TEST_PANEL_HEADER_HEIGHT}px`
-                : `calc(${100 - rightTopPanelRatio}% - 4px)`,
-              minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
-              padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+              height: bottomSlotHeight,
+              minHeight: isBottomCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
+              padding: isBottomCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
               transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
             })}
           </div>
 
-          {renderHorizontalSplitter()}
+          {renderHorizontalSplitter(1)}
 
-          {/* Columna Derecha: Editor altura completa */}
+          {/* Columna Derecha: Código altura completa */}
           {renderEditorPanel({
             width: `calc(${100 - leftPanelRatio}% - 4px)`,
             height: '100%',
-            minWidth: '320px',
+            minWidth: '240px',
             flex: 1,
           })}
         </div>
@@ -2604,41 +2698,45 @@ export const ExerciseView: React.FC = () => {
             width: '100%',
             height: '100%',
             overflow: 'hidden',
-            userSelect: isDraggingSplitter ? 'none' : 'auto',
+            userSelect: draggingColSplitter ? 'none' : 'auto',
           }}
         >
-          {/* Columna 1: Enunciado */}
+          {/* Columna 1: Problema */}
           {renderStatementPanel({
-            width: isTestPanelCollapsed
+            width: isTestColumnCollapsed
               ? `calc(${leftPanelRatio}% - 26px)`
-              : `calc(${leftPanelRatio * 0.72}% - 4px)`,
+              : `calc(${threeColRatios[0]}% - 5.33px)`,
             height: '100%',
-            minWidth: '240px',
-            transition: 'width 0.2s ease',
+            minWidth: '160px',
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
 
-          {renderHorizontalSplitter()}
+          {renderHorizontalSplitter(1)}
 
           {/* Columna 2: Resultados de Tests */}
           {renderTestResultsPanel({
-            width: isTestPanelCollapsed ? '44px' : '30%',
-            minWidth: isTestPanelCollapsed ? '44px' : '260px',
+            width: isTestColumnCollapsed ? '44px' : `calc(${threeColRatios[1]}% - 5.33px)`,
+            minWidth: isTestColumnCollapsed ? '44px' : '160px',
             height: '100%',
-            padding: isTestPanelCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
-            transition: 'width 0.2s ease',
+            padding: isTestColumnCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
 
-          <div style={{ width: '8px', flexShrink: 0 }} />
+          {isTestColumnCollapsed ? (
+            <div style={{ width: '8px', flexShrink: 0 }} />
+          ) : (
+            renderHorizontalSplitter(2)
+          )}
 
-          {/* Columna 3: Editor */}
+          {/* Columna 3: Código */}
           {renderEditorPanel({
-            width: isTestPanelCollapsed
+            width: isTestColumnCollapsed
               ? `calc(${100 - leftPanelRatio}% - 26px)`
-              : `calc(${100 - (leftPanelRatio * 0.72) - 30}% - 12px)`,
+              : `calc(${threeColRatios[2]}% - 5.33px)`,
             height: '100%',
-            minWidth: '320px',
+            minWidth: '160px',
             flex: 1,
-            transition: 'width 0.2s ease',
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
         </div>
       );
@@ -2654,40 +2752,46 @@ export const ExerciseView: React.FC = () => {
             width: '100%',
             height: '100%',
             overflow: 'hidden',
-            userSelect: isDraggingSplitter ? 'none' : 'auto',
+            userSelect: draggingColSplitter ? 'none' : 'auto',
           }}
         >
-          {/* Columna 1: Enunciado */}
+          {/* Columna 1: Problema */}
           {renderStatementPanel({
-            width: isTestPanelCollapsed
+            width: isTestColumnCollapsed
               ? `calc(${leftPanelRatio}% - 26px)`
-              : `calc(${leftPanelRatio * 0.75}% - 4px)`,
+              : `calc(${threeColRatios[0]}% - 5.33px)`,
             height: '100%',
-            minWidth: '240px',
-            transition: 'width 0.2s ease',
+            minWidth: '160px',
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
 
-          {renderHorizontalSplitter()}
+          {renderHorizontalSplitter(1)}
 
-          {/* Columna 2: Editor */}
+          {/* Columna 2: Código */}
           {renderEditorPanel({
-            width: isTestPanelCollapsed
+            width: isTestColumnCollapsed
               ? `calc(${100 - leftPanelRatio}% - 26px)`
-              : `calc(${(100 - (leftPanelRatio * 0.75)) * 0.58}% - 4px)`,
+              : `calc(${threeColRatios[1]}% - 5.33px)`,
             height: '100%',
-            minWidth: '300px',
-            transition: 'width 0.2s ease',
+            minWidth: '160px',
+            flex: isTestColumnCollapsed ? 1 : undefined,
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
 
-          <div style={{ width: '8px', flexShrink: 0 }} />
+          {isTestColumnCollapsed ? (
+            <div style={{ width: '8px', flexShrink: 0 }} />
+          ) : (
+            renderHorizontalSplitter(2)
+          )}
 
           {/* Columna 3: Resultados de Tests */}
           {renderTestResultsPanel({
-            width: isTestPanelCollapsed ? '44px' : `calc(${(100 - (leftPanelRatio * 0.75)) * 0.42}% - 8px)`,
-            minWidth: isTestPanelCollapsed ? '44px' : '260px',
+            width: isTestColumnCollapsed ? '44px' : `calc(${threeColRatios[2]}% - 5.33px)`,
+            minWidth: isTestColumnCollapsed ? '44px' : '160px',
             height: '100%',
-            padding: isTestPanelCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
-            transition: 'width 0.2s ease',
+            flex: isTestColumnCollapsed ? undefined : 1,
+            padding: isTestColumnCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
+            transition: draggingColSplitter ? 'none' : 'width 0.2s ease',
           })}
         </div>
       );
@@ -2703,20 +2807,20 @@ export const ExerciseView: React.FC = () => {
           width: '100%',
           height: '100%',
           overflow: 'hidden',
-          userSelect: isDraggingSplitter ? 'none' : 'auto',
+          userSelect: draggingColSplitter ? 'none' : 'auto',
         }}
       >
-        {/* Columna Izquierda: Enunciado */}
+        {/* Columna Izquierda: Problema altura completa */}
         {renderStatementPanel({
           width: `calc(${leftPanelRatio}% - 4px)`,
           height: '100%',
-          minWidth: '260px',
-          maxWidth: '75%',
+          minWidth: '200px',
+          maxWidth: '80%',
         })}
 
-        {renderHorizontalSplitter()}
+        {renderHorizontalSplitter(1)}
 
-        {/* Columna Derecha: Editor (arriba) + Resultados Tests (abajo) */}
+        {/* Columna Derecha: Código (TopSlot) + Resultados Tests (BottomSlot) */}
         <div
           ref={rightContainerRef}
           style={{
@@ -2724,26 +2828,22 @@ export const ExerciseView: React.FC = () => {
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            minWidth: '320px',
+            minWidth: '240px',
             overflow: 'hidden',
           }}
         >
           {renderEditorPanel({
-            height: isTestPanelCollapsed
-              ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
-              : `calc(${rightTopPanelRatio}% - 4px)`,
-            minHeight: '160px',
-            transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
+            height: topSlotHeight,
+            minHeight: isTopCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
+            transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
           })}
 
-          {!isTestPanelCollapsed && renderVerticalSplitter()}
+          {renderVerticalSplitter()}
 
           {renderTestResultsPanel({
-            height: isTestPanelCollapsed
-              ? `${TEST_PANEL_HEADER_HEIGHT}px`
-              : `calc(${100 - rightTopPanelRatio}% - 4px)`,
-            minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
-            padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+            height: bottomSlotHeight,
+            minHeight: isBottomCollapsed ? `${TEST_PANEL_HEADER_HEIGHT}px` : '95px',
+            padding: isBottomCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
             transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
           })}
         </div>
