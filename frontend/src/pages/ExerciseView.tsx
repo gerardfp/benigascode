@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save, Lock } from 'lucide-react';
 import { MarkdownView } from '../components/MarkdownView';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
@@ -29,6 +29,113 @@ const SaveWithCheck: React.FC<{ size?: number; className?: string }> = ({ size =
     <polyline points="14.2 17 16.5 19.3 20 14.8" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </svg>
 );
+
+type TestPanelPlacement = 'bottom-full' | 'bottom-left' | 'bottom-right' | 'middle-column' | 'right-column';
+
+const PlacementIcon: React.FC<{ type: TestPanelPlacement }> = ({ type }) => {
+  switch (type) {
+    case 'bottom-full':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="16" height="16" rx="2" stroke="#64748b" strokeWidth="1.2" />
+          <line x1="1" y1="10" x2="17" y2="10" stroke="#64748b" strokeWidth="1" />
+          <line x1="9" y1="1" x2="9" y2="10" stroke="#64748b" strokeWidth="1" />
+          <rect x="2" y="11" width="14" height="5" rx="1" fill="#3b82f6" />
+        </svg>
+      );
+    case 'bottom-left':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="16" height="16" rx="2" stroke="#64748b" strokeWidth="1.2" />
+          <line x1="9" y1="1" x2="9" y2="17" stroke="#64748b" strokeWidth="1" />
+          <line x1="1" y1="9" x2="9" y2="9" stroke="#64748b" strokeWidth="1" />
+          <rect x="2" y="10" width="6" height="6" rx="1" fill="#3b82f6" />
+        </svg>
+      );
+    case 'bottom-right':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="16" height="16" rx="2" stroke="#64748b" strokeWidth="1.2" />
+          <line x1="9" y1="1" x2="9" y2="17" stroke="#64748b" strokeWidth="1" />
+          <line x1="9" y1="9" x2="17" y2="9" stroke="#64748b" strokeWidth="1" />
+          <rect x="10" y="10" width="6" height="6" rx="1" fill="#3b82f6" />
+        </svg>
+      );
+    case 'middle-column':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="16" height="16" rx="2" stroke="#64748b" strokeWidth="1.2" />
+          <line x1="6" y1="1" x2="6" y2="17" stroke="#64748b" strokeWidth="1" />
+          <line x1="12" y1="1" x2="12" y2="17" stroke="#64748b" strokeWidth="1" />
+          <rect x="7" y="2" width="4" height="14" rx="1" fill="#3b82f6" />
+        </svg>
+      );
+    case 'right-column':
+      return (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="16" height="16" rx="2" stroke="#64748b" strokeWidth="1.2" />
+          <line x1="6" y1="1" x2="6" y2="17" stroke="#64748b" strokeWidth="1" />
+          <line x1="12" y1="1" x2="12" y2="17" stroke="#64748b" strokeWidth="1" />
+          <rect x="13" y="2" width="3" height="14" rx="1" fill="#3b82f6" />
+        </svg>
+      );
+  }
+};
+
+const PLACEMENT_OPTIONS: { id: TestPanelPlacement; label: string }[] = [
+  { id: 'bottom-full', label: 'Debajo ancho completo' },
+  { id: 'bottom-left', label: 'Debajo del enunciado' },
+  { id: 'bottom-right', label: 'Debajo del código' },
+  { id: 'middle-column', label: 'Columna central' },
+  { id: 'right-column', label: 'Columna derecha' },
+];
+
+const getTestStatusInfo = (status: string) => {
+  switch (status) {
+    case 'PASSED':
+      return {
+        label: 'Superado',
+        color: '#16a34a',
+        bgColor: '#f0fdf4',
+        borderColor: '#bbf7d0',
+        icon: '✓',
+      };
+    case 'FAILED':
+      return {
+        label: 'Fallido',
+        color: '#dc2626',
+        bgColor: '#fef2f2',
+        borderColor: '#fecaca',
+        icon: '✗',
+      };
+    case 'TIMEOUT':
+    case 'TIME_LIMIT_EXCEEDED':
+      return {
+        label: 'Tiempo excedido',
+        color: '#d97706',
+        bgColor: '#fffbeb',
+        borderColor: '#fde68a',
+        icon: '⏱',
+      };
+    case 'RUNTIME_ERROR':
+      return {
+        label: 'Error en ejecución',
+        color: '#7c3aed',
+        bgColor: '#faf5ff',
+        borderColor: '#e9d5ff',
+        icon: '!',
+      };
+    case 'PENDING':
+    default:
+      return {
+        label: 'Pendiente',
+        color: '#64748b',
+        bgColor: '#f8fafc',
+        borderColor: '#e2e8f0',
+        icon: '○',
+      };
+  }
+};
 
 export const ExerciseView: React.FC = () => {
   const { activityId, collectionId, exerciseId } = useParams<{
@@ -126,6 +233,35 @@ export const ExerciseView: React.FC = () => {
   const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState<boolean>(false);
   const [isSmallScreen, setIsSmallScreen] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 992 : false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  const [testPanelPlacement, setTestPanelPlacement] = useState<TestPanelPlacement>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('benigascode_test_panel_placement');
+      if (saved && ['bottom-full', 'bottom-left', 'bottom-right', 'middle-column', 'right-column'].includes(saved)) {
+        return saved as TestPanelPlacement;
+      }
+    }
+    return 'bottom-right';
+  });
+  const [isPlacementMenuOpen, setIsPlacementMenuOpen] = useState(false);
+  const placementMenuRef = useRef<HTMLDivElement>(null);
+  const [activeTestTab, setActiveTestTab] = useState<number>(0);
+  const isColumnMode = testPanelPlacement === 'middle-column' || testPanelPlacement === 'right-column';
+
+  useEffect(() => {
+    if (!isPlacementMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (placementMenuRef.current && !placementMenuRef.current.contains(e.target as Node)) {
+        setIsPlacementMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isPlacementMenuOpen]);
+
+  useEffect(() => {
+    setActiveTestTab(0);
+  }, [previewResult, evaluation]);
 
   // Detectar cambios en tamaño de ventana para modo responsive
   useEffect(() => {
@@ -743,6 +879,61 @@ export const ExerciseView: React.FC = () => {
     return testName || testId;
   }, [publicTests]);
 
+  const displayTests = useMemo(() => {
+    if (previewResult) {
+      if (!previewResult.compileSuccess) return [];
+      if (previewResult.testResults && previewResult.testResults.length > 0) {
+        return previewResult.testResults.map((tr, idx) => {
+          const pubTest = publicTests.find((p) => p.id === tr.testId) || publicTests[idx];
+          return {
+            id: tr.testId || `pub-${idx}`,
+            name: getTestDisplayName(tr.testId, tr.testName, idx),
+            status: (tr.passed ? 'PASSED' : (tr.status || 'FAILED')) as 'PASSED' | 'FAILED' | 'TIMEOUT' | 'RUNTIME_ERROR' | 'PENDING',
+            durationMs: tr.durationMs,
+            input: pubTest?.input,
+            expectedOutput: tr.expectedOutput || pubTest?.expectedOutput,
+            actualOutput: tr.stdout,
+            stderr: undefined,
+            isPublic: true,
+          };
+        });
+      }
+    }
+    if (evaluation) {
+      if (evaluation.status === 'COMPILE_ERROR') return [];
+      if (evaluation.testResults && evaluation.testResults.length > 0) {
+        return evaluation.testResults.map((tr, idx) => {
+          const pubTest = tr.isPublic ? (publicTests.find((p) => p.id === tr.testId) || publicTests[idx]) : undefined;
+          return {
+            id: tr.testId || tr.id || `eval-${idx}`,
+            name: tr.testName || getTestDisplayName(tr.testId, undefined, idx),
+            status: (tr.status || 'FAILED') as 'PASSED' | 'FAILED' | 'TIMEOUT' | 'RUNTIME_ERROR' | 'PENDING',
+            durationMs: tr.durationMs,
+            input: pubTest?.input,
+            expectedOutput: tr.expectedOutput || pubTest?.expectedOutput,
+            actualOutput: tr.actualOutput || tr.stdout,
+            stderr: tr.stderr,
+            isPublic: tr.isPublic,
+          };
+        });
+      }
+    }
+    if (publicTests && publicTests.length > 0) {
+      return publicTests.map((pt, idx) => ({
+        id: pt.id || `pub-${idx}`,
+        name: pt.name || `Test Público #${idx + 1}`,
+        status: 'PENDING' as const,
+        durationMs: undefined,
+        input: pt.input,
+        expectedOutput: pt.expectedOutput,
+        actualOutput: undefined,
+        stderr: undefined,
+        isPublic: true,
+      }));
+    }
+    return [];
+  }, [previewResult, evaluation, publicTests, getTestDisplayName]);
+
   // Ejecución real de pruebas preliminares públicas
   const handlePreviewRun = async () => {
     if (!exerciseId || !canPreview) return;
@@ -779,11 +970,12 @@ export const ExerciseView: React.FC = () => {
     }
   };
 
-  // Sondeo de la cola hasta que el worker daemon finalice la evaluación
+  // Sondeo adaptativo de la cola hasta que el worker daemon finalice la evaluación
   const pollEvaluation = async (submissionId: string) => {
-    const maxAttempts = 25;
+    const maxAttempts = 45;
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 1500));
+      const delayMs = i < 6 ? 600 : i < 20 ? 1000 : 1500;
+      await new Promise((r) => setTimeout(r, delayMs));
       try {
         const evals = await api.getEvaluations(submissionId);
         if (evals && evals.length > 0) {
@@ -893,56 +1085,19 @@ export const ExerciseView: React.FC = () => {
     );
   }
 
-  return (
+  const renderStatementPanel = (customStyle?: React.CSSProperties) => (
     <div
+      className="card"
       style={{
-        width: '100%',
-        maxWidth: '100%',
-        height: isSmallScreen ? 'auto' : 'calc(100vh - 65px)',
         display: 'flex',
         flexDirection: 'column',
+        height: isSmallScreen ? 'auto' : '100%',
         boxSizing: 'border-box',
-        padding: '6px',
+        padding: '0.75rem 1rem',
+        overflow: 'hidden',
+        ...customStyle,
       }}
     >
-      <div
-        ref={splitContainerRef}
-        style={{
-          display: 'flex',
-          flexDirection: isSmallScreen ? 'column' : 'row',
-          gap: isSmallScreen ? '1.5rem' : 0,
-          alignItems: 'stretch',
-          userSelect: isDraggingSplitter ? 'none' : 'auto',
-          flex: isSmallScreen ? 'none' : 1,
-          minHeight: 0,
-          height: isSmallScreen ? 'auto' : '100%',
-          overflow: isSmallScreen ? 'visible' : 'hidden',
-        }}
-      >
-        {/* Panel Izquierdo: Tarjeta única con navegación, selector, enunciado/entregas y tests */}
-        <div
-          style={{
-            width: isSmallScreen ? '100%' : `calc(${leftPanelRatio}% - 4px)`,
-            minWidth: isSmallScreen ? undefined : '260px',
-            maxWidth: isSmallScreen ? undefined : '75%',
-            display: 'flex',
-            flexDirection: 'column',
-            boxSizing: 'border-box',
-            height: isSmallScreen ? 'auto' : '100%',
-            overflow: isSmallScreen ? 'visible' : 'hidden',
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: isSmallScreen ? 'auto' : '100%',
-              boxSizing: 'border-box',
-              padding: '0.75rem 1rem',
-              overflow: 'hidden',
-            }}
-          >
             {/* Barra superior de navegación y selector de vista */}
             <div
               style={{
@@ -1476,75 +1631,56 @@ export const ExerciseView: React.FC = () => {
               )}
             </div>
           )}
-            </div>
-          </div>
         </div>
+      </div>
+    );
 
-        {/* Espacio entre bloques que actúa como manejador de redimensionado (estilo VS Code, 8px) */}
-        {!isSmallScreen && (
-          <div
-            onMouseDown={() => setIsDraggingSplitter(true)}
-            onTouchStart={() => setIsDraggingSplitter(true)}
-            style={{
-              width: '8px',
-              cursor: 'col-resize',
-              flexShrink: 0,
-              userSelect: 'none',
-              background: isDraggingSplitter ? '#3b82f6' : 'transparent',
-              borderRadius: '4px',
-              transition: 'background-color 0.15s ease',
-              zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            title="Arrastra para redimensionar paneles"
-          >
-            <div
-              style={{
-                width: '3px',
-                height: '36px',
-                borderRadius: '2px',
-                backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
-              }}
-            />
-          </div>
-        )}
-
-        {/* Panel Derecho: Editor (arriba) y Resultados de Tests (abajo) con divisor vertical */}
+  const renderHorizontalSplitter = () => {
+    if (isSmallScreen) return null;
+    return (
+      <div
+        onMouseDown={() => setIsDraggingSplitter(true)}
+        onTouchStart={() => setIsDraggingSplitter(true)}
+        style={{
+          width: '8px',
+          cursor: 'col-resize',
+          flexShrink: 0,
+          userSelect: 'none',
+          background: isDraggingSplitter ? '#3b82f6' : 'transparent',
+          borderRadius: '4px',
+          transition: 'background-color 0.15s ease',
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        title="Arrastra para redimensionar paneles"
+      >
         <div
-          ref={rightContainerRef}
           style={{
-            width: isSmallScreen ? '100%' : `calc(${100 - leftPanelRatio}% - 4px)`,
-            flex: isSmallScreen ? undefined : 1,
-            minWidth: isSmallScreen ? undefined : '320px',
-            display: 'flex',
-            flexDirection: 'column',
-            boxSizing: 'border-box',
-            height: isSmallScreen ? 'auto' : '100%',
-            overflow: isSmallScreen ? 'visible' : 'hidden',
-            gap: 0,
+            width: '3px',
+            height: '36px',
+            borderRadius: '2px',
+            backgroundColor: isDraggingSplitter ? '#ffffff' : '#cbd5e1',
           }}
-        >
-          {/* Tarjeta Superior: Editor de Código */}
-          <div
-            className="card"
-            style={{
-              height: isSmallScreen
-                ? 'auto'
-                : isTestPanelCollapsed
-                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
-                : `calc(${rightTopPanelRatio}% - 4px)`,
-              minHeight: isSmallScreen ? '320px' : '160px',
-              display: 'flex',
-              flexDirection: 'column',
-              boxSizing: 'border-box',
-              padding: '0.75rem 1rem',
-              overflow: 'hidden',
-              marginBottom: 0,
-              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
-            }}
-          >
+        />
+      </div>
+    );
+  };
+
+  const renderEditorPanel = (customStyle?: React.CSSProperties) => (
+    <div
+      className="card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        padding: '0.75rem 1rem',
+        overflow: 'hidden',
+        marginBottom: 0,
+        ...customStyle,
+      }}
+    >
             {/* Barra superior del Editor: 3 bloques (Izquierda, Centro, Derecha) */}
             <div
               style={{
@@ -1741,290 +1877,569 @@ export const ExerciseView: React.FC = () => {
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <CodeEditor value={code} onChange={setCode} language={currentLang} disabled={submitLoading} height="100%" />
             </div>
+    </div>
+  );
+
+  const renderVerticalSplitter = () => {
+    if (isSmallScreen) return null;
+    return (
+      <div
+        onMouseDown={() => setIsDraggingRightSplitter(true)}
+        onTouchStart={() => setIsDraggingRightSplitter(true)}
+        style={{
+          height: '8px',
+          cursor: 'row-resize',
+          flexShrink: 0,
+          userSelect: 'none',
+          background: isDraggingRightSplitter ? '#3b82f6' : 'transparent',
+          borderRadius: '4px',
+          transition: 'background-color 0.15s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+        title="Arrastra para redimensionar Editor y Tests"
+      >
+        <div
+          style={{
+            width: '36px',
+            height: '3px',
+            borderRadius: '2px',
+            backgroundColor: isDraggingRightSplitter ? '#ffffff' : '#cbd5e1',
+          }}
+        />
+      </div>
+    );
+  };
+
+  const renderTestResultsPanel = (customStyle?: React.CSSProperties) => {
+    const isEffectiveColumnMode = !isSmallScreen && isColumnMode;
+
+    if (isEffectiveColumnMode && isTestPanelCollapsed) {
+      return (
+        <div
+          className="card"
+          onClick={toggleTestPanel}
+          style={{
+            width: '44px',
+            minWidth: '44px',
+            height: '100%',
+            boxSizing: 'border-box',
+            padding: '0.75rem 0.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            userSelect: 'none',
+            overflow: 'visible',
+            backgroundColor: '#f8fafc',
+            position: 'relative',
+            ...customStyle,
+          }}
+          title="Expandir panel de tests"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+            <Terminal size={16} style={{ color: '#64748b' }} />
+            <span
+              style={{
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: '#334155',
+                letterSpacing: '0.05em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Test Result ({testSummary.counterText})
+            </span>
           </div>
 
-          {/* Divisor Vertical (Splitter) entre Editor y Resultados */}
-          {!isSmallScreen && (
-            <div
-              onMouseDown={() => setIsDraggingRightSplitter(true)}
-              onTouchStart={() => setIsDraggingRightSplitter(true)}
+          <div style={{ position: 'relative' }} ref={placementMenuRef}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPlacementMenuOpen((prev) => !prev);
+              }}
+              className="btn-secondary"
               style={{
-                height: '8px',
-                cursor: 'row-resize',
-                flexShrink: 0,
-                userSelect: 'none',
-                background: isDraggingRightSplitter ? '#3b82f6' : 'transparent',
-                borderRadius: '4px',
-                transition: 'background-color 0.15s ease',
-                display: 'flex',
+                padding: '0.2rem',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                zIndex: 10,
+                borderRadius: '0.375rem',
+                color: '#475569',
+                cursor: 'pointer',
               }}
-              title="Arrastra para redimensionar Editor y Tests"
+              title="Recolocar panel de resultados"
             >
+              <PlacementIcon type={testPanelPlacement} />
+            </button>
+
+            {isPlacementMenuOpen && (
               <div
                 style={{
-                  width: '36px',
-                  height: '3px',
-                  borderRadius: '2px',
-                  backgroundColor: isDraggingRightSplitter ? '#ffffff' : '#cbd5e1',
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: testPanelPlacement === 'right-column' ? 'auto' : 0,
+                  right: testPanelPlacement === 'right-column' ? 0 : 'auto',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  zIndex: 100,
+                  minWidth: '220px',
+                  padding: '0.35rem 0',
                 }}
-              />
-            </div>
-          )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {PLACEMENT_OPTIONS.map((opt) => {
+                  const isSelected = testPanelPlacement === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setTestPanelPlacement(opt.id);
+                        setIsPlacementMenuOpen(false);
+                        try {
+                          localStorage.setItem('benigascode_test_panel_placement', opt.id);
+                        } catch {
+                          // Ignore
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.625rem',
+                        width: '100%',
+                        padding: '0.45rem 0.75rem',
+                        border: 'none',
+                        background: isSelected ? '#eff6ff' : 'transparent',
+                        color: isSelected ? '#1d4ed8' : '#334155',
+                        fontWeight: isSelected ? 600 : 400,
+                        fontSize: '0.8125rem',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background-color 0.1s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <PlacementIcon type={opt.id} />
+                      <span style={{ flex: 1 }}>{opt.label}</span>
+                      {isSelected && <span style={{ fontSize: '0.875rem' }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
-          {/* Tarjeta Inferior: Casos de Prueba y Resultados */}
+    return (
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          position: 'relative',
+          ...customStyle,
+        }}
+      >
+        {/* Barra superior de Test Result */}
+        <div
+          onClick={toggleTestPanel}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: isTestPanelCollapsed ? 'none' : '1px solid #e2e8f0',
+            paddingBottom: isTestPanelCollapsed ? 0 : '0.45rem',
+            marginBottom: isTestPanelCollapsed ? 0 : '0.6rem',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            flexShrink: 0,
+            cursor: 'pointer',
+            userSelect: 'none',
+          }}
+          title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+              <Terminal size={15} style={{ color: '#64748b' }} />
+              <span>Test Result</span>
+            </div>
+
+            <span
+              style={{
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: '#334155',
+                backgroundColor: '#f1f5f9',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '0.375rem',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              {testSummary.counterText}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span
+              className={`badge ${testSummary.badgeClass}`}
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                letterSpacing: '0.03em',
+                padding: '0.25rem 0.65rem',
+              }}
+            >
+              {testSummary.statusText}
+            </span>
+
+            <div style={{ position: 'relative' }} ref={placementMenuRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPlacementMenuOpen((prev) => !prev);
+                }}
+                className="btn-secondary"
+                style={{
+                  padding: '0.25rem 0.45rem',
+                  fontSize: '0.75rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  borderRadius: '0.375rem',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  backgroundColor: isPlacementMenuOpen ? '#e2e8f0' : undefined,
+                }}
+                title="Recolocar panel de resultados"
+              >
+                <PlacementIcon type={testPanelPlacement} />
+              </button>
+
+              {isPlacementMenuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    right: 0,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    zIndex: 100,
+                    minWidth: '220px',
+                    padding: '0.35rem 0',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {PLACEMENT_OPTIONS.map((opt) => {
+                    const isSelected = testPanelPlacement === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setTestPanelPlacement(opt.id);
+                          setIsPlacementMenuOpen(false);
+                          try {
+                            localStorage.setItem('benigascode_test_panel_placement', opt.id);
+                          } catch {
+                            // Ignore
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.625rem',
+                          width: '100%',
+                          padding: '0.45rem 0.75rem',
+                          border: 'none',
+                          background: isSelected ? '#eff6ff' : 'transparent',
+                          color: isSelected ? '#1d4ed8' : '#334155',
+                          fontWeight: isSelected ? 600 : 400,
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background-color 0.1s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <PlacementIcon type={opt.id} />
+                        <span style={{ flex: 1 }}>{opt.label}</span>
+                        {isSelected && <span style={{ fontSize: '0.875rem' }}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Contenido del resultado de pruebas */}
+        {!isTestPanelCollapsed && (
           <div
-            className="card"
             style={{
-              height: isSmallScreen
-                ? 'auto'
-                : isTestPanelCollapsed
-                ? `${TEST_PANEL_HEADER_HEIGHT}px`
-                : `calc(${100 - rightTopPanelRatio}% - 4px)`,
-              minHeight: isSmallScreen ? 'auto' : `${TEST_PANEL_HEADER_HEIGHT}px`,
+              flex: 1,
+              minHeight: 0,
+              overflowY: isSmallScreen ? 'visible' : 'auto',
               display: 'flex',
               flexDirection: 'column',
-              boxSizing: 'border-box',
-              padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
-              overflow: 'hidden',
-              marginTop: 0,
-              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
+              gap: '0.75rem',
+              paddingRight: isSmallScreen ? 0 : '2px',
             }}
           >
-            {/* Barra superior de Testcase / Test Result */}
-            <div
-              onClick={toggleTestPanel}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderBottom: isTestPanelCollapsed ? 'none' : '1px solid #e2e8f0',
-                paddingBottom: isTestPanelCollapsed ? 0 : '0.45rem',
-                marginBottom: isTestPanelCollapsed ? 0 : '0.6rem',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                flexShrink: 0,
-                cursor: 'pointer',
-                userSelect: 'none',
-              }}
-              title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
-                  <Terminal size={15} style={{ color: '#64748b' }} />
-                  <span>Test Result</span>
-                </div>
-
-                <span
-                  style={{
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    color: '#334155',
-                    backgroundColor: '#f1f5f9',
-                    padding: '0.2rem 0.55rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid #e2e8f0',
-                  }}
-                >
-                  {testSummary.counterText}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span
-                  className={`badge ${testSummary.badgeClass}`}
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.03em',
-                    padding: '0.25rem 0.65rem',
-                  }}
-                >
-                  {testSummary.statusText}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleTestPanel();
-                  }}
-                  className="btn-secondary"
-                  style={{
-                    padding: '0.2rem 0.4rem',
-                    fontSize: '0.75rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '0.375rem',
-                    color: '#64748b',
-                    cursor: 'pointer',
-                  }}
-                  title={isTestPanelCollapsed ? 'Expandir panel de tests' : 'Colapsar panel de tests'}
-                >
-                  {isTestPanelCollapsed ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Contenedor scrolleable del resultado de pruebas (la cabecera superior permanece fija) */}
-            {!isTestPanelCollapsed && (
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  overflowY: isSmallScreen ? 'visible' : 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                  paddingRight: isSmallScreen ? 0 : '2px',
-                }}
-              >
-
-            {/* Contenido detallado del resultado de pruebas */}
             {errorMsg && (
-              <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
+              <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
                 {errorMsg}
               </div>
             )}
 
-            {/* Indicador de ejecución de pruebas públicas */}
-            {previewLoading && (
-              <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#1d4ed8', backgroundColor: '#eff6ff', borderRadius: '0.375rem', border: '1px solid #bfdbfe' }}>
+            {(previewLoading || submitLoading) && (
+              <div style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#1d4ed8', backgroundColor: '#eff6ff', borderRadius: '0.375rem', border: '1px solid #bfdbfe' }}>
                 <span style={{ fontSize: '1.25rem' }}>⏳</span>
-                <span style={{ fontSize: '0.875rem' }}>
-                  Ejecutando pruebas preliminares públicas en el sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'}...
+                <span style={{ fontSize: '0.8125rem' }}>
+                  {previewLoading
+                    ? `Ejecutando pruebas preliminares públicas en el sandbox de ${currentLang === 'python' ? 'Python 3' : 'Java 26'}...`
+                    : `Evaluando entrega oficial en el sandbox de ${currentLang === 'python' ? 'Python 3' : 'Java 26'}...`}
                 </span>
               </div>
             )}
 
-            {/* Resultado de pruebas preliminares públicas */}
-            {previewResult && !previewLoading && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>
-                    Sandbox: {previewResult.runtimeId?.includes('python') || currentLang === 'python' ? 'Python 3' : 'Java 26'}
+            {evaluation && !submitLoading && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 800, color: evaluation.score >= 100 ? '#15803d' : evaluation.score > 0 ? '#d97706' : '#b91c1c' }}>
+                    {evaluation.score}
                   </span>
-                  <span className={`badge ${previewResult.compileSuccess ? 'badge-success' : 'badge-danger'}`}>
-                    {previewResult.compileSuccess ? 'Compilación OK' : 'Error de Compilación'}
-                  </span>
+                  <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 600 }}>/ 100 pts</span>
                 </div>
 
-                {previewResult.compileSuccess ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {previewResult.testResults.map((tr, idx) => (
-                      <div
-                        key={tr.testId || idx}
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.3rem 0.6rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
+                  <span>Superados: <strong style={{ color: '#0f172a' }}>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
+                  <span style={{ color: '#cbd5e1' }}>•</span>
+                  <span>Públicos: <strong style={{ color: '#0f172a' }}>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
+                  <span style={{ color: '#cbd5e1' }}>•</span>
+                  <span>Privados: <strong style={{ color: '#0f172a' }}>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {previewResult && !previewLoading && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  Sandbox: {previewResult.runtimeId?.includes('python') || currentLang === 'python' ? 'Python 3' : 'Java 26'}
+                </span>
+                <span className={`badge ${previewResult.compileSuccess ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.75rem' }}>
+                  {previewResult.compileSuccess ? 'Compilación OK' : 'Error de Compilación'}
+                </span>
+              </div>
+            )}
+
+            {previewResult && !previewResult.compileSuccess && (
+              <div style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
+                <pre style={{ background: '#f8fafc', color: '#b91c1c', border: '1px solid #fecaca', padding: '0.5rem', borderRadius: '0.25rem', overflowX: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {previewResult.compileStderr || previewResult.compileStdout}
+                </pre>
+              </div>
+            )}
+
+            {evaluation && evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
+              <div style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
+                <pre style={{ background: '#1e293b', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {evaluation.compileStderr}
+                </pre>
+              </div>
+            )}
+
+            {/* Pestañas de tests (una por test) con título coloreado según resultado */}
+            {displayTests.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', flex: 1, minHeight: 0 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    borderBottom: '1px solid #e2e8f0',
+                    paddingBottom: '0.45rem',
+                    flexShrink: 0,
+                  }}
+                >
+                  {displayTests.map((t, idx) => {
+                    const isSelected = activeTestTab === idx;
+                    const statusInfo = getTestStatusInfo(t.status);
+                    return (
+                      <button
+                        key={t.id || idx}
+                        type="button"
+                        onClick={() => setActiveTestTab(idx)}
                         style={{
-                          padding: '0.625rem 0.875rem',
-                          background: tr.passed ? '#f0fdf4' : '#fef2f2',
-                          border: `1px solid ${tr.passed ? '#bbf7d0' : '#fecaca'}`,
-                          borderRadius: '0.5rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.25rem 0.55rem',
+                          borderRadius: '0.375rem',
+                          border: isSelected ? `1px solid ${statusInfo.borderColor}` : '1px solid transparent',
+                          backgroundColor: isSelected ? statusInfo.bgColor : 'transparent',
+                          color: statusInfo.color,
                           fontSize: '0.8125rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease',
+                          outline: 'none',
                         }}
+                        title={`${t.name} (${t.isPublic ? 'Público' : 'Privado'}, ${statusInfo.label})`}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                          <span>{getTestDisplayName(tr.testId, tr.testName, idx)} — {tr.status} ({tr.durationMs}ms)</span>
-                          <span style={{ color: tr.passed ? '#15803d' : '#b91c1c' }}>
-                            {tr.passed ? '✓ Superado' : '✗ Fallido'}
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            backgroundColor: isSelected ? statusInfo.color : '#e2e8f0',
+                            color: isSelected ? '#ffffff' : statusInfo.color,
+                          }}
+                        >
+                          {statusInfo.icon}
+                        </span>
+                        <span style={{ color: statusInfo.color }}>
+                          #{idx + 1}
+                        </span>
+                        {!t.isPublic && (
+                          <Lock size={12} style={{ color: statusInfo.color, opacity: 0.85 }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Detalle del test activo */}
+                {displayTests[activeTestTab] && (() => {
+                  const curTest = displayTests[activeTestTab];
+                  const statusInfo = getTestStatusInfo(curTest.status);
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8125rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e293b' }}>
+                            #{activeTestTab + 1}
                           </span>
+                          <span style={{ fontWeight: 700, color: statusInfo.color }}>
+                            {statusInfo.icon} {statusInfo.label}
+                          </span>
+                          {curTest.durationMs !== undefined && (
+                            <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                              ({curTest.durationMs}ms)
+                            </span>
+                          )}
                         </div>
-                        {!tr.passed && (
-                          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <div>
-                              <span style={{ color: '#64748b', fontWeight: 500 }}>Esperado:</span>
-                              <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#f1f5f9', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.expectedOutput || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                            </div>
-                            <div>
-                              <span style={{ color: '#64748b', fontWeight: 500 }}>Tu salida:</span>
-                              <pre style={{ margin: '0.15rem 0 0', padding: '0.35rem', background: '#fee2e2', borderRadius: '0.375rem', whiteSpace: 'pre-wrap' }}>{tr.stdout || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}</pre>
-                            </div>
-                          </div>
+                        {!curTest.isPublic ? (
+                          <span className="badge badge-neutral" style={{ fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <Lock size={11} /> Test Privado
+                          </span>
+                        ) : (
+                          <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                            Test Público
+                          </span>
                         )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
-                    <pre style={{ background: '#f8fafc', color: '#b91c1c', border: '1px solid #fecaca', padding: '0.5rem', borderRadius: '0.25rem', overflowX: 'auto', margin: 0 }}>
-                      {previewResult.compileStderr || previewResult.compileStdout}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
 
-            {/* Resultado de la evaluación oficial */}
-            {(submission || submitLoading) && !previewResult && !previewLoading && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>
-                      {submission
-                        ? `Entrega Oficial ${submission.attemptNumber ? `(Intento #${submission.attemptNumber})` : ''}`
-                        : 'Evaluando Entrega Oficial...'}
-                    </h4>
-                    {submission && (
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.2rem' }}>
-                        Registrada el {new Date(submission.createdAt).toLocaleString()}
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="badge badge-neutral" style={{ fontSize: '0.75rem' }}>
-                    {submission?.runtimeId?.includes('python') || submission?.language?.toLowerCase() === 'python' || currentLang === 'python'
-                      ? 'Python 3 Sandbox'
-                      : 'Java 26 Sandbox'}
-                  </span>
-                </div>
-
-                {submitLoading && (
-                  <div style={{ padding: '0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#2563eb' }}>
-                    <span style={{ fontSize: '1.25rem' }}>⏳</span>
-                    <span style={{ fontSize: '0.875rem' }}>
-                      El sandbox de {currentLang === 'python' ? 'Python 3' : 'Java 26'} está ejecutando las pruebas públicas y privadas en un contenedor aislado...
-                    </span>
-                  </div>
-                )}
-
-                {evaluation && (
-                  <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1.75rem', fontWeight: 800, color: evaluation.score >= 100 ? '#15803d' : evaluation.score > 0 ? '#d97706' : '#b91c1c' }}>
-                          {evaluation.score}
-                        </span>
-                        <span style={{ fontSize: '0.9375rem', color: '#64748b', fontWeight: 600 }}>/ 100 pts</span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8125rem', color: '#475569', backgroundColor: '#f8fafc', padding: '0.4rem 0.75rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
-                        <span>Tests superados: <strong style={{ color: '#0f172a' }}>{evaluation.passedTests || 0} / {evaluation.totalTests || 0}</strong></span>
-                        <span style={{ color: '#cbd5e1' }}>•</span>
-                        <span>Públicos: <strong style={{ color: '#0f172a' }}>{evaluation.passedPublicTests || 0} / {evaluation.totalPublicTests || 0}</strong></span>
-                        <span style={{ color: '#cbd5e1' }}>•</span>
-                        <span>Privados: <strong style={{ color: '#0f172a' }}>{evaluation.passedPrivateTests || 0} / {evaluation.totalPrivateTests || 0}</strong></span>
-                      </div>
-                    </div>
-
-                    {evaluation.status === 'COMPILE_ERROR' && evaluation.compileStderr && (
-                      <div style={{ marginTop: '0.75rem' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#b91c1c', marginBottom: '0.35rem' }}>
-                          Detalle del compilador / intérprete:
+                      {!curTest.isPublic ? (
+                        <div style={{ padding: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#64748b' }}>
+                          Este es un caso de prueba privado. Los datos de entrada y salida esperada están ocultos.
                         </div>
-                        <pre style={{ background: '#1e293b', color: '#f87171', padding: '0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', overflowX: 'auto', margin: 0 }}>
-                          {evaluation.compileStderr}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8125rem' }}>
+                          <div>
+                            <div style={{ color: '#475569', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
+                              Entrada:
+                            </div>
+                            <pre style={{ margin: 0, padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                              {curTest.input !== undefined && curTest.input !== '' ? curTest.input : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;sin entrada&gt;</span>}
+                            </pre>
+                          </div>
+
+                          <div>
+                            <div style={{ color: '#475569', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
+                              Salida esperada:
+                            </div>
+                            <pre style={{ margin: 0, padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                              {curTest.expectedOutput !== undefined && curTest.expectedOutput !== '' ? curTest.expectedOutput : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}
+                            </pre>
+                          </div>
+
+                          {curTest.actualOutput !== undefined && (
+                            <div>
+                              <div style={{ color: curTest.status === 'PASSED' ? '#16a34a' : '#dc2626', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
+                                Tu salida:
+                              </div>
+                              <pre
+                                style={{
+                                  margin: 0,
+                                  padding: '0.5rem',
+                                  background: curTest.status === 'PASSED' ? '#f0fdf4' : '#fef2f2',
+                                  border: `1px solid ${curTest.status === 'PASSED' ? '#bbf7d0' : '#fecaca'}`,
+                                  borderRadius: '0.375rem',
+                                  whiteSpace: 'pre-wrap',
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.8125rem',
+                                  color: curTest.status === 'PASSED' ? '#15803d' : '#991b1b',
+                                }}
+                              >
+                                {curTest.actualOutput !== '' ? curTest.actualOutput : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}
+                              </pre>
+                            </div>
+                          )}
+
+                          {curTest.stderr && (
+                            <div>
+                              <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
+                                Error / Traza:
+                              </div>
+                              <pre style={{ margin: 0, padding: '0.5rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '0.375rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.8125rem', color: '#b91c1c' }}>
+                                {curTest.stderr}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
-            {/* Estado inicial sin ejecuciones */}
-            {!previewLoading && !submitLoading && !previewResult && !evaluation && !errorMsg && (
+            {!previewLoading && !submitLoading && !previewResult && !evaluation && !errorMsg && displayTests.length === 0 && (
               <div
                 style={{
                   display: 'flex',
@@ -2043,11 +2458,312 @@ export const ExerciseView: React.FC = () => {
                 </p>
               </div>
             )}
-              </div>
-            )}
           </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderLayout = () => {
+    if (isSmallScreen) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+          {renderStatementPanel({ width: '100%', height: 'auto', minHeight: '300px' })}
+          {renderEditorPanel({ width: '100%', height: 'auto', minHeight: '400px' })}
+          {renderTestResultsPanel({ width: '100%', height: 'auto', minHeight: '260px' })}
+        </div>
+      );
+    }
+
+    if (testPanelPlacement === 'bottom-full') {
+      return (
+        <div
+          ref={rightContainerRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Fila superior: Enunciado + Splitter Horizontal + Editor */}
+          <div
+            ref={splitContainerRef}
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              width: '100%',
+              height: isTestPanelCollapsed
+                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+                : `calc(${rightTopPanelRatio}% - 4px)`,
+              minHeight: '160px',
+              overflow: 'hidden',
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
+              userSelect: isDraggingSplitter ? 'none' : 'auto',
+            }}
+          >
+            {renderStatementPanel({
+              width: `calc(${leftPanelRatio}% - 4px)`,
+              height: '100%',
+              minWidth: '260px',
+              maxWidth: '75%',
+            })}
+
+            {renderHorizontalSplitter()}
+
+            {renderEditorPanel({
+              width: `calc(${100 - leftPanelRatio}% - 4px)`,
+              height: '100%',
+              minWidth: '320px',
+              flex: 1,
+            })}
+          </div>
+
+          {!isTestPanelCollapsed && renderVerticalSplitter()}
+
+          {renderTestResultsPanel({
+            width: '100%',
+            height: isTestPanelCollapsed
+              ? `${TEST_PANEL_HEADER_HEIGHT}px`
+              : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+            minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
+            padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+            transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
+          })}
+        </div>
+      );
+    }
+
+    if (testPanelPlacement === 'bottom-left') {
+      return (
+        <div
+          ref={splitContainerRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            userSelect: isDraggingSplitter ? 'none' : 'auto',
+          }}
+        >
+          {/* Columna Izquierda: Enunciado (arriba) + Resultados Tests (abajo) */}
+          <div
+            ref={rightContainerRef}
+            style={{
+              width: `calc(${leftPanelRatio}% - 4px)`,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: '260px',
+              maxWidth: '75%',
+              overflow: 'hidden',
+            }}
+          >
+            {renderStatementPanel({
+              height: isTestPanelCollapsed
+                ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+                : `calc(${rightTopPanelRatio}% - 4px)`,
+              minHeight: '160px',
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
+            })}
+
+            {!isTestPanelCollapsed && renderVerticalSplitter()}
+
+            {renderTestResultsPanel({
+              height: isTestPanelCollapsed
+                ? `${TEST_PANEL_HEADER_HEIGHT}px`
+                : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+              minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
+              padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+              transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
+            })}
+          </div>
+
+          {renderHorizontalSplitter()}
+
+          {/* Columna Derecha: Editor altura completa */}
+          {renderEditorPanel({
+            width: `calc(${100 - leftPanelRatio}% - 4px)`,
+            height: '100%',
+            minWidth: '320px',
+            flex: 1,
+          })}
+        </div>
+      );
+    }
+
+    if (testPanelPlacement === 'middle-column') {
+      return (
+        <div
+          ref={splitContainerRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            userSelect: isDraggingSplitter ? 'none' : 'auto',
+          }}
+        >
+          {/* Columna 1: Enunciado */}
+          {renderStatementPanel({
+            width: isTestPanelCollapsed
+              ? `calc(${leftPanelRatio}% - 26px)`
+              : `calc(${leftPanelRatio * 0.72}% - 4px)`,
+            height: '100%',
+            minWidth: '240px',
+            transition: 'width 0.2s ease',
+          })}
+
+          {renderHorizontalSplitter()}
+
+          {/* Columna 2: Resultados de Tests */}
+          {renderTestResultsPanel({
+            width: isTestPanelCollapsed ? '44px' : '30%',
+            minWidth: isTestPanelCollapsed ? '44px' : '260px',
+            height: '100%',
+            padding: isTestPanelCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
+            transition: 'width 0.2s ease',
+          })}
+
+          <div style={{ width: '8px', flexShrink: 0 }} />
+
+          {/* Columna 3: Editor */}
+          {renderEditorPanel({
+            width: isTestPanelCollapsed
+              ? `calc(${100 - leftPanelRatio}% - 26px)`
+              : `calc(${100 - (leftPanelRatio * 0.72) - 30}% - 12px)`,
+            height: '100%',
+            minWidth: '320px',
+            flex: 1,
+            transition: 'width 0.2s ease',
+          })}
+        </div>
+      );
+    }
+
+    if (testPanelPlacement === 'right-column') {
+      return (
+        <div
+          ref={splitContainerRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            userSelect: isDraggingSplitter ? 'none' : 'auto',
+          }}
+        >
+          {/* Columna 1: Enunciado */}
+          {renderStatementPanel({
+            width: isTestPanelCollapsed
+              ? `calc(${leftPanelRatio}% - 26px)`
+              : `calc(${leftPanelRatio * 0.75}% - 4px)`,
+            height: '100%',
+            minWidth: '240px',
+            transition: 'width 0.2s ease',
+          })}
+
+          {renderHorizontalSplitter()}
+
+          {/* Columna 2: Editor */}
+          {renderEditorPanel({
+            width: isTestPanelCollapsed
+              ? `calc(${100 - leftPanelRatio}% - 26px)`
+              : `calc(${(100 - (leftPanelRatio * 0.75)) * 0.58}% - 4px)`,
+            height: '100%',
+            minWidth: '300px',
+            transition: 'width 0.2s ease',
+          })}
+
+          <div style={{ width: '8px', flexShrink: 0 }} />
+
+          {/* Columna 3: Resultados de Tests */}
+          {renderTestResultsPanel({
+            width: isTestPanelCollapsed ? '44px' : `calc(${(100 - (leftPanelRatio * 0.75)) * 0.42}% - 8px)`,
+            minWidth: isTestPanelCollapsed ? '44px' : '260px',
+            height: '100%',
+            padding: isTestPanelCollapsed ? '0.75rem 0.25rem' : '0.75rem 1rem',
+            transition: 'width 0.2s ease',
+          })}
+        </div>
+      );
+    }
+
+    // Default: 'bottom-right'
+    return (
+      <div
+        ref={splitContainerRef}
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          userSelect: isDraggingSplitter ? 'none' : 'auto',
+        }}
+      >
+        {/* Columna Izquierda: Enunciado */}
+        {renderStatementPanel({
+          width: `calc(${leftPanelRatio}% - 4px)`,
+          height: '100%',
+          minWidth: '260px',
+          maxWidth: '75%',
+        })}
+
+        {renderHorizontalSplitter()}
+
+        {/* Columna Derecha: Editor (arriba) + Resultados Tests (abajo) */}
+        <div
+          ref={rightContainerRef}
+          style={{
+            width: `calc(${100 - leftPanelRatio}% - 4px)`,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: '320px',
+            overflow: 'hidden',
+          }}
+        >
+          {renderEditorPanel({
+            height: isTestPanelCollapsed
+              ? `calc(100% - ${TEST_PANEL_HEADER_HEIGHT + 8}px)`
+              : `calc(${rightTopPanelRatio}% - 4px)`,
+            minHeight: '160px',
+            transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease',
+          })}
+
+          {!isTestPanelCollapsed && renderVerticalSplitter()}
+
+          {renderTestResultsPanel({
+            height: isTestPanelCollapsed
+              ? `${TEST_PANEL_HEADER_HEIGHT}px`
+              : `calc(${100 - rightTopPanelRatio}% - 4px)`,
+            minHeight: `${TEST_PANEL_HEADER_HEIGHT}px`,
+            padding: isTestPanelCollapsed ? '0.375rem 1rem' : '0.75rem 1rem',
+            transition: isDraggingRightSplitter ? 'none' : 'height 0.2s ease, padding 0.2s ease',
+          })}
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        height: isSmallScreen ? 'auto' : 'calc(100vh - 65px)',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        padding: '6px',
+      }}
+    >
+      {renderLayout()}
     </div>
   );
 };

@@ -89,6 +89,9 @@ public class SubmissionService {
     private final UserRepository userRepository;
     private final StudentProgressService studentProgressService;
     private final ObjectMapper objectMapper;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
     public SubmissionService(SubmissionRepository submissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -394,14 +397,10 @@ public class SubmissionService {
                     .header("Content-Type", "application/json")
                     .header("X-Runner-Token", runnerToken)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .timeout(Duration.ofSeconds(20))
+                    .timeout(Duration.ofSeconds(45))
                     .build();
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .build();
-
-            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
                 JsonNode resNode = objectMapper.readTree(response.body());

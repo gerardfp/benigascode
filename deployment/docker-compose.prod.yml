@@ -108,7 +108,8 @@ services:
       BENIGASCODE_API_URL: http://backend:8080/api/v1/runner
       RUNNER_TOKEN: ${RUNNER_TOKEN}
       WORKER_ID: runner-prod-01
-      MAX_CONCURRENT_JOBS: 1
+      MAX_CONCURRENT_JOBS: 2
+      POLL_INTERVAL_SECONDS: 0.5
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - benigascode_prod_runner_tmp:/tmp/benigascode

@@ -69,17 +69,36 @@ class PythonEvaluator:
                 f.write(source_code)
             os.chmod(main_file, 0o666)
 
-        # 2. Comprobación sintáctica (compilación py_compile)
+        # 2. Comprobación sintáctica (compilación py_compile) y ejecución en un único contenedor
         compile_cmd_str = compile_config.get("command")
         if not compile_cmd_str or "javac" in compile_cmd_str:
             compile_cmd_str = f"python3 -m py_compile {entry_file}"
         compile_cmd = compile_cmd_str.split()
         compile_timeout = compile_config.get("timeout_seconds", 10)
 
-        compile_res = self.sandbox.execute_in_sandbox(
+        run_cmd_str = run_config.get("command")
+        if not run_cmd_str or "java " in run_cmd_str:
+            run_cmd_str = f"python3 {entry_file}"
+        run_cmd = run_cmd_str.split()
+        run_timeout = run_config.get("timeout_seconds") or run_config.get("timeoutSeconds", 3)
+
+        memory_limit = run_config.get("memory_limit") or run_config.get("memoryLimit")
+        if not memory_limit and ("memory_limit_mb" in run_config or "memoryLimitMb" in run_config):
+            mb = run_config.get("memory_limit_mb") or run_config.get("memoryLimitMb")
+            memory_limit = f"{mb}m"
+        if not memory_limit:
+            memory_limit = "256m"
+
+        test_inputs = [t.get("input", "") for t in tests]
+
+        compile_res, exec_results = self.sandbox.execute_batch_in_sandbox(
             workspace_dir=workspace,
-            command=compile_cmd,
-            timeout_seconds=compile_timeout,
+            compile_command=compile_cmd,
+            compile_timeout=compile_timeout,
+            run_command=run_cmd,
+            test_inputs=test_inputs,
+            run_timeout=run_timeout,
+            memory_limit=memory_limit,
             image_name=self.image_name,
         )
 
@@ -96,20 +115,6 @@ class PythonEvaluator:
                 "test_results": [],
             }
 
-        # 3. Ejecutar suite de pruebas con Python 3
-        run_cmd_str = run_config.get("command")
-        if not run_cmd_str or "java " in run_cmd_str:
-            run_cmd_str = f"python3 {entry_file}"
-        run_cmd = run_cmd_str.split()
-        run_timeout = run_config.get("timeout_seconds") or run_config.get("timeoutSeconds", 3)
-
-        memory_limit = run_config.get("memory_limit") or run_config.get("memoryLimit")
-        if not memory_limit and ("memory_limit_mb" in run_config or "memoryLimitMb" in run_config):
-            mb = run_config.get("memory_limit_mb") or run_config.get("memoryLimitMb")
-            memory_limit = f"{mb}m"
-        if not memory_limit:
-            memory_limit = "256m"
-
         test_results = []
         total_score = 0.0
         all_passed = True
@@ -121,22 +126,14 @@ class PythonEvaluator:
         has_weights = sum(assigned_weights) > 0
         default_weight = (100.0 / total_tests) if (total_tests > 0 and not has_weights) else 0.0
 
-        for test in tests:
+        for idx, test in enumerate(tests):
             test_id = test.get("id") or test.get("testId") or "test"
             test_name = test.get("name") or test.get("testName") or test_id
-            test_input = test.get("input", "")
             expected_output = test.get("expected") if "expected" in test else test.get("expectedOutput", "")
             weight = float(test.get("weight", 0.0) or 0.0) if has_weights else default_weight
             is_public = test.get("is_public") if "is_public" in test else test.get("isPublic", False)
 
-            exec_res = self.sandbox.execute_in_sandbox(
-                workspace_dir=workspace,
-                command=run_cmd,
-                stdin_data=test_input,
-                timeout_seconds=run_timeout,
-                memory_limit=memory_limit,
-                image_name=self.image_name,
-            )
+            exec_res = exec_results[idx]
 
             if exec_res.timed_out:
                 status = "TIMEOUT"

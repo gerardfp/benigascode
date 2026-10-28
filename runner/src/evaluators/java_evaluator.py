@@ -72,17 +72,40 @@ class JavaEvaluator:
                 f.write(source_code)
             os.chmod(main_file, 0o666)
 
-        # 2. Compilar con Java 26
+        # 2. Preparar comandos de compilación y ejecución con flags de arranque rápido para JVM
         compile_cmd_str = compile_config.get("command", f"javac {class_name}.java")
         if class_name != "Main" and "Main.java" in compile_cmd_str:
             compile_cmd_str = compile_cmd_str.replace("Main.java", f"{class_name}.java")
         compile_cmd = compile_cmd_str.split()
+        if compile_cmd and compile_cmd[0] == "javac" and "-J-XX:TieredStopAtLevel=1" not in compile_cmd:
+            compile_cmd = ["javac", "-J-XX:TieredStopAtLevel=1", "-J-XX:+UseSerialGC"] + compile_cmd[1:]
         compile_timeout = compile_config.get("timeout_seconds", 15)
 
-        compile_res = self.sandbox.execute_in_sandbox(
+        run_cmd_str = run_config.get("command", f"java {class_name}")
+        if class_name != "Main" and "Main" in run_cmd_str:
+            run_cmd_str = run_cmd_str.replace("Main", class_name)
+        run_cmd = run_cmd_str.split()
+        if run_cmd and run_cmd[0] == "java" and "-XX:TieredStopAtLevel=1" not in run_cmd:
+            run_cmd = ["java", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC"] + run_cmd[1:]
+        run_timeout = run_config.get("timeout_seconds") or run_config.get("timeoutSeconds", 3)
+
+        memory_limit = run_config.get("memory_limit") or run_config.get("memoryLimit")
+        if not memory_limit and ("memory_limit_mb" in run_config or "memoryLimitMb" in run_config):
+            mb = run_config.get("memory_limit_mb") or run_config.get("memoryLimitMb")
+            memory_limit = f"{mb}m"
+        if not memory_limit:
+            memory_limit = "256m"
+
+        test_inputs = [t.get("input", "") for t in tests]
+
+        compile_res, exec_results = self.sandbox.execute_batch_in_sandbox(
             workspace_dir=workspace,
-            command=compile_cmd,
-            timeout_seconds=compile_timeout,
+            compile_command=compile_cmd,
+            compile_timeout=compile_timeout,
+            run_command=run_cmd,
+            test_inputs=test_inputs,
+            run_timeout=run_timeout,
+            memory_limit=memory_limit,
         )
 
         if compile_res.exit_code != 0:
@@ -98,20 +121,6 @@ class JavaEvaluator:
                 "test_results": [],
             }
 
-        # 3. Ejecutar suite de pruebas con Java 26
-        run_cmd_str = run_config.get("command", f"java {class_name}")
-        if class_name != "Main" and "Main" in run_cmd_str:
-            run_cmd_str = run_cmd_str.replace("Main", class_name)
-        run_cmd = run_cmd_str.split()
-        run_timeout = run_config.get("timeout_seconds") or run_config.get("timeoutSeconds", 3)
-
-        memory_limit = run_config.get("memory_limit") or run_config.get("memoryLimit")
-        if not memory_limit and ("memory_limit_mb" in run_config or "memoryLimitMb" in run_config):
-            mb = run_config.get("memory_limit_mb") or run_config.get("memoryLimitMb")
-            memory_limit = f"{mb}m"
-        if not memory_limit:
-            memory_limit = "256m"
-
         test_results = []
         total_score = 0.0
         all_passed = True
@@ -123,21 +132,14 @@ class JavaEvaluator:
         has_weights = sum(assigned_weights) > 0
         default_weight = (100.0 / total_tests) if (total_tests > 0 and not has_weights) else 0.0
 
-        for test in tests:
+        for idx, test in enumerate(tests):
             test_id = test.get("id") or test.get("testId") or "test"
             test_name = test.get("name") or test.get("testName") or test_id
-            test_input = test.get("input", "")
             expected_output = test.get("expected") if "expected" in test else test.get("expectedOutput", "")
             weight = float(test.get("weight", 0.0) or 0.0) if has_weights else default_weight
             is_public = test.get("is_public") if "is_public" in test else test.get("isPublic", False)
 
-            exec_res = self.sandbox.execute_in_sandbox(
-                workspace_dir=workspace,
-                command=run_cmd,
-                stdin_data=test_input,
-                timeout_seconds=run_timeout,
-                memory_limit=memory_limit,
-            )
+            exec_res = exec_results[idx]
 
             if exec_res.timed_out:
                 status = "TIMEOUT"

@@ -141,7 +141,7 @@ public class ExerciseSolutionTestingService {
                     .header("Content-Type", "application/json")
                     .header("X-Runner-Token", runnerToken)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(60))
                     .build();
 
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
@@ -240,7 +240,7 @@ public class ExerciseSolutionTestingService {
                     .header("Content-Type", "application/json")
                     .header("X-Runner-Token", runnerToken)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(60))
                     .build();
 
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());

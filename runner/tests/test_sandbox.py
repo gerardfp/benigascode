@@ -52,6 +52,31 @@ class TestSandbox(unittest.TestCase):
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_batch_consecutive_timeout_short_circuit(self):
+        import tempfile
+        import time
+        tmp = tempfile.mkdtemp()
+        try:
+            start = time.time()
+            compile_res, test_results = self.sandbox.execute_batch_in_sandbox(
+                workspace_dir=tmp,
+                compile_command=["echo", "compile_ok"],
+                compile_timeout=5,
+                run_command=["sleep", "3"],
+                test_inputs=["1", "2", "3", "4", "5"],
+                run_timeout=1,
+                max_consecutive_timeouts=2,
+            )
+            elapsed = time.time() - start
+            self.assertEqual(compile_res.exit_code, 0)
+            self.assertEqual(len(test_results), 5)
+            self.assertTrue(all(r.timed_out for r in test_results))
+            # Con 5 tests de 1s y cortocircuito tras 2 timeouts, debe tardar ~2s en vez de 5s
+            self.assertLess(elapsed, 3.5)
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
 if __name__ == "__main__":
     unittest.main()
 
