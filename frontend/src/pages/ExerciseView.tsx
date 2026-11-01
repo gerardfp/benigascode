@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save, Lock } from 'lucide-react';
+import { CheckCircle2, FileText, History, Clock, ChevronLeft, ChevronRight, ArrowLeft, Copy, Clipboard, Check, Code2, Terminal, Save, Lock, Bug } from 'lucide-react';
 import { MarkdownView } from '../components/MarkdownView';
 import { api } from '../services/api';
 import { Exercise, PublicTest, PreviewRunResult, Submission, Evaluation, StudentProgress } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
 import { TagBadge } from '../components/TagBadge';
 import { detectLanguage } from '../utils/languageDetector';
+import { DebugStepperModal } from '../components/DebugStepperModal';
 
 const SaveWithCheck: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
   <svg
@@ -269,6 +270,8 @@ export const ExerciseView: React.FC = () => {
   const [isPlacementMenuOpen, setIsPlacementMenuOpen] = useState(false);
   const placementMenuRef = useRef<HTMLDivElement>(null);
   const [activeTestTab, setActiveTestTab] = useState<number>(0);
+  const [isStepperOpen, setIsStepperOpen] = useState<boolean>(false);
+  const [stepperTestIdx, setStepperTestIdx] = useState<number>(0);
   const isColumnMode = testPanelPlacement === 'middle-column' || testPanelPlacement === 'right-column';
 
   useEffect(() => {
@@ -918,7 +921,7 @@ export const ExerciseView: React.FC = () => {
             input: pubTest?.input,
             expectedOutput: tr.expectedOutput || pubTest?.expectedOutput,
             actualOutput: tr.stdout,
-            stderr: undefined,
+            stderr: tr.stderr,
             isPublic: true,
           };
         });
@@ -1907,6 +1910,36 @@ export const ExerciseView: React.FC = () => {
 
           <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0', margin: '0 0.15rem' }} />
 
+          {currentLang === 'java' && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetIdx = activeTestTab < publicTests.length ? activeTestTab : 0;
+                setStepperTestIdx(targetIdx);
+                setIsStepperOpen(true);
+              }}
+              disabled={!hasCode}
+              className="btn-secondary"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                opacity: hasCode ? 1 : 0.5,
+                cursor: hasCode ? 'pointer' : 'not-allowed',
+                backgroundColor: '#eff6ff',
+                color: '#1d4ed8',
+                borderColor: '#bfdbfe',
+              }}
+              title="Depurar paso a paso con los casos de prueba públicos"
+            >
+              <Bug size={14} />
+              Depurar
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handlePreviewRun}
@@ -2461,6 +2494,17 @@ export const ExerciseView: React.FC = () => {
                         )}
                       </div>
 
+                      {curTest.stderr && (
+                        <div style={{ fontSize: '0.8125rem' }}>
+                          <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
+                            Error / Traza:
+                          </div>
+                          <pre style={{ margin: 0, padding: '0.5rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '0.375rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.8125rem', color: '#b91c1c' }}>
+                            {curTest.stderr}
+                          </pre>
+                        </div>
+                      )}
+
                       {!curTest.isPublic ? (
                         <div style={{ padding: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#64748b' }}>
                           Este es un caso de prueba privado. Los datos de entrada y salida esperada están ocultos.
@@ -2504,17 +2548,6 @@ export const ExerciseView: React.FC = () => {
                                 }}
                               >
                                 {curTest.actualOutput !== '' ? curTest.actualOutput : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>&lt;vacío&gt;</span>}
-                              </pre>
-                            </div>
-                          )}
-
-                          {curTest.stderr && (
-                            <div>
-                              <div style={{ color: '#dc2626', fontWeight: 600, marginBottom: '0.2rem', fontSize: '0.75rem' }}>
-                                Error / Traza:
-                              </div>
-                              <pre style={{ margin: 0, padding: '0.5rem', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '0.375rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.8125rem', color: '#b91c1c' }}>
-                                {curTest.stderr}
                               </pre>
                             </div>
                           )}
@@ -2864,6 +2897,16 @@ export const ExerciseView: React.FC = () => {
       }}
     >
       {renderLayout()}
+      {currentLang === 'java' && (
+        <DebugStepperModal
+          isOpen={isStepperOpen}
+          onClose={() => setIsStepperOpen(false)}
+          initialCode={code}
+          publicTests={publicTests}
+          initialTestIndex={stepperTestIdx}
+          onApplyCode={setCode}
+        />
+      )}
     </div>
   );
 };

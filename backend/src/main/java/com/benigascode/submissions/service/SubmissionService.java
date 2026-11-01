@@ -426,6 +426,7 @@ public class SubmissionService {
                                 t.path("status").asText(),
                                 t.has("durationMs") ? t.path("durationMs").asInt() : t.path("duration_ms").asInt(),
                                 t.path("stdout").asText(),
+                                t.path("stderr").asText(""),
                                 t.has("expectedOutput") ? t.path("expectedOutput").asText() : t.path("expected_output").asText(),
                                 t.path("passed").asBoolean()
                         ));

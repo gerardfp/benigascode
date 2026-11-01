@@ -14,6 +14,7 @@ public record PreviewRunResponse(
         String status, // PASSED, FAILED, TIMEOUT, RUNTIME_ERROR
         int durationMs,
         String stdout,
+        String stderr,
         String expectedOutput,
         boolean passed
     ) {}

@@ -228,9 +228,9 @@ public class EvaluationService {
                 testResult.setPublic(tr.isPublic());
                 testResult.setStatus(tr.status());
                 testResult.setDurationMs(tr.durationMs());
-                // No almacenar la salida exacta de cada test en el histórico: solo cantidad de tests superados vs total y estado
+                // No almacenar la salida exacta de cada test en el histórico, salvo la traza de error (stderr) en caso de fallo en ejecución
                 testResult.setStdout(null);
-                testResult.setStderr(null);
+                testResult.setStderr(tr.stderr() != null && !tr.stderr().isBlank() ? tr.stderr() : null);
                 testResult.setExpectedOutput(null);
                 testResult.setActualOutput(null);
                 testResult.setScore(tr.score() != null ? tr.score() : BigDecimal.ZERO);

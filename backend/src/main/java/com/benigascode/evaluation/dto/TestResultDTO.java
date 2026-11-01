@@ -11,6 +11,7 @@ public record TestResultDTO(
     String status,
     int durationMs,
     String stdout,
+    String stderr,
     String expectedOutput,
     String actualOutput,
     BigDecimal score
@@ -21,6 +22,7 @@ public record TestResultDTO(
         String exp = canSeeDetails ? tr.getExpectedOutput() : null;
         String act = canSeeDetails ? tr.getActualOutput() : null;
         String out = canSeeDetails ? tr.getStdout() : null;
+        String err = tr.getStderr();
 
         return new TestResultDTO(
             tr.getId(),
@@ -29,6 +31,7 @@ public record TestResultDTO(
             tr.getStatus(),
             tr.getDurationMs(),
             out,
+            err,
             exp,
             act,
             tr.getScore()

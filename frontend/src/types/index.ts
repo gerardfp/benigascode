@@ -266,6 +266,7 @@ export interface PreviewRunResult {
     status: string;
     durationMs: number;
     stdout: string;
+    stderr?: string;
     expectedOutput: string;
     passed: boolean;
   }[];

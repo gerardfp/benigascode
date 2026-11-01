@@ -1,0 +1,714 @@
+/* ==========================================================================
+   Benigascode Java Stepper Modal & Interactive Debugger
+   ========================================================================== */
+
+:root {
+  --step-bg-container: #0b1120;
+  --step-bg-panel: #111827;
+  --step-bg-code: #030712;
+  --step-border: rgba(255, 255, 255, 0.1);
+  --step-border-focus: #38bdf8;
+  --step-text-main: #f1f5f9;
+  --step-text-muted: #94a3b8;
+  --step-accent-blue: #38bdf8;
+  --step-accent-indigo: #6366f1;
+  --step-accent-green: #10b981;
+  --step-accent-amber: #f59e0b;
+  --step-accent-red: #ef4444;
+  --step-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+  --step-radius: 10px;
+}
+
+/* Native <dialog> Modal Container (modern-web-guidance compliant) */
+dialog.stepper-dialog {
+  padding: 0;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--step-radius);
+  background: var(--step-bg-container);
+  color: var(--step-text-main);
+  width: 96vw;
+  max-width: 1480px;
+  height: 92vh;
+  max-height: 92vh;
+  margin: auto;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(56, 189, 248, 0.2);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+dialog.stepper-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+dialog.stepper-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+/* Stepper Outer Container inside Modal */
+.stepper-v2 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--step-bg-container);
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--step-text-main);
+  outline: none;
+}
+
+/* Phase Badges (For loop parts & statements) */
+.stepper-phase-badge,
+.stepper-v2 .stepper-phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.22em 0.7em;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 0.65em;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.stepper-phase-badge.part-init,
+.stepper-v2 .stepper-phase-badge.part-init {
+  background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+}
+
+.stepper-phase-badge.part-cond,
+.stepper-v2 .stepper-phase-badge.part-cond {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fbbf24;
+  border: 1px solid #f59e0b;
+}
+
+.stepper-phase-badge.part-body,
+.stepper-v2 .stepper-phase-badge.part-body {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34d399;
+  border: 1px solid #10b981;
+}
+
+.stepper-phase-badge.part-update,
+.stepper-v2 .stepper-phase-badge.part-update {
+  background: rgba(168, 85, 247, 0.22);
+  color: #c084fc;
+  border: 1px solid #a855f7;
+}
+
+.stepper-phase-badge.part-end,
+.stepper-v2 .stepper-phase-badge.part-end {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border: 1px solid #64748b;
+}
+
+.stepper-phase-badge.part-error,
+.stepper-v2 .stepper-phase-badge.part-error {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid #ef4444;
+}
+
+/* Controls Bar */
+.stepper-v2 .stepper-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.65em 1.1em;
+  background: #0f172a;
+  border-bottom: 1px solid var(--step-border);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.stepper-v2 .stepper-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.stepper-v2 .stepper-test-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  padding-left: 0.5em;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  flex-wrap: wrap;
+}
+
+.stepper-v2 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  padding: 0.4em 0.75em;
+  min-width: 34px;
+  background: #1f2937;
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.stepper-v2 button:hover:not(:disabled) {
+  background: #374151;
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.stepper-v2 button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper-v2 button.btn-next:hover:not(:disabled),
+.stepper-v2 button.btn-prev:hover:not(:disabled),
+.stepper-v2 button.btn-reset:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--step-accent-blue);
+  color: #38bdf8;
+}
+
+.stepper-v2 button.btn-test-pill {
+  padding: 0.3em 0.65em;
+  font-size: 0.76rem;
+  background: rgba(30, 41, 59, 0.8);
+  color: #94a3b8;
+}
+
+.stepper-v2 button.btn-test-pill.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.stepper-v2 button.btn-apply-code {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #34d399;
+  font-size: 0.78rem;
+}
+
+.stepper-v2 button.btn-apply-code:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: #10b981;
+  color: #ecfdf5;
+}
+
+.stepper-v2 button.btn-close-modal {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  padding: 0.4em 0.65em;
+}
+
+.stepper-v2 button.btn-close-modal:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.stepper-v2 button.btn-reset.needs-reset {
+  background: rgba(56, 189, 248, 0.25) !important;
+  border-color: var(--step-accent-blue) !important;
+  color: #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  animation: pulse-reset 1.8s infinite;
+}
+
+@keyframes pulse-reset {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+.stepper-v2 .stepper-slider {
+  flex: 1;
+  min-width: 120px;
+  height: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #374151;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.stepper-v2 .stepper-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--step-accent-blue);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+  transition: transform 0.1s ease;
+}
+
+.stepper-v2 .stepper-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.stepper-v2 .stepper-slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--step-accent-blue);
+  cursor: pointer;
+  border: none;
+}
+
+.stepper-v2 .step-counter {
+  font-family: var(--step-font-mono);
+  font-size: 0.8rem;
+  color: var(--step-text-muted);
+  min-width: 96px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Main Stepper Grid */
+.stepper-v2 .stepper-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--step-bg-panel);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 860px) {
+  .stepper-v2 .stepper-body {
+    grid-template-columns: minmax(380px, 1.35fr) minmax(300px, 1fr);
+  }
+}
+
+/* Code Panel (Left) */
+.stepper-v2 .stepper-code-panel {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+  background: var(--step-bg-code);
+  border-right: 1px solid var(--step-border);
+  overflow: auto;
+  overscroll-behavior: contain;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}
+
+.stepper-v2 .stepper-code-panel:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.4);
+}
+
+.stepper-v2 .code-gutter {
+  width: 46px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  background: rgba(0, 0, 0, 0.25);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  user-select: none;
+  pointer-events: none;
+  box-sizing: border-box;
+  min-height: 100%;
+}
+
+.stepper-v2 .code-line-num {
+  height: 1.6em;
+  line-height: 1.6;
+  text-align: right;
+  padding: 0 10px 0 6px;
+  color: #4b5563;
+  font-family: var(--step-font-mono);
+  font-size: 0.92rem;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+
+.stepper-v2 .code-line-num.active,
+.stepper-v2 .code-line-num.active-sub {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.stepper-v2 .code-pre {
+  flex: 1;
+  margin: 0 !important;
+  padding: 12px 14px !important;
+  background: transparent !important;
+  font-family: var(--step-font-mono);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  border: none !important;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.stepper-v2 .code-pre code {
+  display: block;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none;
+  min-width: 100%;
+  white-space: pre;
+  tab-size: 4;
+  caret-color: var(--step-accent-blue);
+}
+
+.stepper-v2 .code-line-row {
+  display: block;
+  min-height: 1.6em;
+  line-height: 1.6;
+  padding: 0 6px;
+  margin: 0 -6px;
+  box-sizing: border-box;
+  border-left: 3px solid transparent;
+  transition: background-color 0.12s ease;
+}
+
+.stepper-v2 .code-line-row.active {
+  background: rgba(56, 189, 248, 0.14);
+  border-left-color: #38bdf8;
+  border-radius: 0 4px 4px 0;
+}
+
+.stepper-v2 .code-line-row.active-sub {
+  background: rgba(56, 189, 248, 0.08);
+  border-left-color: rgba(56, 189, 248, 0.5);
+  border-radius: 0 4px 4px 0;
+}
+
+.stepper-v2 .code-line-content {
+  display: inline;
+  white-space: pre;
+  color: #e2e8f0;
+}
+
+/* Inline highlighted token / subexpression (FOR loop init / cond / update) */
+.stepper-v2 .hl-token {
+  display: inline-block;
+  background: rgba(56, 189, 248, 0.25);
+  border: 1.5px solid var(--step-accent-blue);
+  border-radius: 4px;
+  padding: 0 5px;
+  margin: 0 1px;
+  line-height: 1.35;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+  font-weight: 700;
+  color: #ffffff !important;
+}
+
+.stepper-v2 .hl-token * {
+  color: inherit !important;
+}
+
+.stepper-v2 .hl-token.part-init {
+  background: rgba(56, 189, 248, 0.28);
+  border-color: #38bdf8;
+  color: #e0f2fe !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+}
+
+.stepper-v2 .hl-token.part-cond {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #f59e0b;
+  color: #fef3c7 !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.55);
+}
+
+.stepper-v2 .hl-token.part-update {
+  background: rgba(168, 85, 247, 0.28);
+  border-color: #a855f7;
+  color: #f3e8ff !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.55);
+}
+
+.stepper-v2 .hl-token.part-body {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #d1fae5 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.stepper-v2 .hl-token.part-error {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #ef4444;
+  color: #fee2e2 !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.55);
+}
+
+/* Right Side: Info Panel (Variables, Consola Entrada, Consola Salida) */
+.stepper-v2 .stepper-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  padding: 0.9em;
+  background: var(--step-bg-panel);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* Memory / Variables Box */
+.stepper-v2 .stepper-mem {
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.75em 1em;
+  min-height: 110px;
+  flex: 1.1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--step-font-mono);
+  font-size: 0.88rem;
+}
+
+.stepper-v2 .stepper-mem-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--step-accent-green);
+  margin-bottom: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  flex-shrink: 0;
+}
+
+.stepper-v2 .stepper-mem-header::before {
+  content: '⚡';
+}
+
+.stepper-v2 .stepper-mem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.stepper-v2 .mem-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75em;
+  padding: 0.3em 0.55em;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.stepper-v2 .mem-item.changed {
+  background: rgba(16, 185, 129, 0.15);
+  border-left-color: var(--step-accent-green);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+.stepper-v2 .mem-name {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.stepper-v2 .mem-val {
+  color: #f1f5f9;
+  font-weight: 700;
+  word-break: break-all;
+  text-align: right;
+}
+
+.stepper-v2 .mem-item.changed .mem-val {
+  color: #34d399;
+}
+
+.stepper-v2 .stepper-mem-empty {
+  color: #475569;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+/* Console Boxes (In & Out) */
+.stepper-v2 .stepper-console {
+  background: #030712;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.75em 1em;
+  flex: 1;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--step-font-mono);
+  font-size: 0.88rem;
+  color: #e2e8f0;
+}
+
+.stepper-v2 .stepper-console-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4em;
+  flex-shrink: 0;
+}
+
+.stepper-v2 .stepper-console-in .stepper-console-header {
+  color: var(--step-accent-amber);
+}
+
+.stepper-v2 .stepper-console-in .stepper-console-header-title::before {
+  content: '⌨️ ';
+}
+
+.stepper-v2 .stepper-console-out .stepper-console-header {
+  color: var(--step-accent-blue);
+}
+
+.stepper-v2 .stepper-console-out .stepper-console-header-title::before {
+  content: '🖥️ ';
+}
+
+.stepper-v2 .stepper-console-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  flex: 1;
+  overflow-y: auto;
+  outline: none;
+}
+
+.stepper-v2 .stepper-console-in:focus-within {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+
+.stepper-v2 .stepper-console-empty {
+  color: #475569;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.stepper-v2 .in-line {
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.stepper-v2 .in-line.consumed {
+  color: #64748b;
+  text-decoration: line-through;
+  text-decoration-color: #ef4444;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stepper-v2 .in-part-consumed {
+  color: #64748b;
+  text-decoration: line-through;
+  text-decoration-color: #ef4444;
+}
+
+.stepper-v2 .in-part-pending {
+  color: #f8fafc;
+}
+
+/* Explanation Footer Bar */
+.stepper-v2 .stepper-explanation {
+  background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%);
+  border-top: 1px solid #1e40af;
+  padding: 0.7em 1.15em;
+  color: #f8fafc;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85em;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.stepper-v2 .stepper-explanation.is-error {
+  background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
+  border-top-color: #ef4444;
+}
+
+.stepper-v2 .stepper-explanation-content {
+  flex: 1;
+  min-width: 0;
+  display: block;
+}
+
+.stepper-v2 .stepper-explanation code,
+.stepper-v2 .stepper-explanation .w {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-family: var(--step-font-mono);
+  font-size: 0.88em;
+  color: #ffffff;
+}
+
+/* Highlight.js Dark Syntax Highlighting inside Stepper */
+.stepper-v2 .hljs-keyword,
+.stepper-v2 .hljs-selector-tag,
+.stepper-v2 .hljs-literal {
+  color: #c084fc;
+  font-weight: 600;
+}
+
+.stepper-v2 .hljs-type,
+.stepper-v2 .hljs-built_in {
+  color: #38bdf8;
+}
+
+.stepper-v2 .hljs-string,
+.stepper-v2 .hljs-char.escape_ {
+  color: #4ade80;
+}
+
+.stepper-v2 .hljs-number {
+  color: #fb923c;
+}
+
+.stepper-v2 .hljs-comment {
+  color: #64748b;
+  font-style: italic;
+}
+
+.stepper-v2 .hljs-title,
+.stepper-v2 .hljs-title.function_,
+.stepper-v2 .hljs-title.class_ {
+  color: #60a5fa;
+}
