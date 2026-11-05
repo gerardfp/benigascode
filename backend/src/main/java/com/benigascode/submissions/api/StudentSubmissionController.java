@@ -129,6 +129,7 @@ public class StudentSubmissionController {
             @PathVariable UUID exerciseVersionId,
             @Valid @RequestBody PreviewRunRequest request) {
         User user = userService.getCurrentUser();
+        workspaceService.recordPreview(exerciseVersionId, request, user);
         return ResponseEntity.ok(submissionService.previewRun(exerciseVersionId, request, user));
     }
 }

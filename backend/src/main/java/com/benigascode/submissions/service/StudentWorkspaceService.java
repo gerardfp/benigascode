@@ -1,5 +1,6 @@
 package com.benigascode.submissions.service;
 
+import com.benigascode.submissions.dto.PreviewRunRequest;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.content.domain.Exercise;
 import com.benigascode.content.domain.ExerciseVersion;
@@ -40,6 +41,15 @@ public class StudentWorkspaceService {
         return exerciseRepository.findById(idOrVersionId)
                 .or(() -> exerciseVersionRepository.findById(idOrVersionId).map(ExerciseVersion::getExercise))
                 .orElseThrow(() -> new ResourceNotFoundException("Ejercicio no encontrado"));
+    }
+
+    @Transactional
+    public void recordPreview(UUID exerciseId, PreviewRunRequest request, User student) {
+        Exercise exercise = resolveExercise(exerciseId);
+        StudentWorkspace workspace = workspaceRepository.findByStudentIdAndExerciseId(student.getId(), exercise.getId())
+                .orElseGet(() -> new StudentWorkspace(student, exercise, request.sourceCode(), request.language()));
+        workspace.setLastPreviewAt(Instant.now());
+        workspaceRepository.save(workspace);
     }
 
     @Transactional(readOnly = true)

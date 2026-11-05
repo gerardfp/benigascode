@@ -179,6 +179,8 @@ export const TeacherLiveView: React.FC = () => {
       .catch(console.error);
   }, [selectedSpaceId]);
 
+  const [previewActivity, setPreviewActivity] = useState<Awaited<ReturnType<typeof api.getTeacherPreviewActivity>>>([]);
+
   // Función de carga de envíos en vivo
   const fetchLiveSubmissions = useCallback(async () => {
     setIsFetching(true);
@@ -188,6 +190,8 @@ export const TeacherLiveView: React.FC = () => {
         spaceId: selectedSpaceId || undefined,
         since: sinceIso,
       });
+      const previews = await api.getTeacherPreviewActivity({ spaceId: selectedSpaceId || undefined, since: sinceIso });
+      setPreviewActivity(previews);
       setSubmissions(subs);
       setLastUpdated(new Date());
     } catch (err) {
@@ -258,6 +262,7 @@ export const TeacherLiveView: React.FC = () => {
       failed: number;
       binsCount: number[];
       binsPassed: number[];
+      binsPreviews: number[];
       lastSubmission?: TeacherSubmissionItem;
     }>();
 
@@ -269,6 +274,7 @@ export const TeacherLiveView: React.FC = () => {
         failed: 0,
         binsCount: new Array(bins.length).fill(0),
         binsPassed: new Array(bins.length).fill(0),
+        binsPreviews: new Array(bins.length).fill(0),
       });
     });
 
@@ -298,8 +304,15 @@ export const TeacherLiveView: React.FC = () => {
       }
     });
 
+    previewActivity.forEach(preview => {
+      const entry = map.get(preview.studentId);
+      if (!entry) return;
+      const time = new Date(preview.lastPreviewAt).getTime();
+      const index = bins.findIndex((bin, i) => time >= bin.start && (time < bin.end || (i === bins.length - 1 && time <= bin.end)));
+      if (index >= 0) entry.binsPreviews[index] += 1;
+    });
     return map;
-  }, [filteredStudents, filteredSubmissions, bins]);
+  }, [filteredStudents, filteredSubmissions, previewActivity, bins]);
 
   // Toggle expansión de estudiante
   const toggleStudentExpand = (id: string) => {
@@ -556,6 +569,11 @@ export const TeacherLiveView: React.FC = () => {
       {/* VISTA 1: Lista de Alumnos con Gráfica de Barras, Mini-Historial y KPIs */}
       {activeTab === 'students' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: '1rem', padding: '0.5rem 0.875rem', fontSize: '0.75rem' }}>
+            <span style={{ color: '#16a34a' }}>● Correctos</span>
+            <span style={{ color: '#dc2626' }}>● Incorrectos</span>
+            <span style={{ color: '#7c3aed' }}>● Pruebas</span>
+          </div>
           {filteredStudents.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
               No hay alumnos en el espacio seleccionado.
@@ -569,16 +587,24 @@ export const TeacherLiveView: React.FC = () => {
                   failed: 0,
                   binsCount: new Array(bins.length).fill(0),
                   binsPassed: new Array(bins.length).fill(0),
+                  binsPreviews: new Array(bins.length).fill(0),
                 };
 
-                const maxBinCount = Math.max(1, ...metrics.binsCount);
+                const maxBinCount = Math.max(1, ...metrics.binsCount.map((count, i) => count + metrics.binsPreviews[i]));
                 const isExpanded = expandedStudentIds.has(st.id);
                 const isLast = idx === filteredStudents.length - 1;
 
                 // Filtrar envíos específicos de este alumno en el período y ordenarlos cronológicamente (antiguos a recientes)
                 const stSubmissions = filteredSubmissions.filter(s => s.studentId === st.id);
                 const chronoSorted = [...stSubmissions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-                const recentSubs = chronoSorted.slice(-10);
+                const recentSubs = [
+                  ...chronoSorted.map(sub => ({ ...sub, isPreview: false })),
+                  ...previewActivity.filter(p => p.studentId === st.id).map(p => ({
+                    id: `preview-${p.exerciseId}`, exerciseId: p.exerciseId, exerciseTitle: p.exerciseTitle,
+                    createdAt: p.lastPreviewAt, isPreview: true, status: 'PREVIEW', evaluationStatus: 'PREVIEW',
+                    testsPassed: 0, totalTests: 0, attemptNumber: 0,
+                  })),
+                ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).slice(-10);
 
                 return (
                   <div 
@@ -647,6 +673,7 @@ export const TeacherLiveView: React.FC = () => {
                           title={st.fullName || st.username}
                         >
                           {st.fullName || st.username}
+
                         </div>
                       </div>
 
@@ -677,26 +704,16 @@ export const TeacherLiveView: React.FC = () => {
                             const passedCount = metrics.binsPassed[bIdx] || 0;
                             const failedCount = count - passedCount;
 
-                            // Altura proporcional
-                            const heightPct = count > 0 
-                              ? Math.max(15, Math.round((count / maxBinCount) * 100))
-                              : 4;
-
-                            // Color según resultado
-                            let barColor = '#cbd5e1';
-                            if (count > 0) {
-                              if (failedCount === 0) {
-                                barColor = '#22c55e'; // Todo correcto
-                              } else if (passedCount > 0) {
-                                barColor = '#3b82f6'; // Mixto
-                              } else {
-                                barColor = '#ef4444'; // Fallido
-                              }
-                            }
-
-                            const tooltip = count > 0 
-                              ? `${bin.label}: ${count} envío${count !== 1 ? 's' : ''} (${passedCount} superado${passedCount !== 1 ? 's' : ''}, ${failedCount} fallido${failedCount !== 1 ? 's' : ''})`
-                              : `${bin.label}: Sin envíos`;
+                            const previews = previewActivity.filter(p => p.studentId === st.id
+                              && new Date(p.lastPreviewAt).getTime() >= bin.start
+                              && (new Date(p.lastPreviewAt).getTime() < bin.end || (bIdx === bins.length - 1 && new Date(p.lastPreviewAt).getTime() <= bin.end)));
+                            const previewCount = metrics.binsPreviews[bIdx] || 0;
+                            const activityCount = count + previewCount;
+                            const heightPct = activityCount > 0
+                              ? Math.max(15, Math.round((activityCount / maxBinCount) * 100)) : 4;
+                            const tooltip = activityCount > 0
+                              ? `${bin.label}: ${passedCount} correctos, ${failedCount} incorrectos, ${previewCount} pruebas${previews.length ? ` · ${previews.map(p => p.exerciseTitle).join(', ')}` : ''}`
+                              : `${bin.label}: Sin actividad`;
 
                             return (
                               <div
@@ -704,14 +721,21 @@ export const TeacherLiveView: React.FC = () => {
                                 style={{
                                   flex: 1,
                                   height: `${heightPct}%`,
-                                  backgroundColor: barColor,
+                                  backgroundColor: activityCount ? undefined : '#cbd5e1',
+                                  display: 'flex',
+                                  flexDirection: 'column-reverse',
+                                  overflow: 'hidden',
                                   borderRadius: '2px 2px 0 0',
                                   transition: 'all 0.2s ease',
-                                  cursor: count > 0 ? 'pointer' : 'default',
-                                  opacity: count > 0 ? 1 : 0.4,
+                                  cursor: activityCount > 0 ? 'pointer' : 'default',
+                                  opacity: activityCount > 0 ? 1 : 0.4,
                                 }}
                                 title={tooltip}
-                              />
+                              >
+                                {passedCount > 0 && <div style={{ flex: passedCount, backgroundColor: '#22c55e' }} />}
+                                {failedCount > 0 && <div style={{ flex: failedCount, backgroundColor: '#ef4444' }} />}
+                                {previewCount > 0 && <div style={{ flex: previewCount, backgroundColor: '#7c3aed' }} />}
+                              </div>
                             );
                           })}
                         </div>
@@ -722,7 +746,9 @@ export const TeacherLiveView: React.FC = () => {
                         {recentSubs.length > 0 ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center' }}>
                             {recentSubs.map((sub, i) => {
-                              const { bg, statusLabel } = getSubmissionSquareInfo(sub);
+                              const { bg, statusLabel } = sub.isPreview
+                                ? { bg: '#7c3aed', statusLabel: 'Prueba' }
+                                : getSubmissionSquareInfo(sub as TeacherSubmissionItem);
                               const prevSub = recentSubs[i - 1];
                               const nextSub = recentSubs[i + 1];
 
@@ -738,14 +764,16 @@ export const TeacherLiveView: React.FC = () => {
                               const borderRight = isSameAsNext ? '1px solid rgba(255, 255, 255, 0.4)' : 'none';
 
                               const timeStr = new Date(sub.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                              const tooltip = `${sub.exerciseTitle} · Intento #${sub.attemptNumber} · ${statusLabel} (${sub.testsPassed}/${sub.totalTests}) · ${timeStr}`;
+                              const tooltip = sub.isPreview
+                                ? `${sub.exerciseTitle} · Prueba · ${timeStr}`
+                                : `${sub.exerciseTitle} · Intento #${sub.attemptNumber} · ${statusLabel} (${sub.testsPassed}/${sub.totalTests}) · ${timeStr}`;
 
                               return (
                                 <div
                                   key={sub.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedSubmissionId(sub.id);
+                                    if (!sub.isPreview) setSelectedSubmissionId(sub.id);
                                   }}
                                   title={tooltip}
                                   style={{
@@ -755,7 +783,7 @@ export const TeacherLiveView: React.FC = () => {
                                     borderRadius,
                                     marginRight,
                                     borderRight,
-                                    cursor: 'pointer',
+                                    cursor: sub.isPreview ? 'default' : 'pointer',
                                     flexShrink: 0,
                                     transition: 'transform 0.1s ease',
                                   }}

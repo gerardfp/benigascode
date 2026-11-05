@@ -9,6 +9,8 @@ import java.util.UUID;
 
 @Repository
 public interface StudentWorkspaceRepository extends JpaRepository<StudentWorkspace, UUID> {
+    java.util.List<StudentWorkspace> findByStudentIdInAndLastPreviewAtGreaterThanEqualOrderByLastPreviewAtDesc(java.util.Collection<UUID> studentIds, java.time.Instant since);
+
     Optional<StudentWorkspace> findByStudentIdAndExerciseId(UUID studentId, UUID exerciseId);
 }
 

@@ -33,6 +33,12 @@ public class StudentWorkspace {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    @Column(name = "last_preview_at")
+    private Instant lastPreviewAt;
+
+    public Instant getLastPreviewAt() { return lastPreviewAt; }
+    public void setLastPreviewAt(Instant value) { lastPreviewAt = value; }
+
     public StudentWorkspace() {
     }
 

@@ -551,6 +551,9 @@ export const api = {
     return request<TeacherInsightsDTO>(`/teacher/insights${qs ? `?${qs}` : ''}`);
   },
 
+  getTeacherPreviewActivity: (params: { spaceId?: string; since: string }): Promise<{ studentId: string; exerciseId: string; exerciseTitle: string; lastPreviewAt: string }[]> =>
+    request(`/teacher/preview-activity?${new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined) as [string, string][]).toString()}`),
+
   getTeacherSubmissions: (params?: {
     spaceId?: string;
     teachingSpaceId?: string;

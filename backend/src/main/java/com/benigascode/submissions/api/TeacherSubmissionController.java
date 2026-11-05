@@ -1,5 +1,8 @@
 package com.benigascode.submissions.api;
 
+import com.benigascode.content.repository.ExerciseVersionRepository;
+import com.benigascode.submissions.repository.StudentWorkspaceRepository;
+import com.benigascode.identity.service.TeacherStudentService;
 import com.benigascode.identity.domain.User;
 import com.benigascode.identity.service.UserService;
 import com.benigascode.submissions.dto.*;
@@ -22,10 +25,19 @@ public class TeacherSubmissionController {
     private final SubmissionService submissionService;
     private final StudentProgressService progressService;
     private final UserService userService;
+    private final TeacherStudentService studentService;
+    private final StudentWorkspaceRepository workspaceRepository;
+    private final ExerciseVersionRepository exerciseVersionRepository;
 
     public TeacherSubmissionController(SubmissionService submissionService,
                                        StudentProgressService progressService,
-                                       UserService userService) {
+                                       UserService userService,
+                                       TeacherStudentService studentService,
+                                       StudentWorkspaceRepository workspaceRepository,
+                                       ExerciseVersionRepository exerciseVersionRepository) {
+        this.studentService = studentService;
+        this.workspaceRepository = workspaceRepository;
+        this.exerciseVersionRepository = exerciseVersionRepository;
         this.submissionService = submissionService;
         this.progressService = progressService;
         this.userService = userService;
@@ -55,6 +67,19 @@ public class TeacherSubmissionController {
         User teacher = userService.getCurrentUser();
         UUID effectiveSpaceId = spaceId != null ? spaceId : courseId;
         return ResponseEntity.ok(submissionService.getTeacherSubmissions(effectiveSpaceId, groupId, studentId, exerciseId, status, search, since, teacher));
+    }
+
+    @GetMapping("/preview-activity")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<PreviewActivityDTO> getPreviewActivity(
+            @RequestParam(required = false) UUID spaceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since) {
+        var studentIds = studentService.listStudents(spaceId, null, null).stream().map(s -> s.id()).toList();
+        if (studentIds.isEmpty()) return List.of();
+        return workspaceRepository.findByStudentIdInAndLastPreviewAtGreaterThanEqualOrderByLastPreviewAtDesc(studentIds, since)
+                .stream().map(w -> new PreviewActivityDTO(w.getStudent().getId(), w.getExercise().getId(),
+                        exerciseVersionRepository.findLatestByExerciseId(w.getExercise().getId())
+                                .map(v -> v.getTitle()).orElse(w.getExercise().getSlug()), w.getLastPreviewAt())).toList();
     }
 
     // 3. Detalle completo de una entrega con código y tests

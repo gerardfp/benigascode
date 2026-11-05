@@ -1,5 +1,6 @@
 package com.benigascode.content.service;
 
+import com.benigascode.submissions.repository.StudentWorkspaceRepository;
 import com.benigascode.common.exception.AccessDeniedException;
 import com.benigascode.common.exception.ResourceNotFoundException;
 import com.benigascode.common.exception.ValidationException;
@@ -58,6 +59,7 @@ public class ContentService {
     private final AccessKeyRepository accessKeyRepository;
     private final AccessGrantRepository accessGrantRepository;
     private final StudentProgressRepository studentProgressRepository;
+    private final StudentWorkspaceRepository workspaceRepository;
     private final SubmissionRepository submissionRepository;
     private final StudentCollectionPreferenceRepository studentCollectionPreferenceRepository;
     private final TeachingSpaceRepository teachingSpaceRepository;
@@ -75,6 +77,7 @@ public class ContentService {
                           AccessKeyRepository accessKeyRepository,
                           AccessGrantRepository accessGrantRepository,
                           StudentProgressRepository studentProgressRepository,
+                          StudentWorkspaceRepository workspaceRepository,
                           SubmissionRepository submissionRepository,
                           StudentCollectionPreferenceRepository studentCollectionPreferenceRepository,
                           TeachingSpaceRepository teachingSpaceRepository,
@@ -91,6 +94,7 @@ public class ContentService {
         this.accessKeyRepository = accessKeyRepository;
         this.accessGrantRepository = accessGrantRepository;
         this.studentProgressRepository = studentProgressRepository;
+        this.workspaceRepository = workspaceRepository;
         this.submissionRepository = submissionRepository;
         this.studentCollectionPreferenceRepository = studentCollectionPreferenceRepository;
         this.teachingSpaceRepository = teachingSpaceRepository;
@@ -301,11 +305,16 @@ public class ContentService {
 
                                     if (passPercentage >= 100.0 || "MASTERED".equalsIgnoreCase(status) || ("PASSED".equalsIgnoreCase(status) && bestScore >= 100.0)) {
                                         completedCount++;
-                                    } else if (totalSubmissions > 0 || "ATTEMPTED".equalsIgnoreCase(status) || bestScore > 0.0) {
+                                    } else if (totalSubmissions > 0 || "ATTEMPTED".equalsIgnoreCase(status) || "IN_PROGRESS".equalsIgnoreCase(status) || bestScore > 0.0) {
                                         attemptedCount++;
                                     }
                                 }
 
+                                if ("NOT_STARTED".equalsIgnoreCase(status)
+                                        && workspaceRepository.findByStudentIdAndExerciseId(user.getId(), ex.getId()).isPresent()) {
+                                    status = "IN_PROGRESS";
+                                    attemptedCount++;
+                                }
                                 sumScore += bestScore;
                                 items.add(new CollectionProgressDTO.ExerciseProgressItemDTO(
                                         ex.getId(),

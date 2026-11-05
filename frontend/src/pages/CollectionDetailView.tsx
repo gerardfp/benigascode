@@ -719,7 +719,7 @@ export const CollectionDetailView: React.FC = () => {
             {filteredExercises.map((ex) => {
               const ep = getExerciseProgress(ex);
               const isResolved = ep && (ep.passPercentage >= 100 || ep.status === 'MASTERED' || (ep.status === 'PASSED' && ep.bestScore >= 100));
-              const isAttempted = ep && !isResolved && (ep.totalSubmissions > 0 || ep.status === 'ATTEMPTED' || ep.bestScore > 0);
+              const isAttempted = ep && !isResolved && (ep.totalSubmissions > 0 || ep.status === 'ATTEMPTED' || ep.status === 'IN_PROGRESS' || ep.bestScore > 0);
               const colorConfig = isAttempted ? getScoreColorConfig(ep.passPercentage) : null;
               const originalIndex = exercises.findIndex((e) => e.id === ex.id);
 
