@@ -610,8 +610,8 @@ export const TeacherLiveView: React.FC = () => {
                   <div 
                     key={st.id} 
                     style={{ 
-                      borderBottom: isLast && !isExpanded ? 'none' : '1px solid #f1f5f9',
-                      padding: '0.1rem 1rem',
+                      borderBottom: isLast && !isExpanded ? 'none' : '1px solid #94a3b8',
+                      padding: '0 1rem',
                       transition: 'background-color 0.15s ease',
                     }}
                   >
@@ -694,7 +694,7 @@ export const TeacherLiveView: React.FC = () => {
                             alignItems: 'flex-end', 
                             height: '28px', 
                             gap: '2px', 
-                            paddingBottom: '2px',
+                            paddingBottom: 0,
                             borderBottom: '1px solid #e2e8f0',
                             position: 'relative',
                           }}
@@ -823,7 +823,7 @@ export const TeacherLiveView: React.FC = () => {
                           disabled={metrics.total === 0}
                           className="btn-secondary"
                           style={{ 
-                            padding: '0.25rem', 
+                            padding: '0 0.25rem',
                             display: 'inline-flex', 
                             alignItems: 'center', 
                             justifyContent: 'center',
