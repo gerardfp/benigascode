@@ -1,39 +1,5 @@
 import React from 'react';
-import Editor, { OnMount, loader } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor/editor/editor.api.js';
-import 'monaco-editor/internal/common/workers.js';
-import 'monaco-editor/features/find/register.js';
-import 'monaco-editor/languages/definitions/java/register.js';
-import 'monaco-editor/languages/definitions/python/register.js';
-import 'monaco-editor/languages/definitions/markdown/register.js';
-import 'monaco-editor/languages/definitions/yaml/register.js';
-import 'monaco-editor/languages/definitions/sql/register.js';
-import 'monaco-editor/languages/definitions/shell/register.js';
-import 'monaco-editor/languages/definitions/javascript/register.js';
-import 'monaco-editor/languages/definitions/typescript/register.js';
-import 'monaco-editor/languages/definitions/cpp/register.js';
-import 'monaco-editor/languages/definitions/csharp/register.js';
-import 'monaco-editor/languages/definitions/html/register.js';
-import 'monaco-editor/languages/definitions/css/register.js';
-import 'monaco-editor/languages/definitions/xml/register.js';
-import 'monaco-editor/languages/features/json/register.js';
-
-self.MonacoEnvironment = {
-  getWorker(_: string, label: string) {
-    if (label === 'json') {
-      return new Worker(
-        new URL('monaco-editor/languages/features/json/json.worker.js', import.meta.url),
-        { type: 'module' }
-      );
-    }
-    return new Worker(
-      new URL('monaco-editor/editor/editor.worker.js', import.meta.url),
-      { type: 'module' }
-    );
-  },
-};
-
-loader.config({ monaco });
+import Editor, { OnMount } from '@monaco-editor/react';
 
 interface CodeEditorProps {
   value: string;
