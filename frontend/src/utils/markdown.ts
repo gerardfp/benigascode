@@ -2,18 +2,54 @@ import { Marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/vs2015.css';
-import mermaid from 'mermaid';
 
+const MERMAID_CDN_URL = 'https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js';
+let mermaidLoadPromise: Promise<any> | null = null;
 let mermaidInitialized = false;
-function ensureMermaidInitialized() {
-  if (!mermaidInitialized) {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-    });
-    mermaidInitialized = true;
+
+function loadMermaidFromCdn(): Promise<any> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Window not available'));
   }
+  const win = window as any;
+  if (win.mermaid) {
+    if (!mermaidInitialized) {
+      win.mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+      });
+      mermaidInitialized = true;
+    }
+    return Promise.resolve(win.mermaid);
+  }
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = MERMAID_CDN_URL;
+      script.async = true;
+      script.onload = () => {
+        if (win.mermaid) {
+          win.mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+          });
+          mermaidInitialized = true;
+          resolve(win.mermaid);
+        } else {
+          mermaidLoadPromise = null;
+          reject(new Error('Failed to load Mermaid from CDN'));
+        }
+      };
+      script.onerror = (err) => {
+        mermaidLoadPromise = null;
+        reject(err);
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return mermaidLoadPromise;
 }
 
 /**
@@ -171,20 +207,24 @@ export async function processMathAndMermaid(container: HTMLElement | null): Prom
   // 1. Renderizar diagramas Mermaid
   const mermaidNodes = container.querySelectorAll<HTMLElement>('.mermaid:not([data-processed="true"])');
   if (mermaidNodes.length > 0) {
-    ensureMermaidInitialized();
-    for (let i = 0; i < mermaidNodes.length; i++) {
-      const node = mermaidNodes[i];
-      const rawCode = node.textContent || '';
-      if (!rawCode.trim()) continue;
+    try {
+      const mermaid = await loadMermaidFromCdn();
+      for (let i = 0; i < mermaidNodes.length; i++) {
+        const node = mermaidNodes[i];
+        const rawCode = node.textContent || '';
+        if (!rawCode.trim()) continue;
 
-      const id = `mermaid-${Math.random().toString(36).substring(2, 9)}-${Date.now()}-${i}`;
-      try {
-        const { svg } = await mermaid.render(id, rawCode);
-        node.innerHTML = svg;
-        node.setAttribute('data-processed', 'true');
-      } catch {
-        node.setAttribute('data-processed', 'error');
+        const id = `mermaid-${Math.random().toString(36).substring(2, 9)}-${Date.now()}-${i}`;
+        try {
+          const { svg } = await mermaid.render(id, rawCode);
+          node.innerHTML = svg;
+          node.setAttribute('data-processed', 'true');
+        } catch {
+          node.setAttribute('data-processed', 'error');
+        }
       }
+    } catch {
+      // Error cargando Mermaid desde CDN
     }
   }
 
