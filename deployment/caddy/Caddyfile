@@ -14,7 +14,7 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Content-Security-Policy "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com https://*.githubusercontent.com; connect-src 'self';"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; img-src 'self' data: blob: https://github.com https://avatars.githubusercontent.com https://*.githubusercontent.com; connect-src 'self' https://cdn.jsdelivr.net;"
 	}
 
 	# Assets estáticos con hash inmutables
